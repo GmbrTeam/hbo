@@ -100,12 +100,6 @@ def buscar_pagina(endpoint, tipo, pagina=1, extra={}):
     return [x for x in (normalizar(r, tipo) for r in data.get("results", [])) if x and x["img"]]
 
 
-ERROR_PATTERNS = [
-    "404 not found", "this media is unavailable", "not found", "404",
-    "video not found", "movie not found", "unavailable", "no video",
-    "error loading", "cannot be played", "media not available",
-]
-
 @app.route("/api/check")
 def check_player():
     from urllib.parse import unquote as _unquote
@@ -115,10 +109,18 @@ def check_player():
     try:
         r = requests.get(url, timeout=10, headers={
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            "Referer": "https://www.google.com/"
+            "Referer": "https://www.google.com/",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.5",
         })
         html_lower = r.text.lower()
-        for pattern in ERROR_PATTERNS:
+        error_patterns = [
+            "404 not found", "this media is unavailable", "video not found",
+            "movie not found", "not found", "unavailable", "no video",
+            "error loading", "cannot be played", "media not available",
+            "fa-triangle-exclamation",
+        ]
+        for pattern in error_patterns:
             if pattern in html_lower:
                 return jsonify({"ok": False, "reason": pattern})
         return jsonify({"ok": True})

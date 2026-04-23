@@ -78,6 +78,10 @@
         <p class="text-gray-600 text-[10px] italic">Se um servidor não funcionar, tente outro.</p>
     </div>
     <iframe id="playerFrame" src="" allowfullscreen class="flex-1 w-full border-none hidden" allow="autoplay; encrypted-media; picture-in-picture"></iframe>
+    <div class="flex-none flex justify-center py-2 bg-black/60">
+        <button id="notWorkingBtn" class="hidden text-[10px] text-yellow-400 border border-yellow-400/30 bg-yellow-400/10 hover:bg-yellow-400/20 px-4 py-1.5 rounded-full font-bold transition">
+        </button>
+    </div>
 </div>
 
 <!-- NAVBAR -->
@@ -556,7 +560,7 @@ function startWatchingUrl(url, title = '', sources = []) {
 
     document.getElementById('serverPicker').classList.remove('hidden');
     document.getElementById('serverPickerBtns').innerHTML = _currentSources.map((s, i) => `
-        <button onclick="loadSource('${s.url}', ${i}, this)"
+        <button onclick="loadSource('${s.url}', ${i})"
             class="source-pick-btn flex flex-col items-center gap-2 bg-white/5 border border-white/10 hover:border-purple-500 hover:bg-purple-600/10 transition rounded-2xl px-8 py-5 min-w-[110px]">
             <i class="fas fa-server text-2xl text-purple-400"></i>
             <span class="text-xs font-bold uppercase tracking-widest text-white">${s.label}</span>
@@ -565,7 +569,7 @@ function startWatchingUrl(url, title = '', sources = []) {
 
     const btns = document.getElementById('sourceBtns');
     btns.innerHTML = _currentSources.map((s, i) => `
-        <button onclick="switchSource('${s.url}', ${i}, this)"
+        <button onclick="switchSource('${s.url}', ${i})"
             class="source-btn text-[10px] font-bold px-3 py-1 rounded-full border transition bg-white/5 border-white/20 text-gray-400 hover:border-purple-500">
             ${s.label}
         </button>
@@ -575,19 +579,36 @@ function startWatchingUrl(url, title = '', sources = []) {
     closeModal();
 }
 
-async function loadSource(url, idx, btn) {
-    // loading state
-    if (btn) { btn.innerHTML = '<i class="fas fa-spinner fa-spin text-2xl text-purple-400"></i><span class="text-xs font-bold uppercase tracking-widest text-white mt-2">Verificando...</span>'; btn.disabled = true; }
+let _notWorkingTimer = null;
 
+async function loadSource(url, idx) {
+    // spinner no botão
+    const pickBtns = document.querySelectorAll('.source-pick-btn');
+    if (pickBtns[idx]) {
+        pickBtns[idx].innerHTML = '<i class="fas fa-spinner fa-spin text-2xl text-purple-400"></i><span class="text-xs font-bold uppercase tracking-widest text-white mt-2">Verificando...</span>';
+        pickBtns[idx].disabled = true;
+    }
+
+    let ok = true;
     try {
         const r = await fetch(`${API}/check?url=${encodeURIComponent(url)}`);
         const data = await r.json();
-        if (!data.ok) {
-            if (btn) { btn.innerHTML = `<i class="fas fa-server text-2xl text-red-400"></i><span class="text-xs font-bold uppercase tracking-widest text-red-400">${_currentSources[idx].label}</span>`; btn.disabled = false; }
-            showSourceError(idx);
-            return;
+        ok = data.ok;
+    } catch { ok = true; } // se check falhar, tenta mesmo assim
+
+    if (!ok) {
+        if (pickBtns[idx]) {
+            pickBtns[idx].innerHTML = `<i class="fas fa-times-circle text-2xl text-red-400"></i><span class="text-xs font-bold uppercase tracking-widest text-red-400">Indisponível</span>`;
+            pickBtns[idx].disabled = false;
         }
-    } catch { /* se check falhar, tenta carregar mesmo assim */ }
+        // auto-sugerir próxima
+        const nextIdx = idx + 1;
+        if (_currentSources[nextIdx]) {
+            const nextPick = pickBtns[nextIdx];
+            if (nextPick) nextPick.classList.add('border-purple-500', 'animate-pulse');
+        }
+        return;
+    }
 
     document.getElementById('serverPicker').classList.add('hidden');
     document.getElementById('playerFrame').classList.remove('hidden');
@@ -596,17 +617,21 @@ async function loadSource(url, idx, btn) {
     _markActiveSource(idx);
 }
 
-async function switchSource(url, idx, btn) {
-    document.getElementById('serverPicker').classList.add('hidden');
-    document.getElementById('playerFrame').classList.remove('hidden');
+async function switchSource(url, idx) {
     document.getElementById('playerFrame').src = '';
-
+    let ok = true;
     try {
         const r = await fetch(`${API}/check?url=${encodeURIComponent(url)}`);
         const data = await r.json();
-        if (!data.ok) { showSourceError(idx); return; }
-    } catch {}
+        ok = data.ok;
+    } catch { ok = true; }
 
+    if (!ok) {
+        showSourceError(idx);
+        return;
+    }
+    document.getElementById('serverPicker').classList.add('hidden');
+    document.getElementById('playerFrame').classList.remove('hidden');
     document.getElementById('playerFrame').src = url;
     _markActiveSource(idx);
 }
@@ -625,7 +650,7 @@ function showSourceError(failedIdx) {
     const nextIdx = failedIdx + 1;
     if (_currentSources[nextIdx]) {
         nextBtn.classList.remove('hidden');
-        nextBtn.onclick = () => { closeSourceError(); loadSource(_currentSources[nextIdx].url, nextIdx, null); };
+        nextBtn.onclick = () => { closeSourceError(); loadSource(_currentSources[nextIdx].url, nextIdx); };
     } else {
         nextBtn.classList.add('hidden');
     }
@@ -637,6 +662,7 @@ function closeSourceError() {
     modal.classList.remove('flex');
 }
 function closePlayer() {
+    clearTimeout(_notWorkingTimer);
     document.getElementById('videoPlayer').style.display = 'none';
     document.getElementById('playerFrame').src = '';
     document.getElementById('playerFrame').classList.add('hidden');
