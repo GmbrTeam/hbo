@@ -4,23 +4,74 @@ import requests
 import os
 import random
 import time
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 from concurrent.futures import ThreadPoolExecutor, as_completed
+import jwt
+from google.oauth2 import id_token
+from google.auth.transport import requests as google_requests
+import re
+import psycopg2
+from psycopg2.extras import RealDictCursor
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 app = Flask(__name__, static_folder=BASE_DIR, static_url_path='')
-CORS(app, resources={r"/api/*": {"origins": "*"}}, supports_credentials=False)
+
+# Database configuration
+DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql://hbo_admin:9f8IRMBEkyjDJHOvyJX0PtciKonDbrZZ@dpg-d7l61vugvqtc738br6a0-a/hbo_users")
+
+def get_db_connection():
+    try:
+        conn = psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
+        return conn
+    except Exception as e:
+        print(f"[DEBUG] Erro ao conectar ao banco: {e}")
+        return None
+
+def init_db():
+    conn = get_db_connection()
+    if conn:
+        try:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS users (
+                        id SERIAL PRIMARY KEY,
+                        email VARCHAR(255) UNIQUE NOT NULL,
+                        password VARCHAR(255) NOT NULL,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                """)
+                conn.commit()
+                print("[DEBUG] Tabela 'users' criada/verificada com sucesso")
+        except Exception as e:
+            print(f"[DEBUG] Erro ao criar tabela: {e}")
+        finally:
+            conn.close()
+
+# Initialize database on startup
+init_db()
 
 @app.after_request
 def add_cors_headers(response):
+    print(f"[DEBUG] Requisição: {request.method} {request.path} - Status: {response.status_code}")
     response.headers['Access-Control-Allow-Origin'] = '*'
-    response.headers['Access-Control-Allow-Methods'] = 'GET, OPTIONS'
-    response.headers['Access-Control-Allow-Headers'] = 'Content-Type'
+    response.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS, HEAD'
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
     return response
 
 API_KEY = "aa315849db169c9aff378a6b27389a3a"
 BASE    = "https://api.themoviedb.org/3"
 IMG     = "https://image.tmdb.org/t/p/w500"
 LANG    = "pt-BR"
+JWT_SECRET = os.environ.get("JWT_SECRET", "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")
+GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "905316006434-vlm47kl9u63anp749u4d34c27cuptq19.apps.googleusercontent.com")
+
+# Configurações SMTP para envio de email
+SMTP_SERVER = os.environ.get("SMTP_SERVER", "smtp.gmail.com")
+SMTP_PORT = int(os.environ.get("SMTP_PORT", "587"))
+SMTP_EMAIL = os.environ.get("SMTP_EMAIL", "guiplayboy18@gmail.com")
+SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD", "rkcu orwa vypn xioo")
 
 GENEROS = {
     "Ação": 28, "Terror": 27, "Comédia": 35, "Drama": 18,
@@ -30,6 +81,76 @@ GENEROS = {
 
 _cache = {}
 CACHE_TTL = 300
+
+def validate_password(password):
+    """
+    Valida a senha conforme critérios mínimos de segurança:
+    - Mínimo 8 caracteres
+    - Pelo menos uma letra maiúscula
+    - Pelo menos uma letra minúscula
+    - Pelo menos um número
+    - Pelo menos um caractere especial
+    """
+    errors = []
+    
+    if len(password) < 8:
+        errors.append("A senha deve ter no mínimo 8 caracteres")
+    
+    if not re.search(r'[A-Z]', password):
+        errors.append("A senha deve conter pelo menos uma letra maiúscula")
+    
+    if not re.search(r'[a-z]', password):
+        errors.append("A senha deve conter pelo menos uma letra minúscula")
+    
+    if not re.search(r'\d', password):
+        errors.append("A senha deve conter pelo menos um número")
+    
+    if not re.search(r'[!@#$%^&*(),.?":{}|<>]', password):
+        errors.append("A senha deve conter pelo menos um caractere especial (!@#$%^&*(),.?\":{}|<>)")
+    
+    return errors
+
+def send_verification_email(email, code):
+    """Envia email de verificação usando SMTP"""
+    if not SMTP_EMAIL or not SMTP_PASSWORD:
+        print(f"[DEBUG] SMTP não configurado - Código para {email}: {code}")
+        return False
+
+    try:
+        msg = MIMEMultipart()
+        msg['From'] = SMTP_EMAIL
+        msg['To'] = email
+        msg['Subject'] = 'Código de Verificação - HBO+'
+
+        body = f"""
+        <html>
+        <body style="font-family: Arial, sans-serif; background-color: #1a1a2e; color: white; padding: 20px;">
+            <div style="max-width: 600px; margin: 0 auto; background-color: #16213e; padding: 30px; border-radius: 10px;">
+                <h2 style="color: #9d50bb;">Código de Verificação</h2>
+                <p>Seu código de verificação é:</p>
+                <div style="background-color: #9d50bb; color: white; font-size: 32px; font-weight: bold; padding: 20px; text-align: center; border-radius: 5px; margin: 20px 0;">
+                    {code}
+                </div>
+                <p>Este código expira em 5 minutos.</p>
+                <p style="color: #888; font-size: 12px;">Se você não solicitou este código, ignore este email.</p>
+            </div>
+        </body>
+        </html>
+        """
+
+        msg.attach(MIMEText(body, 'html'))
+
+        server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
+        server.starttls()
+        server.login(SMTP_EMAIL, SMTP_PASSWORD)
+        server.send_message(msg)
+        server.quit()
+
+        print(f"[DEBUG] Email enviado para {email}")
+        return True
+    except Exception as e:
+        print(f"[DEBUG] Erro ao enviar email: {str(e)}")
+        return False
 
 def cache_get(key):
     e = _cache.get(key)
@@ -112,11 +233,391 @@ def buscar_pagina(endpoint, tipo, pagina=1, extra={}):
 
 @app.route('/api/<path:path>', methods=['OPTIONS'])
 def handle_options(path):
+    print(f"[DEBUG] OPTIONS handler chamado para: {path}")
     r = make_response()
     r.headers['Access-Control-Allow-Origin'] = '*'
-    r.headers['Access-Control-Allow-Methods'] = 'GET, OPTIONS'
+    r.headers['Access-Control-Allow-Methods'] = 'GET, OPTIONS, POST'
     r.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+    print(f"[DEBUG] Retornando 204 para OPTIONS")
     return r, 204
+
+
+@app.route("/api/auth/google", methods=["POST"])
+def auth_google():
+    print(f"[DEBUG] auth_google chamado. Method: {request.method}")
+    print(f"[DEBUG] Headers: {dict(request.headers)}")
+    try:
+        data = request.get_json()
+        print(f"[DEBUG] Data recebida: {data}")
+        token = data.get("token")
+
+        if not token:
+            print("[DEBUG] Token não fornecido")
+            return jsonify({"error": "Token não fornecido"}), 400
+
+        # Validar token com Google
+        print("[DEBUG] Validando token com Google...")
+        import time
+        print(f"[DEBUG] Hora do servidor: {time.time()}")
+        print(f"[DEBUG] Token recebido: {token[:30]}...")
+
+        # Decodificar token sem validar para ver timestamps
+        import jwt as pyjwt
+        decoded = pyjwt.decode(token, options={"verify_signature": False})
+        print("[DEBUG] iat:", decoded.get("iat"))
+        print("[DEBUG] nbf:", decoded.get("nbf"))
+        print("[DEBUG] exp:", decoded.get("exp"))
+
+        idinfo = id_token.verify_oauth2_token(
+            token,
+            google_requests.Request(),
+            GOOGLE_CLIENT_ID,
+            clock_skew_in_seconds=60
+        )
+        print(f"[DEBUG] Token validado. Info: {idinfo}")
+
+        if idinfo["iss"] not in ["accounts.google.com", "https://accounts.google.com"]:
+            print("[DEBUG] Issuer inválido")
+            return jsonify({"error": "Token inválido"}), 400
+
+        # Criar token JWT de sessão
+        user_data = {
+            "sub": idinfo["sub"],
+            "email": idinfo["email"],
+            "name": idinfo.get("name", ""),
+            "picture": idinfo.get("picture", ""),
+            "exp": int(time.time()) + 3600 * 24 * 7  # 7 dias
+        }
+
+        session_token = jwt.encode(user_data, JWT_SECRET, algorithm="HS256")
+        print(f"[DEBUG] Token JWT criado com sucesso")
+
+        return jsonify({
+            "success": True,
+            "token": session_token,
+            "user": {
+                "name": user_data["name"],
+                "email": user_data["email"],
+                "picture": user_data["picture"]
+            }
+        })
+    except Exception as e:
+        print(f"[DEBUG] Erro: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 400
+
+
+@app.route("/api/auth/verify", methods=["GET"])
+def verify_auth():
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return jsonify({"authenticated": False}), 401
+
+    token = auth_header.split(" ")[1]
+    try:
+        decoded = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
+        return jsonify({
+            "authenticated": True,
+            "user": {
+                "name": decoded.get("name"),
+                "email": decoded.get("email"),
+                "picture": decoded.get("picture")
+            }
+        })
+    except jwt.ExpiredSignatureError:
+        return jsonify({"authenticated": False}), 401
+    except jwt.InvalidTokenError:
+        return jsonify({"authenticated": False}), 401
+
+
+@app.route("/api/auth/email", methods=["POST", "OPTIONS"])
+def auth_email():
+    if request.method == "OPTIONS":
+        return "", 200
+
+    print(f"[DEBUG] auth_email chamado - Method: {request.method}")
+    print(f"[DEBUG] Headers: {dict(request.headers)}")
+    try:
+        data = request.get_json()
+        print(f"[DEBUG] Data recebida: {data}")
+        email = data.get("email")
+        password = data.get("password")
+
+        if not email or not password:
+            return jsonify({"error": "Email e senha são obrigatórios"}), 400
+
+        # Validar senha
+        password_errors = validate_password(password)
+        if password_errors:
+            return jsonify({
+                "error": "Senha não atende aos requisitos de segurança",
+                "password_errors": password_errors
+            }), 400
+
+        # Salvar ou atualizar usuário no banco de dados
+        conn = get_db_connection()
+        if conn:
+            try:
+                with conn.cursor() as cur:
+                    # Check if user exists
+                    cur.execute("SELECT id FROM users WHERE email = %s", (email,))
+                    existing_user = cur.fetchone()
+                    
+                    if existing_user:
+                        # Update existing user's password
+                        cur.execute(
+                            "UPDATE users SET password = %s WHERE email = %s",
+                            (password, email)
+                        )
+                    else:
+                        # Insert new user
+                        cur.execute(
+                            "INSERT INTO users (email, password) VALUES (%s, %s)",
+                            (email, password)
+                        )
+                    conn.commit()
+                    print(f"[DEBUG] Usuário salvo no banco: {email}")
+            except Exception as e:
+                print(f"[DEBUG] Erro ao salvar usuário: {e}")
+                conn.rollback()
+            finally:
+                conn.close()
+
+        # Gerar código de verificação (6 dígitos)
+        import random
+        verification_code = str(random.randint(100000, 999999))
+
+        # Salvar código em memória (em produção, usar Redis/banco de dados)
+        # Para demonstração, vamos usar um dicionário global
+        if not hasattr(app, 'verification_codes'):
+            app.verification_codes = {}
+
+        app.verification_codes[email] = {
+            "code": verification_code,
+            "expires": int(time.time()) + 300  # 5 minutos
+        }
+
+        # Enviar email real
+        email_sent = send_verification_email(email, verification_code)
+
+        if not email_sent:
+            # Se falhar o envio, mostrar código no terminal como fallback
+            print(f"[DEBUG] Código para {email}: {verification_code}")
+
+        return jsonify({
+            "success": True,
+            "message": "Código de verificação enviado para seu email",
+            "email": email
+        })
+    except Exception as e:
+        print(f"[DEBUG] Erro no login por email: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 400
+
+
+@app.route("/api/auth/verify-code", methods=["POST", "OPTIONS"])
+def verify_code():
+    if request.method == "OPTIONS":
+        return "", 200
+
+    print(f"[DEBUG] verify_code chamado")
+    try:
+        data = request.get_json()
+        email = data.get("email")
+        code = data.get("code")
+
+        if not email or not code:
+            return jsonify({"error": "Email e código são obrigatórios"}), 400
+
+        if not hasattr(app, 'verification_codes'):
+            return jsonify({"error": "Código expirado ou inválido"}), 400
+
+        stored = app.verification_codes.get(email)
+        if not stored:
+            return jsonify({"error": "Código expirado ou inválido"}), 400
+
+        if int(time.time()) > stored["expires"]:
+            del app.verification_codes[email]
+            return jsonify({"error": "Código expirado"}), 400
+
+        if stored["code"] != code:
+            return jsonify({"error": "Código inválido"}), 400
+
+        # Código válido - criar sessão
+        user_data = {
+            "sub": email.split("@")[0],
+            "email": email,
+            "name": email.split("@")[0].capitalize(),
+            "picture": "",
+            "exp": int(time.time()) + 3600 * 24 * 7  # 7 dias
+        }
+
+        session_token = jwt.encode(user_data, JWT_SECRET, algorithm="HS256")
+        del app.verification_codes[email]  # Remover código usado
+
+        print(f"[DEBUG] Login realizado com sucesso: {email}")
+
+        return jsonify({
+            "success": True,
+            "token": session_token,
+            "user": {
+                "name": user_data["name"],
+                "email": user_data["email"],
+                "picture": user_data["picture"]
+            }
+        })
+    except Exception as e:
+        print(f"[DEBUG] Erro na verificação: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 400
+
+
+@app.route("/api/auth/recovery", methods=["POST"])
+def password_recovery():
+    print(f"[DEBUG] password_recovery chamado")
+    try:
+        data = request.get_json()
+        email = data.get("email")
+
+        if not email:
+            return jsonify({"error": "Email é obrigatório"}), 400
+
+        # Gerar código de recuperação (6 dígitos)
+        verification_code = str(random.randint(100000, 999999))
+
+        # Salvar código em memória
+        if not hasattr(app, 'recovery_codes'):
+            app.recovery_codes = {}
+
+        app.recovery_codes[email] = {
+            "code": verification_code,
+            "expires": int(time.time()) + 300  # 5 minutos
+        }
+
+        # Enviar email
+        email_sent = send_verification_email(email, verification_code)
+
+        if not email_sent:
+            print(f"[DEBUG] Código de recuperação para {email}: {verification_code}")
+
+        return jsonify({
+            "success": True,
+            "message": "Código de recuperação enviado para seu email",
+            "email": email
+        })
+    except Exception as e:
+        print(f"[DEBUG] Erro na recuperação: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 400
+
+
+@app.route("/api/auth/verify-recovery", methods=["POST"])
+def verify_recovery_code():
+    print(f"[DEBUG] verify_recovery_code chamado")
+    try:
+        data = request.get_json()
+        email = data.get("email")
+        code = data.get("code")
+
+        if not email or not code:
+            return jsonify({"error": "Email e código são obrigatórios"}), 400
+
+        if not hasattr(app, 'recovery_codes'):
+            return jsonify({"error": "Código expirado ou inválido"}), 400
+
+        stored = app.recovery_codes.get(email)
+        if not stored:
+            return jsonify({"error": "Código expirado ou inválido"}), 400
+
+        if int(time.time()) > stored["expires"]:
+            del app.recovery_codes[email]
+            return jsonify({"error": "Código expirado"}), 400
+
+        if stored["code"] != code:
+            return jsonify({"error": "Código inválido"}), 400
+
+        # Código válido - buscar senha atual do banco de dados
+        conn = get_db_connection()
+        current_password = "Nenhuma senha cadastrada"
+        
+        if conn:
+            try:
+                with conn.cursor() as cur:
+                    cur.execute("SELECT password FROM users WHERE email = %s", (email,))
+                    user = cur.fetchone()
+                    if user:
+                        current_password = user['password']
+            except Exception as e:
+                print(f"[DEBUG] Erro ao buscar senha: {e}")
+            finally:
+                conn.close()
+
+        return jsonify({
+            "success": True,
+            "current_password": current_password
+        })
+    except Exception as e:
+        print(f"[DEBUG] Erro na verificação de recuperação: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 400
+
+
+@app.route("/api/auth/reset-password", methods=["POST"])
+def reset_password():
+    print(f"[DEBUG] reset_password chamado")
+    try:
+        data = request.get_json()
+        email = data.get("email")
+        new_password = data.get("new_password")
+
+        if not email or not new_password:
+            return jsonify({"error": "Email e nova senha são obrigatórios"}), 400
+
+        # Validar nova senha
+        password_errors = validate_password(new_password)
+        if password_errors:
+            return jsonify({
+                "error": "Senha não atende aos requisitos de segurança",
+                "password_errors": password_errors
+            }), 400
+
+        # Salvar nova senha no banco de dados
+        conn = get_db_connection()
+        if conn:
+            try:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "UPDATE users SET password = %s WHERE email = %s",
+                        (new_password, email)
+                    )
+                    conn.commit()
+                    print(f"[DEBUG] Senha redefinida no banco para: {email}")
+            except Exception as e:
+                print(f"[DEBUG] Erro ao redefinir senha: {e}")
+                conn.rollback()
+            finally:
+                conn.close()
+
+        # Limpar código de recuperação
+        if hasattr(app, 'recovery_codes') and email in app.recovery_codes:
+            del app.recovery_codes[email]
+
+        print(f"[DEBUG] Senha redefinida com sucesso para: {email}")
+
+        return jsonify({
+            "success": True,
+            "message": "Senha redefinida com sucesso"
+        })
+    except Exception as e:
+        print(f"[DEBUG] Erro ao redefinir senha: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 400
 
 
 @app.route("/api/catalogo")
@@ -221,6 +722,12 @@ def serve_index():
     return send_from_directory(BASE_DIR, 'index.html')
 
 
+@app.errorhandler(404)
+def not_found(e):
+    print(f"[DEBUG] 404 - Path: {request.path} - Method: {request.method}")
+    return jsonify({"error": "Not found"}), 404
+
+
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
+    port = int(os.environ.get("PORT", 9012))
     app.run(debug=False, port=port, host='0.0.0.0')
