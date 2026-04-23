@@ -1,0 +1,7 @@
+services:
+  - type: web
+    name: hbo-plus
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn server:app
+    plan: free
