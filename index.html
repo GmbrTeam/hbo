@@ -190,7 +190,7 @@
     <div class="bg-white/5 rounded-2xl p-6 border border-white/10 mb-6">
         <h3 class="text-xs font-bold uppercase tracking-widest text-gray-500 mb-2">Status do Servidor</h3>
         <p id="profileServerStatus" class="text-sm font-bold text-purple-400">A verificar...</p>
-        <p class="text-[10px] text-gray-600 mt-1">Execute: <code class="text-purple-500">python server.py</code> → acesse <code class="text-purple-500">http://127.0.0.1:5000</code></p>
+        <p class="text-[10px] text-gray-600 mt-1">Servidor hospedado em <code class="text-purple-500">hbo-5ic3.onrender.com</code></p>
     </div>
     <button onclick="recarregarCatalogo()" class="bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 transition">
         <i class="fas fa-sync-alt"></i> Recarregar Catálogo
@@ -238,7 +238,7 @@
 </div>
 
 <script>
-const API = 'http://127.0.0.1:5000/api';
+const API = '/api';
 let serverOnline = false;
 let catalogData  = {};
 
