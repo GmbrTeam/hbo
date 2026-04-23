@@ -51,7 +51,7 @@
             <i class="fas fa-arrow-left"></i> Voltar
         </button>
         <span id="playerTitle" class="text-white font-bold text-sm truncate max-w-xs"></span>
-        <div class="w-16"></div>
+        <div id="sourceBtns" class="flex gap-2"></div>
     </div>
     <iframe id="playerFrame" src="" allowfullscreen class="flex-1 w-full border-none" allow="autoplay; encrypted-media; picture-in-picture"></iframe>
 </div>
@@ -468,7 +468,7 @@ async function openDetails(tmdb_id, tipo) {
     document.getElementById('modalYear').textContent   = item.year;
     document.getElementById('modalRating').textContent = item.rating || '12+';
     document.getElementById('modalVote').textContent   = item.vote ? `⭐ ${Number(item.vote).toFixed(1)}` : '';
-    document.getElementById('modalPlayBtn').onclick    = () => startWatchingUrl(item.player, item.title);
+    document.getElementById('modalPlayBtn').onclick    = () => startWatchingUrl(item.player, item.title, item.sources || []);
 
     if (item.episodes || item.tipo === 'tv') {
         const episodesContainer = document.getElementById('episodes-container');
@@ -498,7 +498,7 @@ async function loadEpisodes(tmdb_id, season) {
         const data = await r.json();
         if (!data.episodes?.length) { list.innerHTML = '<p class="text-gray-600 text-xs italic p-4">Sem episódios.</p>'; return; }
         list.innerHTML = data.episodes.map(ep => `
-            <div class="episode-card flex gap-4 p-3 rounded-lg transition group cursor-pointer" onclick="startWatchingUrl('${ep.player}','${ep.title}')">
+            <div class="episode-card flex gap-4 p-3 rounded-lg transition group cursor-pointer" onclick="startWatchingUrl('${ep.player}','${ep.title}',${JSON.stringify(ep.sources||[])})">
                 <div class="w-32 md:w-44 flex-none aspect-video bg-zinc-800 rounded-md overflow-hidden relative border border-white/5">
                     <img src="${ep.img||''}" class="w-full h-full object-cover opacity-50 grayscale group-hover:grayscale-0 transition duration-500" onerror="this.style.display='none'">
                     <div class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition"><i class="fas fa-play text-white"></i></div>
@@ -520,11 +520,31 @@ function closeModal() {
 }
 
 // ── Player ────────────────────────────────────────────────────────────────────
-function startWatchingUrl(url, title = '') {
+function startWatchingUrl(url, title = '', sources = []) {
     document.getElementById('playerFrame').src = url;
     document.getElementById('playerTitle').textContent = title;
     document.getElementById('videoPlayer').style.display = 'flex';
+
+    const btns = document.getElementById('sourceBtns');
+    if (sources.length > 1) {
+        btns.innerHTML = sources.map((s, i) => `
+            <button onclick="switchSource('${s.url}', this)"
+                class="source-btn text-[10px] font-bold px-3 py-1 rounded-full border transition ${i===0 ? 'bg-purple-600 border-purple-600 text-white' : 'bg-white/5 border-white/20 text-gray-400 hover:border-purple-500'}">
+                ${s.label}
+            </button>
+        `).join('');
+    } else {
+        btns.innerHTML = '';
+    }
     closeModal();
+}
+
+function switchSource(url, btn) {
+    document.getElementById('playerFrame').src = url;
+    document.querySelectorAll('.source-btn').forEach(b => {
+        b.className = b.className.replace('bg-purple-600 border-purple-600 text-white', 'bg-white/5 border-white/20 text-gray-400 hover:border-purple-500');
+    });
+    btn.className = btn.className.replace('bg-white/5 border-white/20 text-gray-400 hover:border-purple-500', 'bg-purple-600 border-purple-600 text-white');
 }
 function closePlayer() {
     document.getElementById('videoPlayer').style.display = 'none';

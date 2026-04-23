@@ -40,10 +40,18 @@ def cache_get(key):
 def cache_set(key, data):
     _cache[key] = {"data": data, "ts": time.time()}
 
-def player_url(tmdb_id, tipo, season=1, ep=1):
+def player_urls(tmdb_id, tipo, season=1, ep=1):
     if tipo == "tv":
-        return f"https://vidsrc-embed.ru/embed/tv/{tmdb_id}/{season}-{ep}"
-    return f"https://vidsrc-embed.ru/embed/movie/{tmdb_id}"
+        return [
+            {"label": "Fonte 1", "url": f"https://vidsrc-embed.ru/embed/tv/{tmdb_id}/{season}-{ep}"},
+            {"label": "Fonte 2", "url": f"https://moviesapi.club/tv/{tmdb_id}-{season}-{ep}"},
+            {"label": "Fonte 3", "url": f"https://multiembed.mov/directstream.php?video_id={tmdb_id}&tmdb=1&s={season}&e={ep}"},
+        ]
+    return [
+        {"label": "Fonte 1", "url": f"https://vidsrc-embed.ru/embed/movie/{tmdb_id}"},
+        {"label": "Fonte 2", "url": f"https://moviesapi.club/movie/{tmdb_id}"},
+        {"label": "Fonte 3", "url": f"https://multiembed.mov/directstream.php?video_id={tmdb_id}&tmdb=1"},
+    ]
 
 def normalizar(res, tipo_override=None):
     tipo = tipo_override or res.get("media_type", "movie")
@@ -66,7 +74,8 @@ def normalizar(res, tipo_override=None):
         "img":      img,
         "desc":     desc,
         "rating":   rating,
-        "player":   player_url(tmdb_id, tipo),
+        "player":   player_urls(tmdb_id, tipo)[0]["url"],
+        "sources":  player_urls(tmdb_id, tipo),
         "seasons":  seasons,
         "episodes": tipo == "tv",
         "vote":     res.get("vote_average", 0),
@@ -174,7 +183,8 @@ def episodios(tmdb_id, season):
         "title":    ep.get("name", f"Episódio {ep.get('episode_number')}"),
         "desc":     ep.get("overview", ""),
         "duration": f"{ep.get('runtime') or 42} min",
-        "player":   player_url(tmdb_id, "tv", season, ep.get("episode_number")),
+        "player":   player_urls(tmdb_id, "tv", season, ep.get("episode_number"))[0]["url"],
+        "sources":  player_urls(tmdb_id, "tv", season, ep.get("episode_number")),
         "img":      IMG + ep["still_path"] if ep.get("still_path") else "",
     } for ep in data.get("episodes", [])]
     return jsonify({"season": season, "episodes": eps})
