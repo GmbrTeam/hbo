@@ -238,7 +238,8 @@
 </div>
 
 <script>
-const API = '/api';
+const API = 'https://hbo-5ic3.onrender.com/api';
+const PLAYER_BASE = 'https://hbo-5ic3.onrender.com';
 let serverOnline = false;
 let catalogData  = {};
 
@@ -521,7 +522,8 @@ function closeModal() {
 
 // ── Player ────────────────────────────────────────────────────────────────────
 function startWatchingUrl(url, title = '') {
-    document.getElementById('playerFrame').src = url;
+    const src = url.startsWith('/') ? PLAYER_BASE + url : url;
+    document.getElementById('playerFrame').src = src;
     document.getElementById('playerTitle').textContent = title;
     document.getElementById('videoPlayer').style.display = 'flex';
     closeModal();

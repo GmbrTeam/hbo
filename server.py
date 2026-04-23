@@ -1,4 +1,5 @@
-from flask import Flask, jsonify, request, make_response, send_from_directory
+from flask import Flask, jsonify, request, make_response, send_from_directory, Response
+from urllib.parse import quote, unquote
 from flask_cors import CORS
 import requests
 import os
@@ -42,8 +43,10 @@ def cache_set(key, data):
 
 def player_url(tmdb_id, tipo, season=1, ep=1):
     if tipo == "tv":
-        return f"https://vidsrc-embed.ru/embed/tv/{tmdb_id}/{season}-{ep}"
-    return f"https://vidsrc-embed.ru/embed/movie/{tmdb_id}"
+        real = f"https://vidsrc-embed.ru/embed/tv/{tmdb_id}/{season}-{ep}"
+    else:
+        real = f"https://vidsrc-embed.ru/embed/movie/{tmdb_id}"
+    return f"/api/player?url={quote(real)}"
 
 def normalizar(res, tipo_override=None):
     tipo = tipo_override or res.get("media_type", "movie")
@@ -191,6 +194,24 @@ def detalhes(tipo, tmdb_id):
     if not item:
         return jsonify({"error": "Erro ao normalizar"}), 500
     return jsonify(item)
+
+
+@app.route("/api/player")
+def player_proxy():
+    url = unquote(request.args.get("url", ""))
+    if not url or "vidsrc" not in url:
+        return "URL inválida", 400
+    try:
+        r = requests.get(url, timeout=15, headers={
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Referer": "https://vidsrc-embed.ru/"
+        })
+        html = r.text
+        base_tag = f'<base href="{url}">'
+        html = html.replace('<head>', f'<head>{base_tag}', 1) if '<head>' in html else base_tag + html
+        return Response(html, status=200, content_type='text/html; charset=utf-8')
+    except Exception as e:
+        return f"Erro ao carregar player: {e}", 500
 
 
 @app.route('/')
