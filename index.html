@@ -342,24 +342,33 @@ function skeletonRows(n) {
 
 function createCard(item, isGrid = false) {
     const div = document.createElement('div');
+    const unreleased = item.released === false;
     div.className = isGrid
-        ? 'card-zoom cursor-pointer animate-fade'
-        : 'flex-none w-32 md:w-44 card-zoom cursor-pointer animate-fade';
+        ? `card-zoom animate-fade ${unreleased ? '' : 'cursor-pointer'}`
+        : `flex-none w-32 md:w-44 card-zoom animate-fade ${unreleased ? '' : 'cursor-pointer'}`;
     const vote = item.vote ? `<span class="vote-badge">⭐ ${item.vote.toFixed(1)}</span>` : '';
+    const releaseLabel = unreleased && item.release_date
+        ? `<span class="text-[9px] text-yellow-300">${item.release_date}</span>` : '';
+    const overlay = unreleased
+        ? `<div class="absolute inset-0 bg-black/70 flex flex-col items-center justify-center p-4 text-center">
+               <span class="text-[10px] font-black uppercase tracking-widest text-yellow-400 bg-yellow-400/10 border border-yellow-400/40 px-2 py-1 rounded-full mb-1">Em Breve</span>
+               ${releaseLabel}
+           </div>`
+        : `<div class="absolute inset-0 bg-black/60 opacity-0 hover:opacity-100 transition-all flex flex-col items-center justify-center p-4 text-center">
+               <i class="fas fa-play text-white text-2xl mb-2"></i>
+               <span class="text-[10px] font-bold uppercase tracking-tighter">${item.title}</span>
+           </div>`;
     div.innerHTML = `
         <div class="relative overflow-hidden rounded-lg aspect-[2/3] bg-zinc-900 border border-white/5"
-             onclick="openDetails(${item.tmdb_id},'${item.tipo}')">
-            <img src="${item.img}" class="card-img w-full h-full object-cover transition-all duration-700"
+             ${unreleased ? '' : `onclick="openDetails(${item.tmdb_id},'${item.tipo}')"`}>
+            <img src="${item.img}" class="card-img w-full h-full object-cover transition-all duration-700 ${unreleased ? 'grayscale opacity-60' : ''}"
                  alt="${item.title}"
                  onerror="this.parentElement.style.background='#1a1a2e';this.style.display='none'">
             ${vote}
-            <div class="absolute inset-0 bg-black/60 opacity-0 hover:opacity-100 transition-all flex flex-col items-center justify-center p-4 text-center">
-                <i class="fas fa-play text-white text-2xl mb-2"></i>
-                <span class="text-[10px] font-bold uppercase tracking-tighter">${item.title}</span>
-            </div>
+            ${overlay}
         </div>
         ${isGrid ? `<div class="mt-2">
-            <p class="text-[8px] font-bold uppercase tracking-widest text-purple-400">${item.tipo === 'tv' ? 'SÉRIE' : 'FILME'} • ${item.year || ''}</p>
+            <p class="text-[8px] font-bold uppercase tracking-widest ${unreleased ? 'text-yellow-500' : 'text-purple-400'}">${unreleased ? 'EM BREVE' : (item.tipo === 'tv' ? 'SÉRIE' : 'FILME')} • ${item.year || ''}</p>
             <p class="text-[11px] font-bold truncate text-gray-100">${item.title}</p>
         </div>` : ''}
     `;

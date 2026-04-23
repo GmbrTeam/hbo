@@ -70,6 +70,12 @@ def normalizar(res, tipo_override=None):
     desc    = res.get("overview") or "Sem descrição disponível."
     rating  = "18+" if res.get("adult") else "12+"
     seasons = res.get("number_of_seasons", 1) if tipo == "tv" else None
+    from datetime import date as _date
+    release_str = res.get("release_date") or res.get("first_air_date") or ""
+    try:
+        released = _date.fromisoformat(release_str) <= _date.today() if release_str else True
+    except:
+        released = True
     return {
         "tmdb_id":  tmdb_id,
         "tipo":     tipo,
@@ -83,6 +89,8 @@ def normalizar(res, tipo_override=None):
         "seasons":  seasons,
         "episodes": tipo == "tv",
         "vote":     res.get("vote_average", 0),
+        "released": released,
+        "release_date": release_str,
     }
 
 def tmdb_get(path, params={}):
