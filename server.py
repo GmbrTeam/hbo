@@ -43,16 +43,18 @@ def cache_set(key, data):
 def player_urls(tmdb_id, tipo, season=1, ep=1):
     if tipo == "tv":
         return [
-            {"label": "Fonte 1", "url": f"https://vidsrc-embed.ru/embed/tv/{tmdb_id}/{season}-{ep}"},
-            {"label": "Fonte 2", "url": f"https://moviesapi.club/tv/{tmdb_id}-{season}-{ep}"},
-            {"label": "Fonte 3", "url": f"https://multiembed.mov/directstream.php?video_id={tmdb_id}&tmdb=1&s={season}&e={ep}"},
-            {"label": "Fonte 4", "url": f"https://vidsrc.win/watch/{tmdb_id}"},
+            {"label": "VidSrc",      "url": f"https://vidsrc-embed.ru/embed/tv/{tmdb_id}/{season}-{ep}"},
+            {"label": "MoviesAPI",   "url": f"https://moviesapi.club/tv/{tmdb_id}-{season}-{ep}"},
+            {"label": "MultiEmbed",  "url": f"https://multiembed.mov/directstream.php?video_id={tmdb_id}&tmdb=1&s={season}&e={ep}"},
+            {"label": "VidSrc Win",  "url": f"https://vidsrc.win/watch/{tmdb_id}"},
+            {"label": "Rivestream",  "url": f"https://rivestream.org/embed?type=tv&id={tmdb_id}&season={season}&episode={ep}"},
         ]
     return [
-        {"label": "Fonte 1", "url": f"https://vidsrc-embed.ru/embed/movie/{tmdb_id}"},
-        {"label": "Fonte 2", "url": f"https://moviesapi.club/movie/{tmdb_id}"},
-        {"label": "Fonte 3", "url": f"https://multiembed.mov/directstream.php?video_id={tmdb_id}&tmdb=1"},
-        {"label": "Fonte 4", "url": f"https://vidsrc.win/watch/{tmdb_id}"},
+        {"label": "VidSrc",      "url": f"https://vidsrc-embed.ru/embed/movie/{tmdb_id}"},
+        {"label": "MoviesAPI",   "url": f"https://moviesapi.club/movie/{tmdb_id}"},
+        {"label": "MultiEmbed",  "url": f"https://multiembed.mov/directstream.php?video_id={tmdb_id}&tmdb=1"},
+        {"label": "VidSrc Win",  "url": f"https://vidsrc.win/watch/{tmdb_id}"},
+        {"label": "Rivestream",  "url": f"https://rivestream.org/embed?type=movie&id={tmdb_id}"},
     ]
 
 def normalizar(res, tipo_override=None):
@@ -98,34 +100,6 @@ def buscar_pagina(endpoint, tipo, pagina=1, extra={}):
     if not data:
         return []
     return [x for x in (normalizar(r, tipo) for r in data.get("results", [])) if x and x["img"]]
-
-
-@app.route("/api/check")
-def check_player():
-    from urllib.parse import unquote as _unquote
-    url = _unquote(request.args.get("url", ""))
-    if not url:
-        return jsonify({"ok": False, "reason": "URL inválida"}), 400
-    try:
-        r = requests.get(url, timeout=10, headers={
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            "Referer": "https://www.google.com/",
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-            "Accept-Language": "en-US,en;q=0.5",
-        })
-        html_lower = r.text.lower()
-        error_patterns = [
-            "404 not found", "this media is unavailable", "video not found",
-            "movie not found", "not found", "unavailable", "no video",
-            "error loading", "cannot be played", "media not available",
-            "fa-triangle-exclamation",
-        ]
-        for pattern in error_patterns:
-            if pattern in html_lower:
-                return jsonify({"ok": False, "reason": pattern})
-        return jsonify({"ok": True})
-    except Exception as e:
-        return jsonify({"ok": False, "reason": str(e)})
 
 
 @app.route('/api/<path:path>', methods=['OPTIONS'])

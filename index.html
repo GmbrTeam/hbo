@@ -32,19 +32,13 @@
         #searchDropdown .s-item{display:flex;gap:10px;padding:10px;cursor:pointer;transition:background .2s;align-items:center;}
         #searchDropdown .s-item:hover{background:rgba(157,0,255,.15);}
         #searchDropdown .s-item img{width:40px;height:56px;object-fit:cover;border-radius:4px;flex:none;}
-        #serverStatus{position:fixed;top:70px;right:12px;z-index:999;font-size:10px;font-weight:700;padding:4px 10px;border-radius:20px;transition:all .4s;letter-spacing:.08em;}
-        .status-ok  {background:rgba(0,200,100,.15);border:1px solid rgba(0,200,100,.4);color:#00c864;}
-        .status-off {background:rgba(255,60,60,.15);border:1px solid rgba(255,60,60,.4);color:#ff3c3c;}
-        .status-load{background:rgba(157,0,255,.15);border:1px solid rgba(157,0,255,.4);color:#c060ff;}
         .section-row { margin-bottom: 2.5rem; }
         .vote-badge { position:absolute; top:6px; right:6px; background:rgba(0,0,0,.8); border:1px solid rgba(255,200,0,.4); color:#ffd700; font-size:8px; font-weight:700; padding:2px 5px; border-radius:4px; }
     </style>
 </head>
 <body class="pb-24">
 
-<div id="serverStatus" class="status-load">⏳ CONECTANDO...</div>
-
-<!-- Modal erro de fonte -->
+<!-- Player -->
 <div id="sourceErrorModal" class="fixed inset-0 z-[300] hidden items-center justify-center p-6">
     <div class="absolute inset-0 bg-black/80" onclick="closeSourceError()"></div>
     <div class="relative bg-zinc-900 border border-red-500/30 rounded-2xl p-8 max-w-sm w-full text-center shadow-2xl">
@@ -77,7 +71,24 @@
         <div id="serverPickerBtns" class="flex flex-wrap gap-4 justify-center"></div>
         <p class="text-gray-600 text-[10px] italic">Se um servidor não funcionar, tente outro.</p>
     </div>
-    <iframe id="playerFrame" src="" allowfullscreen class="flex-1 w-full border-none hidden" allow="autoplay; encrypted-media; picture-in-picture"></iframe>
+    <div class="flex-1 relative overflow-hidden">
+        <!-- Intro video overlay -->
+        <div id="introOverlay" class="hidden fixed inset-0 bg-black z-[250] flex flex-col items-center justify-center">
+            <video id="introVideo" src="" playsinline class="w-full h-full object-cover flex-1"></video>
+            <div class="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-4">
+                <button id="introPauseBtn" onclick="toggleIntroPause()" class="w-10 h-10 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center transition">
+                    <i id="introPauseIcon" class="fas fa-pause text-white text-sm"></i>
+                </button>
+                <div class="relative w-40 h-1 bg-white/20 rounded-full cursor-pointer" id="introProgressBar" onclick="seekIntro(event)">
+                    <div id="introProgress" class="h-full bg-white rounded-full transition-all" style="width:0%"></div>
+                </div>
+                <button onclick="skipIntro()" class="text-[10px] font-bold text-white/60 hover:text-white border border-white/20 hover:border-white/60 px-3 py-1 rounded-full transition">
+                    Pular
+                </button>
+            </div>
+        </div>
+        <iframe id="playerFrame" src="" allowfullscreen class="w-full h-full border-none hidden" allow="autoplay; encrypted-media; picture-in-picture"></iframe>
+    </div>
     <div class="flex-none flex justify-center py-2 bg-black/60">
         <button id="notWorkingBtn" class="hidden text-[10px] text-yellow-400 border border-yellow-400/30 bg-yellow-400/10 hover:bg-yellow-400/20 px-4 py-1.5 rounded-full font-bold transition">
         </button>
@@ -218,7 +229,7 @@
     <div class="bg-white/5 rounded-2xl p-6 border border-white/10 mb-6">
         <h3 class="text-xs font-bold uppercase tracking-widest text-gray-500 mb-2">Status do Servidor</h3>
         <p id="profileServerStatus" class="text-sm font-bold text-purple-400">A verificar...</p>
-        <p class="text-[10px] text-gray-600 mt-1">Servidor hospedado em <code class="text-purple-500">hbo-5ic3.onrender.com</code></p>
+        <p class="text-[10px] text-gray-600 mt-1">Conteúdo fornecido via <code class="text-purple-500">TMDb API</code></p>
     </div>
     <button onclick="recarregarCatalogo()" class="bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 transition">
         <i class="fas fa-sync-alt"></i> Recarregar Catálogo
@@ -289,10 +300,6 @@ const HOME_SECTIONS = [
 
 // ── Server check ──────────────────────────────────────────────────────────────
 async function checkServer() {
-    const badge = document.getElementById('serverStatus');
-    badge.textContent = '⏳ CONECTANDO...';
-    badge.className = 'status-load';
-
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 30000);
 
@@ -302,19 +309,15 @@ async function checkServer() {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         catalogData = await r.json();
         serverOnline = true;
-        badge.textContent = '🟢 ON';
-        badge.className = 'status-ok';
-        document.getElementById('profileServerStatus').textContent = '🟢 Servidor online — Catálogo dinâmico via TMDb';
+        document.getElementById('profileServerStatus').textContent = '🟢 Online — Catálogo via TMDb';
         renderHome();
         renderMoviesPage();
         renderSeriesPage();
     } catch(err) {
         clearTimeout(timer);
         serverOnline = false;
-        badge.textContent = '🔴 OFF';
-        badge.className = 'status-off';
-        document.getElementById('profileServerStatus').textContent = '🔴 Offline. Execute: python server.py';
-        document.getElementById('homeRows').innerHTML = '<p class="text-gray-600 text-sm italic text-center py-12">Servidor offline — execute <code>python server.py</code></p>';
+        document.getElementById('profileServerStatus').textContent = '🔴 Serviço indisponível';
+        document.getElementById('homeRows').innerHTML = '<p class="text-gray-600 text-sm italic text-center py-12">Serviço indisponível. Tente novamente mais tarde.</p>';
     }
 }
 
@@ -447,7 +450,7 @@ async function loadGenre(nome, tipo) {
     showSection('genre-page');
 
     if (!serverOnline) {
-        document.getElementById('grid-genre').innerHTML = '<p class="text-gray-600 text-xs col-span-full py-8 text-center">Servidor offline.</p>';
+        document.getElementById('grid-genre').innerHTML = '<p class="text-gray-600 text-xs col-span-full py-8 text-center">Serviço indisponível.</p>';
         return;
     }
     try {
@@ -520,7 +523,7 @@ async function loadEpisodes(tmdb_id, season) {
         btn.classList.toggle('border-purple-600', isActive);
         btn.classList.toggle('bg-white/5', !isActive);
     });
-    if (!serverOnline) { list.innerHTML = '<p class="text-gray-600 text-xs italic p-4">Servidor offline.</p>'; return; }
+    if (!serverOnline) { list.innerHTML = '<p class="text-gray-600 text-xs italic p-4">Serviço indisponível.</p>'; return; }
     try {
         const r = await fetch(`${API}/episodios/${tmdb_id}/${season}`);
         if (!r.ok) throw new Error();
@@ -579,61 +582,96 @@ function startWatchingUrl(url, title = '', sources = []) {
     closeModal();
 }
 
-let _notWorkingTimer = null;
+const INTRO_URL = 'https://cdn.jsdelivr.net/gh/GmbrTeam/hbo@master/entradahbo.mp4';
 
-async function loadSource(url, idx) {
-    // spinner no botão
-    const pickBtns = document.querySelectorAll('.source-pick-btn');
-    if (pickBtns[idx]) {
-        pickBtns[idx].innerHTML = '<i class="fas fa-spinner fa-spin text-2xl text-purple-400"></i><span class="text-xs font-bold uppercase tracking-widest text-white mt-2">Verificando...</span>';
-        pickBtns[idx].disabled = true;
-    }
+let _introCallback = null;
 
-    let ok = true;
-    try {
-        const r = await fetch(`${API}/check?url=${encodeURIComponent(url)}`);
-        const data = await r.json();
-        ok = data.ok;
-    } catch { ok = true; } // se check falhar, tenta mesmo assim
-
-    if (!ok) {
-        if (pickBtns[idx]) {
-            pickBtns[idx].innerHTML = `<i class="fas fa-times-circle text-2xl text-red-400"></i><span class="text-xs font-bold uppercase tracking-widest text-red-400">Indisponível</span>`;
-            pickBtns[idx].disabled = false;
+function playIntroThen(callback) {
+    const overlay = document.getElementById('introOverlay');
+    const vid = document.getElementById('introVideo');
+    _introCallback = callback;
+    if (!INTRO_URL || INTRO_URL === 'SEU_VIDEO_AQUI.mp4') { callback(); return; }
+    overlay.classList.remove('hidden');
+    vid.src = INTRO_URL;
+    vid.currentTime = 0;
+    document.getElementById('introProgress').style.width = '0%';
+    document.getElementById('introPauseIcon').className = 'fas fa-pause text-white text-sm';
+    vid.ontimeupdate = () => {
+        if (vid.duration) {
+            document.getElementById('introProgress').style.width = (vid.currentTime / vid.duration * 100) + '%';
         }
-        // auto-sugerir próxima
-        const nextIdx = idx + 1;
-        if (_currentSources[nextIdx]) {
-            const nextPick = pickBtns[nextIdx];
-            if (nextPick) nextPick.classList.add('border-purple-500', 'animate-pulse');
-        }
-        return;
-    }
-
-    document.getElementById('serverPicker').classList.add('hidden');
-    document.getElementById('playerFrame').classList.remove('hidden');
-    document.getElementById('playerFrame').src = url;
-    document.getElementById('sourceBtns').classList.remove('hidden');
-    _markActiveSource(idx);
+    };
+    vid.play().catch(() => { overlay.classList.add('hidden'); callback(); });
+    vid.onended = () => skipIntro();
 }
 
-async function switchSource(url, idx) {
-    document.getElementById('playerFrame').src = '';
-    let ok = true;
-    try {
-        const r = await fetch(`${API}/check?url=${encodeURIComponent(url)}`);
-        const data = await r.json();
-        ok = data.ok;
-    } catch { ok = true; }
+function skipIntro() {
+    const vid = document.getElementById('introVideo');
+    vid.pause();
+    document.getElementById('introOverlay').classList.add('hidden');
+    if (_introCallback) { _introCallback(); _introCallback = null; }
+}
 
-    if (!ok) {
-        showSourceError(idx);
-        return;
-    }
+function toggleIntroPause() {
+    const vid = document.getElementById('introVideo');
+    const icon = document.getElementById('introPauseIcon');
+    if (vid.paused) { vid.play(); icon.className = 'fas fa-pause text-white text-sm'; }
+    else { vid.pause(); icon.className = 'fas fa-play text-white text-sm'; }
+}
+
+function seekIntro(e) {
+    const vid = document.getElementById('introVideo');
+    const bar = document.getElementById('introProgressBar');
+    const rect = bar.getBoundingClientRect();
+    const pct = (e.clientX - rect.left) / rect.width;
+    vid.currentTime = pct * vid.duration;
+}
+
+let _notWorkingTimer = null;
+
+function loadSource(url, idx) {
     document.getElementById('serverPicker').classList.add('hidden');
-    document.getElementById('playerFrame').classList.remove('hidden');
-    document.getElementById('playerFrame').src = url;
+    document.getElementById('sourceBtns').classList.remove('hidden');
     _markActiveSource(idx);
+
+    playIntroThen(() => {
+        document.getElementById('playerFrame').classList.remove('hidden');
+        document.getElementById('playerFrame').src = url;
+        _scheduleNotWorking(idx);
+    });
+}
+
+function switchSource(url, idx) {
+    document.getElementById('playerFrame').src = '';
+    document.getElementById('playerFrame').classList.add('hidden');
+    _markActiveSource(idx);
+
+    playIntroThen(() => {
+        document.getElementById('playerFrame').classList.remove('hidden');
+        document.getElementById('playerFrame').src = url;
+        _scheduleNotWorking(idx);
+    });
+}
+
+function _scheduleNotWorking(idx) {
+    clearTimeout(_notWorkingTimer);
+    const btn = document.getElementById('notWorkingBtn');
+    btn.classList.add('hidden');
+    _notWorkingTimer = setTimeout(() => {
+        const nextIdx = idx + 1;
+        btn.classList.remove('hidden');
+        if (_currentSources[nextIdx]) {
+            btn.textContent = `⚠️ Não funcionou? Tentar ${_currentSources[nextIdx].label}`;
+            btn.onclick = () => { btn.classList.add('hidden'); switchSource(_currentSources[nextIdx].url, nextIdx); };
+        } else {
+            btn.textContent = `⚠️ Não funcionou? Escolher outra fonte`;
+            btn.onclick = () => {
+                btn.classList.add('hidden');
+                document.getElementById('playerFrame').classList.add('hidden');
+                document.getElementById('serverPicker').classList.remove('hidden');
+            };
+        }
+    }, 6000);
 }
 
 function _markActiveSource(idx) {
@@ -663,6 +701,10 @@ function closeSourceError() {
 }
 function closePlayer() {
     clearTimeout(_notWorkingTimer);
+    _introCallback = null;
+    const vid = document.getElementById('introVideo');
+    vid.pause(); vid.src = '';
+    document.getElementById('introOverlay').classList.add('hidden');
     document.getElementById('videoPlayer').style.display = 'none';
     document.getElementById('playerFrame').src = '';
     document.getElementById('playerFrame').classList.add('hidden');
@@ -690,7 +732,7 @@ document.addEventListener('click', e => {
 });
 
 async function doSearch(q) {
-    if (!serverOnline) { searchDropdown.innerHTML = '<div class="p-3 text-xs text-gray-500">Servidor offline.</div>'; searchDropdown.classList.remove('hidden'); return; }
+    if (!serverOnline) { searchDropdown.innerHTML = '<div class="p-3 text-xs text-gray-500">Serviço indisponível.</div>'; searchDropdown.classList.remove('hidden'); return; }
     searchDropdown.innerHTML = '<div class="p-3 text-xs text-purple-400">🔍 A procurar...</div>';
     searchDropdown.classList.remove('hidden');
     try {
@@ -713,7 +755,7 @@ async function doSearchPage(q) {
     const grid = document.getElementById('grid-search');
     showSection('search');
     grid.innerHTML = '<p class="text-gray-500 text-xs col-span-full py-8 text-center">🔍 A procurar...</p>';
-    if (!serverOnline) { grid.innerHTML = '<p class="text-gray-500 text-xs col-span-full py-8 text-center">Servidor offline.</p>'; return; }
+    if (!serverOnline) { grid.innerHTML = '<p class="text-gray-500 text-xs col-span-full py-8 text-center">Serviço indisponível.</p>'; return; }
     try {
         const r = await fetch(`${API}/buscar?q=${encodeURIComponent(q)}`);
         const results = await r.json();
