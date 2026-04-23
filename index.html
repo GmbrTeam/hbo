@@ -6,6 +6,7 @@
     <title>HBO + | Experiência Imersiva</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap');
         :root { --accent: #9d00ff; --bg: #000; --bottom-nav-h: 64px; --safe-bottom: env(safe-area-inset-bottom, 0px); }
@@ -145,6 +146,61 @@
         /* ── Navbar ── */
         #navbar { padding-left:16px; padding-right:16px; }
         @media(min-width:768px){ #navbar { padding-left:24px; padding-right:24px; } }
+
+        /* ── Toast Notifications ── */
+        .toast {
+            pointer-events: auto;
+            min-width: 300px;
+            max-width: 400px;
+            padding: 16px;
+            border-radius: 12px;
+            background: rgba(20, 20, 30, 0.95);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            animation: slideIn 0.3s ease-out;
+            color: white;
+        }
+        .toast.success { border-color: rgba(34, 197, 94, 0.5); }
+        .toast.success .toast-icon { color: #22c55e; }
+        .toast.error { border-color: rgba(239, 68, 68, 0.5); }
+        .toast.error .toast-icon { color: #ef4444; }
+        .toast.warning { border-color: rgba(234, 179, 8, 0.5); }
+        .toast.warning .toast-icon { color: #eab308; }
+        .toast.info { border-color: rgba(59, 130, 246, 0.5); }
+        .toast.info .toast-icon { color: #3b82f6; }
+        .toast-icon { font-size: 20px; flex-shrink: 0; }
+        .toast-content { flex: 1; min-width: 0; }
+        .toast-title { font-weight: 600; font-size: 14px; margin-bottom: 4px; }
+        .toast-message { font-size: 13px; color: rgba(255, 255, 255, 0.7); line-height: 1.4; }
+        .toast-close {
+            flex-shrink: 0;
+            width: 24px;
+            height: 24px;
+            border-radius: 6px;
+            background: rgba(255, 255, 255, 0.1);
+            border: none;
+            color: rgba(255, 255, 255, 0.5);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+        .toast-close:hover { background: rgba(255, 255, 255, 0.2); color: white; }
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateX(100%); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+        @keyframes slideOut {
+            from { opacity: 1; transform: translateX(0); }
+            to { opacity: 0; transform: translateX(100%); }
+        }
+        .toast.removing { animation: slideOut 0.3s ease-in forwards; }
     </style>
 </head>
 <body>
@@ -163,6 +219,246 @@
             <button onclick="closeSourceError()" class="bg-white/10 hover:bg-white/20 text-white px-5 py-2 rounded-xl font-bold text-sm transition">
                 Fechar
             </button>
+        </div>
+    </div>
+</div>
+
+<!-- Success Modal -->
+<div id="successModal" class="fixed inset-0 z-[300] hidden items-center justify-center p-6">
+    <div class="absolute inset-0 bg-black/80 backdrop-blur-sm" onclick="closeSuccessModal()"></div>
+    <div class="relative bg-gradient-to-br from-zinc-900 via-zinc-800 to-zinc-900 border border-green-500/50 rounded-3xl p-8 max-w-sm w-full text-center shadow-2xl overflow-hidden">
+        <!-- Animated background -->
+        <div class="absolute inset-0 bg-gradient-to-r from-green-600/10 via-emerald-600/10 to-green-600/10 animate-pulse"></div>
+        <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-green-500 via-emerald-500 to-green-500"></div>
+
+        <div class="relative z-10">
+            <!-- Success Icon with animation -->
+            <div class="w-24 h-24 mx-auto mb-6 rounded-full bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center shadow-lg shadow-green-500/30 animate-bounce">
+                <i class="fas fa-check text-4xl text-white"></i>
+            </div>
+
+            <h3 class="text-white font-black text-2xl mb-2 uppercase tracking-tight">Login Realizado!</h3>
+            <p class="text-gray-400 text-sm mb-6">Bem-vindo de volta! Você já pode acessar todo o conteúdo.</p>
+
+            <div id="successUserInfo" class="flex items-center justify-center gap-4 mb-6 p-4 bg-white/5 rounded-2xl">
+                <div id="successUserAvatar" class="w-12 h-12 rounded-full bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center text-white font-bold text-lg overflow-hidden">
+                    <span id="successUserInitials">JD</span>
+                    <img id="successUserImage" src="" class="w-full h-full object-cover hidden" alt="">
+                </div>
+                <div class="text-left">
+                    <p id="successUserName" class="text-white font-bold text-sm">João Silva</p>
+                    <p id="successUserEmail" class="text-gray-500 text-xs">email@exemplo.com</p>
+                </div>
+            </div>
+
+            <button onclick="closeSuccessModal()" class="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white px-8 py-3 rounded-xl font-bold transition shadow-lg shadow-green-500/30">
+                Continuar
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Settings Modal -->
+<div id="settingsModal" class="fixed inset-0 z-[300] hidden items-center justify-center p-6">
+    <div class="absolute inset-0 bg-black/80 backdrop-blur-sm" onclick="closeSettingsModal()"></div>
+    <div class="relative bg-gradient-to-br from-zinc-900 via-zinc-800 to-zinc-900 border border-purple-500/50 rounded-3xl p-8 max-w-md w-full shadow-2xl overflow-hidden">
+        <!-- Animated background -->
+        <div class="absolute inset-0 bg-gradient-to-r from-purple-600/10 via-blue-600/10 to-purple-600/10 animate-pulse"></div>
+        <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-purple-500 via-blue-500 to-purple-500"></div>
+
+        <div class="relative z-10">
+            <div class="flex items-center justify-between mb-6">
+                <h3 class="text-white font-black text-2xl uppercase tracking-tight">Configurações</h3>
+                <button onclick="closeSettingsModal()" class="text-gray-500 hover:text-white transition">
+                    <i class="fas fa-times text-xl"></i>
+                </button>
+            </div>
+
+            <div class="space-y-4">
+                <!-- Account Info -->
+                <div class="bg-white/5 rounded-2xl p-4">
+                    <h4 class="text-purple-400 font-bold text-sm mb-3 uppercase tracking-wider">Informações da Conta</h4>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="text-gray-500 text-xs mb-1 block">Nome</label>
+                            <input type="text" id="settingsNameInput" class="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-500 transition" placeholder="Seu nome">
+                        </div>
+                        <div>
+                            <label class="text-gray-500 text-xs mb-1 block">Email</label>
+                            <input type="email" id="settingsEmailInput" class="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-500 transition" placeholder="seu@email.com" disabled>
+                            <p class="text-gray-600 text-[10px] mt-1">Email não pode ser alterado (vinculado ao Google)</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Actions -->
+                <div class="bg-white/5 rounded-2xl p-4">
+                    <h4 class="text-purple-400 font-bold text-sm mb-3 uppercase tracking-wider">Ações</h4>
+                    <div class="space-y-2">
+                        <button onclick="saveProfileSettings()" class="w-full bg-purple-600 hover:bg-purple-700 text-white px-4 py-3 rounded-xl font-bold text-sm transition flex items-center justify-center gap-2">
+                            <i class="fas fa-save"></i> Salvar Alterações
+                        </button>
+                        <button onclick="logout()" class="w-full bg-red-600/20 hover:bg-red-600/30 text-red-400 px-4 py-3 rounded-xl font-bold text-sm transition flex items-center justify-center gap-2">
+                            <i class="fas fa-sign-out-alt"></i> Sair da Conta
+                        </button>
+                    </div>
+                </div>
+
+                <!-- App Info -->
+                <div class="bg-white/5 rounded-2xl p-4">
+                    <h4 class="text-purple-400 font-bold text-sm mb-3 uppercase tracking-wider">Sobre</h4>
+                    <p class="text-gray-500 text-xs">HBO+ Streaming v1.0</p>
+                    <p class="text-gray-600 text-[10px] mt-1">Autenticação via Google OAuth</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Email Verification Modal -->
+<div id="emailVerificationModal" class="fixed inset-0 z-[500] hidden bg-[radial-gradient(circle_at_top_right,#1e1e2e,#000000)] flex items-center justify-center text-white overflow-hidden">
+    <div class="w-full max-w-md px-6 py-12 animate-fade-in">
+        <!-- Logo HBO+ -->
+        <div class="text-center mb-10">
+            <h1 class="text-5xl font-extrabold tracking-tighter italic">
+                <span class="text-white">HBO</span><span class="text-purple-500">+</span>
+            </h1>
+            <p class="text-gray-400 mt-3 font-light text-sm uppercase tracking-widest">Onde as histórias ganham vida</p>
+        </div>
+
+        <div class="rounded-2xl p-8 md:p-10 bg-white/[0.03] backdrop-blur-[20px] border border-white/10 shadow-[0_25px_50px_-12px_rgba(0,0,0,0.5)]">
+            <h2 class="text-2xl font-semibold mb-6 text-center">Verifique seu Email</h2>
+            <p class="text-gray-400 text-sm text-center mb-6">Enviamos um código de 6 dígitos para:</p>
+            <p id="verificationEmail" class="text-white font-bold text-sm text-center mb-6">email@exemplo.com</p>
+
+            <div class="space-y-4">
+                <div>
+                    <label for="verificationCode" class="block text-sm font-medium text-gray-400 mb-1">Código de verificação</label>
+                    <input type="text" id="verificationCode" maxlength="6" class="w-full bg-white/5 border border-gray-700 rounded-lg py-3 px-4 text-white text-center text-2xl font-bold tracking-widest focus:outline-none focus:border-purple-500 transition-all" placeholder="000000">
+                </div>
+
+                <button onclick="verifyEmailCode()" class="w-full py-3 rounded-lg font-semibold text-white mt-6 bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-700 hover:to-purple-600 transition-all">
+                    Verificar
+                </button>
+
+                <button onclick="resendVerificationCode()" class="w-full text-gray-500 hover:text-white text-sm transition">
+                    Reenviar código
+                </button>
+
+                <button onclick="closeEmailVerificationModal()" class="w-full text-gray-600 hover:text-gray-400 text-xs transition">
+                    Cancelar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Toast Notifications Container -->
+<div id="toastContainer" class="fixed top-4 right-4 z-[600] flex flex-col gap-2 pointer-events-none"></div>
+
+<!-- Password Recovery Modal -->
+<div id="passwordRecoveryModal" class="fixed inset-0 z-[500] hidden bg-[radial-gradient(circle_at_top_right,#1e1e2e,#000000)] flex items-center justify-center text-white overflow-hidden">
+    <div class="w-full max-w-md px-6 py-12 animate-fade-in">
+        <!-- Logo HBO+ -->
+        <div class="text-center mb-10">
+            <h1 class="text-5xl font-extrabold tracking-tighter italic">
+                <span class="text-white">HBO</span><span class="text-purple-500">+</span>
+            </h1>
+            <p class="text-gray-400 mt-3 font-light text-sm uppercase tracking-widest">Onde as histórias ganham vida</p>
+        </div>
+
+        <div class="rounded-2xl p-8 md:p-10 bg-white/[0.03] backdrop-blur-[20px] border border-white/10 shadow-[0_25px_50px_-12px_rgba(0,0,0,0.5)]">
+            <h2 class="text-2xl font-semibold mb-6 text-center">Recuperar Senha</h2>
+            
+            <!-- Step 1: Email Input -->
+            <div id="recoveryStep1" class="space-y-4">
+                <p class="text-gray-400 text-sm text-center mb-6">Digite seu e-mail para receber um código de recuperação</p>
+                <div>
+                    <label for="recoveryEmail" class="block text-sm font-medium text-gray-400 mb-1">E-mail</label>
+                    <input type="email" id="recoveryEmail" required
+                        class="w-full bg-white/5 border border-gray-700 rounded-lg py-3 px-4 text-white focus:outline-none focus:border-purple-500 transition-all"
+                        placeholder="nome@exemplo.com">
+                </div>
+                <button onclick="sendRecoveryCode()" class="w-full py-3 rounded-lg font-semibold text-white mt-6 bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-700 hover:to-purple-600 transition-all">
+                    Enviar Código
+                </button>
+                <button onclick="closePasswordRecoveryModal()" class="w-full text-gray-600 hover:text-gray-400 text-xs transition">
+                    Cancelar
+                </button>
+            </div>
+
+            <!-- Step 2: Code Verification -->
+            <div id="recoveryStep2" class="space-y-4 hidden">
+                <p class="text-gray-400 text-sm text-center mb-6">Enviamos um código de 6 dígitos para:</p>
+                <p id="recoveryEmailDisplay" class="text-white font-bold text-sm text-center mb-6">email@exemplo.com</p>
+                <div>
+                    <label for="recoveryCode" class="block text-sm font-medium text-gray-400 mb-1">Código de recuperação</label>
+                    <input type="text" id="recoveryCode" maxlength="6" class="w-full bg-white/5 border border-gray-700 rounded-lg py-3 px-4 text-white text-center text-2xl font-bold tracking-widest focus:outline-none focus:border-purple-500 transition-all" placeholder="000000">
+                </div>
+                <button onclick="verifyRecoveryCode()" class="w-full py-3 rounded-lg font-semibold text-white mt-6 bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-700 hover:to-purple-600 transition-all">
+                    Verificar
+                </button>
+                <button onclick="resendRecoveryCode()" class="w-full text-gray-500 hover:text-white text-sm transition">
+                    Reenviar código
+                </button>
+                <button onclick="closePasswordRecoveryModal()" class="w-full text-gray-600 hover:text-gray-400 text-xs transition">
+                    Cancelar
+                </button>
+            </div>
+
+            <!-- Step 3: Password Reset -->
+            <div id="recoveryStep3" class="space-y-4 hidden">
+                <p class="text-gray-400 text-sm text-center mb-4">Sua senha atual:</p>
+                <p id="currentPasswordDisplay" class="text-white font-bold text-sm text-center mb-6 bg-white/5 py-3 px-4 rounded-lg">••••••••</p>
+                <p class="text-gray-400 text-sm text-center mb-6">Digite sua nova senha:</p>
+                <div>
+                    <label for="newPassword" class="block text-sm font-medium text-gray-400 mb-1">Nova senha</label>
+                    <input type="password" id="newPassword" required
+                        class="w-full bg-white/5 border border-gray-700 rounded-lg py-3 px-4 text-white focus:outline-none focus:border-purple-500 transition-all"
+                        placeholder="••••••••" oninput="validateNewPasswordInput()">
+                    
+                    <!-- Password Strength Bar -->
+                    <div class="mt-3">
+                        <div class="flex gap-1 h-1.5">
+                            <div id="newStrength-1" class="flex-1 rounded-full bg-gray-700 transition-all duration-300"></div>
+                            <div id="newStrength-2" class="flex-1 rounded-full bg-gray-700 transition-all duration-300"></div>
+                            <div id="newStrength-3" class="flex-1 rounded-full bg-gray-700 transition-all duration-300"></div>
+                        </div>
+                        <p id="newStrength-text" class="text-[10px] text-gray-500 mt-1 uppercase tracking-wider font-bold">Força da senha</p>
+                    </div>
+                    
+                    <!-- Password Requirements -->
+                    <div id="newPasswordRequirements" class="mt-3 space-y-1">
+                        <p class="text-[10px] text-gray-500 uppercase tracking-wider font-bold mb-2">Requisitos da senha:</p>
+                        <div id="newReq-length" class="flex items-center gap-2 text-[10px] text-gray-500">
+                            <i class="fas fa-circle text-[6px]"></i>
+                            <span>Mínimo 8 caracteres</span>
+                        </div>
+                        <div id="newReq-uppercase" class="flex items-center gap-2 text-[10px] text-gray-500">
+                            <i class="fas fa-circle text-[6px]"></i>
+                            <span>Pelo menos uma letra maiúscula</span>
+                        </div>
+                        <div id="newReq-lowercase" class="flex items-center gap-2 text-[10px] text-gray-500">
+                            <i class="fas fa-circle text-[6px]"></i>
+                            <span>Pelo menos uma letra minúscula</span>
+                        </div>
+                        <div id="newReq-number" class="flex items-center gap-2 text-[10px] text-gray-500">
+                            <i class="fas fa-circle text-[6px]"></i>
+                            <span>Pelo menos um número</span>
+                        </div>
+                        <div id="newReq-special" class="flex items-center gap-2 text-[10px] text-gray-500">
+                            <i class="fas fa-circle text-[6px]"></i>
+                            <span>Pelo menos um caractere especial (!@#$%^&*(),.?":{}|<>)</span>
+                        </div>
+                    </div>
+                </div>
+                <button onclick="resetPassword()" class="w-full py-3 rounded-lg font-semibold text-white mt-6 bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-700 hover:to-purple-600 transition-all">
+                    Redefinir Senha
+                </button>
+                <button onclick="closePasswordRecoveryModal()" class="w-full text-gray-600 hover:text-gray-400 text-xs transition">
+                    Cancelar
+                </button>
+            </div>
         </div>
     </div>
 </div>
@@ -245,8 +541,10 @@
         <button onclick="recarregarCatalogo()" title="Atualizar catálogo" class="hidden md:flex text-gray-500 hover:text-purple-400 transition text-sm w-9 h-9 items-center justify-center rounded-lg">
             <i class="fas fa-sync-alt"></i>
         </button>
-        <div onclick="showSection('profile')" class="w-9 h-9 rounded-full bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center cursor-pointer border border-white/10 hover:border-white/40 transition active:scale-95">
-            <span class="text-[10px] font-bold">JD</span>
+        <!-- User avatar / Login button -->
+        <div id="userArea" class="w-9 h-9 rounded-full bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center cursor-pointer border border-white/10 hover:border-white/40 transition active:scale-95" onclick="handleUserClick()">
+            <span id="userInitials" class="text-[10px] font-bold">JD</span>
+            <img id="userAvatar" src="" class="w-full h-full rounded-full object-cover hidden" alt="">
         </div>
     </div>
 </nav>
@@ -268,6 +566,118 @@
     <button onclick="openMobileSearch()" class="text-gray-400" id="m-nav-search">
         <i class="fas fa-search"></i><span class="text-[9px] font-bold uppercase">Busca</span>
     </button>
+</div>
+
+<!-- ══ LOGIN ══ -->
+<div id="section-login" class="page-section hidden fixed inset-0 z-[400] bg-[radial-gradient(circle_at_top_right,#1e1e2e,#000000)] flex items-center justify-center text-white overflow-hidden">
+    <div class="w-full max-w-md px-6 py-12 animate-fade-in">
+        <!-- Logo HBO+ -->
+        <div class="text-center mb-10">
+            <h1 class="text-5xl font-extrabold tracking-tighter italic">
+                <span class="text-white">HBO</span><span class="text-purple-500">+</span>
+            </h1>
+            <p class="text-gray-400 mt-3 font-light text-sm uppercase tracking-widest">Onde as histórias ganham vida</p>
+        </div>
+
+        <div class="rounded-2xl p-8 md:p-10 bg-white/[0.03] backdrop-blur-[20px] border border-white/10 shadow-[0_25px_50px_-12px_rgba(0,0,0,0.5)]">
+            <h2 class="text-2xl font-semibold mb-6 text-center">Bem-vindo de volta</h2>
+
+            <!-- Botão Google -->
+            <div id="googleSignInBtn" class="flex justify-center mb-6"></div>
+
+            <div class="relative mb-6">
+                <div class="absolute inset-0 flex items-center">
+                    <div class="w-full border-t border-gray-700"></div>
+                </div>
+                <div class="relative flex justify-center text-xs uppercase">
+                    <span class="bg-black/20 backdrop-blur px-2 text-gray-500">Ou use seu e-mail</span>
+                </div>
+            </div>
+
+            <!-- Formulário Email/Senha -->
+            <form id="emailLoginForm" class="space-y-4">
+                <div>
+                    <label for="loginEmail" class="block text-sm font-medium text-gray-400 mb-1">E-mail</label>
+                    <input type="email" id="loginEmail" required
+                        class="w-full bg-white/5 border border-gray-700 rounded-lg py-3 px-4 text-white focus:outline-none focus:border-purple-500 transition-all"
+                        placeholder="nome@exemplo.com">
+                </div>
+
+                <div>
+                    <div class="flex justify-between mb-1">
+                        <label for="loginPassword" class="block text-sm font-medium text-gray-400">Senha</label>
+                        <a href="#" onclick="openPasswordRecoveryModal(); return false;" class="text-xs text-purple-400 hover:text-purple-300">Esqueceu a senha?</a>
+                    </div>
+                    <input type="password" id="loginPassword" required
+                        class="w-full bg-white/5 border border-gray-700 rounded-lg py-3 px-4 text-white focus:outline-none focus:border-purple-500 transition-all"
+                        placeholder="••••••••" oninput="validatePasswordInput()">
+                    
+                    <!-- Password Strength Bar -->
+                    <div class="mt-3">
+                        <div class="flex gap-1 h-1.5">
+                            <div id="strength-1" class="flex-1 rounded-full bg-gray-700 transition-all duration-300"></div>
+                            <div id="strength-2" class="flex-1 rounded-full bg-gray-700 transition-all duration-300"></div>
+                            <div id="strength-3" class="flex-1 rounded-full bg-gray-700 transition-all duration-300"></div>
+                        </div>
+                        <p id="strength-text" class="text-[10px] text-gray-500 mt-1 uppercase tracking-wider font-bold">Força da senha</p>
+                    </div>
+                    
+                    <!-- Password Requirements -->
+                    <div id="passwordRequirements" class="mt-3 space-y-1">
+                        <p class="text-[10px] text-gray-500 uppercase tracking-wider font-bold mb-2">Requisitos da senha:</p>
+                        <div id="req-length" class="flex items-center gap-2 text-[10px] text-gray-500">
+                            <i class="fas fa-circle text-[6px]"></i>
+                            <span>Mínimo 8 caracteres</span>
+                        </div>
+                        <div id="req-uppercase" class="flex items-center gap-2 text-[10px] text-gray-500">
+                            <i class="fas fa-circle text-[6px]"></i>
+                            <span>Pelo menos uma letra maiúscula</span>
+                        </div>
+                        <div id="req-lowercase" class="flex items-center gap-2 text-[10px] text-gray-500">
+                            <i class="fas fa-circle text-[6px]"></i>
+                            <span>Pelo menos uma letra minúscula</span>
+                        </div>
+                        <div id="req-number" class="flex items-center gap-2 text-[10px] text-gray-500">
+                            <i class="fas fa-circle text-[6px]"></i>
+                            <span>Pelo menos um número</span>
+                        </div>
+                        <div id="req-special" class="flex items-center gap-2 text-[10px] text-gray-500">
+                            <i class="fas fa-circle text-[6px]"></i>
+                            <span>Pelo menos um caractere especial (!@#$%^&*(),.?":{}|<>)</span>
+                        </div>
+                    </div>
+                </div>
+
+                <button type="submit" id="loginSubmitBtn" class="w-full py-3 rounded-lg font-semibold text-white mt-6 bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-700 hover:to-purple-600 transition-all flex items-center justify-center gap-2">
+                    <span id="loginBtnText">Entrar</span>
+                    <i id="loginSpinner" class="fas fa-spinner fa-spin hidden"></i>
+                </button>
+            </form>
+
+            <p class="text-center text-gray-500 text-sm mt-8">
+                Ao entrar, você concorda com nossos
+                <a href="#" class="text-purple-400 hover:text-purple-300">Termos de Serviço</a> e
+                <a href="#" class="text-purple-400 hover:text-purple-300">Política de Privacidade</a>.
+            </p>
+        </div>
+
+        <div class="mt-12 flex justify-center gap-6 text-xs text-gray-600 uppercase tracking-widest">
+            <a href="#" class="hover:text-gray-400">Privacidade</a>
+            <a href="#" class="hover:text-gray-400">Termos de Uso</a>
+            <a href="#" class="hover:text-gray-400">Ajuda</a>
+        </div>
+    </div>
+
+    <style>
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .animate-fade-in {
+            animation: fadeIn 0.8s ease-out forwards;
+        }
+    </style>
 </div>
 
 <!-- ══ HOME ══ -->
@@ -368,10 +778,16 @@
 <!-- ══ PERFIL ══ -->
 <div id="section-profile" class="page-section hidden pt-24 px-6 md:px-12 max-w-4xl mx-auto min-h-screen">
     <div class="flex flex-col md:flex-row items-center gap-10 mb-12">
-        <div class="w-32 h-32 rounded-full bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center text-5xl font-black border border-white/10 shadow-2xl">JD</div>
+        <div id="profileAvatar" class="w-32 h-32 rounded-full bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center text-5xl font-black border border-white/10 shadow-2xl overflow-hidden">
+            <span id="profileInitials">JD</span>
+            <img id="profileImage" src="" class="w-full h-full object-cover hidden" alt="">
+        </div>
         <div class="text-center md:text-left">
-            <h2 class="text-4xl font-bold mb-1">João D. Silva</h2>
-            <p class="text-gray-500 mb-4 tracking-widest font-bold text-[10px] uppercase">Membro Premium • Gold</p>
+            <h2 id="profileName" class="text-4xl font-bold mb-1">João D. Silva</h2>
+            <p id="profileEmail" class="text-gray-500 mb-4 tracking-widest font-bold text-[10px] uppercase">email@exemplo.com</p>
+            <button onclick="openSettingsModal()" class="text-purple-400 hover:text-purple-300 text-sm font-bold flex items-center gap-2 transition">
+                <i class="fas fa-cog"></i> Configurações da Conta
+            </button>
         </div>
     </div>
     <div class="bg-white/5 rounded-2xl p-6 border border-white/10 mb-6">
@@ -379,9 +795,14 @@
         <p id="profileServerStatus" class="text-sm font-bold text-purple-400">A verificar...</p>
         <p class="text-[10px] text-gray-600 mt-1">Conteúdo fornecido via <code class="text-purple-500">TMDb API</code></p>
     </div>
-    <button onclick="recarregarCatalogo()" class="bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 transition">
-        <i class="fas fa-sync-alt"></i> Recarregar Catálogo
-    </button>
+    <div class="flex gap-4 flex-wrap">
+        <button onclick="recarregarCatalogo()" class="bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 transition">
+            <i class="fas fa-sync-alt"></i> Recarregar Catálogo
+        </button>
+        <button id="logoutBtn" onclick="logout()" class="bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 transition hidden">
+            <i class="fas fa-sign-out-alt"></i> Sair
+        </button>
+    </div>
 </div>
 
 <!-- ══ DETALHE INDIVIDUAL ══ -->
@@ -456,8 +877,759 @@
 
 <script>
 const API = 'https://hbo-5ic3.onrender.com/api';
+const AUTH_API = 'http://localhost:9012/api';
 let serverOnline = false;
 let catalogData  = {};
+let currentUser = null;
+let authToken = null;
+
+// ── Toast Notifications ─────────────────────────────────────────────────────────
+function showToast(type, title, message, duration = 5000) {
+    const container = document.getElementById('toastContainer');
+    if (!container) return;
+
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+
+    const icons = {
+        success: 'fa-check-circle',
+        error: 'fa-exclamation-circle',
+        warning: 'fa-exclamation-triangle',
+        info: 'fa-info-circle'
+    };
+
+    toast.innerHTML = `
+        <i class="fas ${icons[type] || icons.info} toast-icon"></i>
+        <div class="toast-content">
+            <div class="toast-title">${title}</div>
+            <div class="toast-message">${message}</div>
+        </div>
+        <button class="toast-close" onclick="removeToast(this.parentElement)">
+            <i class="fas fa-times"></i>
+        </button>
+    `;
+
+    container.appendChild(toast);
+
+    // Auto remove after duration
+    setTimeout(() => {
+        removeToast(toast);
+    }, duration);
+}
+
+function removeToast(toast) {
+    if (!toast || toast.classList.contains('removing')) return;
+    toast.classList.add('removing');
+    setTimeout(() => {
+        if (toast.parentElement) {
+            toast.parentElement.removeChild(toast);
+        }
+    }, 300);
+}
+
+// ── Password Recovery ─────────────────────────────────────────────────────────
+let recoveryEmail = null;
+
+function openPasswordRecoveryModal() {
+    const modal = document.getElementById('passwordRecoveryModal');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    
+    // Reset to step 1
+    document.getElementById('recoveryStep1').classList.remove('hidden');
+    document.getElementById('recoveryStep2').classList.add('hidden');
+    document.getElementById('recoveryStep3').classList.add('hidden');
+    document.getElementById('recoveryEmail').value = '';
+}
+
+function closePasswordRecoveryModal() {
+    const modal = document.getElementById('passwordRecoveryModal');
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+    recoveryEmail = null;
+}
+
+async function sendRecoveryCode() {
+    const email = document.getElementById('recoveryEmail').value;
+    if (!email) {
+        showToast('warning', 'E-mail obrigatório', 'Por favor, digite seu e-mail.');
+        return;
+    }
+
+    try {
+        const r = await fetch(`${AUTH_API}/auth/recovery`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email })
+        });
+
+        const data = await r.json();
+
+        if (data.success) {
+            recoveryEmail = email;
+            document.getElementById('recoveryEmailDisplay').textContent = email;
+            document.getElementById('recoveryStep1').classList.add('hidden');
+            document.getElementById('recoveryStep2').classList.remove('hidden');
+            showToast('success', 'Código enviado', 'Código de recuperação enviado para ' + email);
+        } else {
+            showToast('error', 'Erro ao enviar', data.error || 'Erro ao enviar código de recuperação.');
+        }
+    } catch (e) {
+        console.error('Erro ao enviar código de recuperação:', e);
+        showToast('error', 'Erro ao enviar', 'Erro ao enviar código de recuperação: ' + e.message);
+    }
+}
+
+async function verifyRecoveryCode() {
+    const code = document.getElementById('recoveryCode').value;
+    if (!code || code.length !== 6) {
+        showToast('warning', 'Código inválido', 'Por favor, insira o código de 6 dígitos.');
+        return;
+    }
+
+    try {
+        const r = await fetch(`${AUTH_API}/auth/verify-recovery`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: recoveryEmail, code })
+        });
+
+        const data = await r.json();
+
+        if (data.success) {
+            document.getElementById('currentPasswordDisplay').textContent = data.current_password;
+            document.getElementById('recoveryStep2').classList.add('hidden');
+            document.getElementById('recoveryStep3').classList.remove('hidden');
+            showToast('success', 'Código verificado', 'Código verificado com sucesso.');
+        } else {
+            showToast('error', 'Erro na verificação', data.error || 'Erro ao verificar código.');
+        }
+    } catch (e) {
+        console.error('Erro ao verificar código:', e);
+        showToast('error', 'Erro na verificação', 'Erro ao verificar código: ' + e.message);
+    }
+}
+
+async function resendRecoveryCode() {
+    if (!recoveryEmail) return;
+
+    try {
+        const r = await fetch(`${AUTH_API}/auth/recovery`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: recoveryEmail })
+        });
+
+        const data = await r.json();
+        if (data.success) {
+            showToast('success', 'Código reenviado', 'Novo código enviado para ' + recoveryEmail);
+        } else {
+            showToast('error', 'Erro ao reenviar', 'Não foi possível reenviar o código.');
+        }
+    } catch (e) {
+        console.error('Erro ao reenviar código:', e);
+        showToast('error', 'Erro ao reenviar', 'Erro ao reenviar o código: ' + e.message);
+    }
+}
+
+async function resetPassword() {
+    const newPassword = document.getElementById('newPassword').value;
+
+    if (!validateNewPasswordInput()) {
+        showToast('warning', 'Senha inválida', 'A senha não atende aos requisitos mínimos de segurança.');
+        return;
+    }
+
+    try {
+        const r = await fetch(`${AUTH_API}/auth/reset-password`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: recoveryEmail, new_password: newPassword })
+        });
+
+        const data = await r.json();
+
+        if (data.success) {
+            showToast('success', 'Senha redefinida', 'Sua senha foi redefinida com sucesso.');
+            closePasswordRecoveryModal();
+        } else {
+            if (data.password_errors && data.password_errors.length > 0) {
+                showToast('error', 'Erro de validação', data.password_errors.join(' '));
+            } else {
+                showToast('error', 'Erro ao redefinir', data.error || 'Erro ao redefinir senha.');
+            }
+        }
+    } catch (e) {
+        console.error('Erro ao redefinir senha:', e);
+        showToast('error', 'Erro ao redefinir', 'Erro ao redefinir senha: ' + e.message);
+    }
+}
+
+function validateNewPasswordInput() {
+    const password = document.getElementById('newPassword').value;
+    
+    const checks = {
+        length: password.length >= 8,
+        uppercase: /[A-Z]/.test(password),
+        lowercase: /[a-z]/.test(password),
+        number: /\d/.test(password),
+        special: /[!@#$%^&*(),.?":{}|<>]/.test(password)
+    };
+    
+    // Update UI for each requirement
+    updateNewRequirement('newReq-length', checks.length);
+    updateNewRequirement('newReq-uppercase', checks.uppercase);
+    updateNewRequirement('newReq-lowercase', checks.lowercase);
+    updateNewRequirement('newReq-number', checks.number);
+    updateNewRequirement('newReq-special', checks.special);
+    
+    // Update password strength bar
+    updateNewPasswordStrength(password, checks);
+    
+    return Object.values(checks).every(check => check);
+}
+
+function updateNewRequirement(elementId, isValid) {
+    const element = document.getElementById(elementId);
+    const icon = element.querySelector('i');
+    
+    if (isValid) {
+        element.classList.remove('text-gray-500');
+        element.classList.add('text-green-400');
+        icon.classList.remove('fa-circle');
+        icon.classList.add('fa-check-circle');
+    } else {
+        element.classList.remove('text-green-400');
+        element.classList.add('text-gray-500');
+        icon.classList.remove('fa-check-circle');
+        icon.classList.add('fa-circle');
+    }
+}
+
+function updateNewPasswordStrength(password, checks) {
+    const strength1 = document.getElementById('newStrength-1');
+    const strength2 = document.getElementById('newStrength-2');
+    const strength3 = document.getElementById('newStrength-3');
+    const strengthText = document.getElementById('newStrength-text');
+    
+    // Reset all bars
+    strength1.className = 'flex-1 rounded-full bg-gray-700 transition-all duration-300';
+    strength2.className = 'flex-1 rounded-full bg-gray-700 transition-all duration-300';
+    strength3.className = 'flex-1 rounded-full bg-gray-700 transition-all duration-300';
+    
+    if (password.length === 0) {
+        strengthText.textContent = 'Força da senha';
+        strengthText.className = 'text-[10px] text-gray-500 mt-1 uppercase tracking-wider font-bold';
+        return;
+    }
+    
+    // Calculate strength based on met requirements
+    const metRequirements = Object.values(checks).filter(check => check).length;
+    
+    if (metRequirements <= 2) {
+        // Fraca
+        strength1.className = 'flex-1 rounded-full bg-red-500 transition-all duration-300';
+        strengthText.textContent = 'Fraca';
+        strengthText.className = 'text-[10px] text-red-500 mt-1 uppercase tracking-wider font-bold';
+    } else if (metRequirements <= 4) {
+        // Média
+        strength1.className = 'flex-1 rounded-full bg-yellow-500 transition-all duration-300';
+        strength2.className = 'flex-1 rounded-full bg-yellow-500 transition-all duration-300';
+        strengthText.textContent = 'Média';
+        strengthText.className = 'text-[10px] text-yellow-500 mt-1 uppercase tracking-wider font-bold';
+    } else {
+        // Forte
+        strength1.className = 'flex-1 rounded-full bg-green-500 transition-all duration-300';
+        strength2.className = 'flex-1 rounded-full bg-green-500 transition-all duration-300';
+        strength3.className = 'flex-1 rounded-full bg-green-500 transition-all duration-300';
+        strengthText.textContent = 'Forte';
+        strengthText.className = 'text-[10px] text-green-500 mt-1 uppercase tracking-wider font-bold';
+    }
+}
+
+// ── Autenticação Google ─────────────────────────────────────────────────────────
+async function checkAuth() {
+    const token = localStorage.getItem('authToken');
+    console.log('[DEBUG] checkAuth - Token existe:', !!token);
+    if (!token) {
+        updateUserUI(null);
+        return false;
+    }
+
+    try {
+        console.log('[DEBUG] Verificando token com API:', AUTH_API);
+        const r = await fetch(`${AUTH_API}/auth/verify`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        console.log('[DEBUG] Resposta da verificação:', r.status);
+        if (r.ok) {
+            const data = await r.json();
+            console.log('[DEBUG] Dados da verificação:', data);
+            if (data.authenticated) {
+                currentUser = data.user;
+                authToken = token;
+
+                // Carregar nome personalizado do localStorage
+                const savedName = localStorage.getItem('userName');
+                if (savedName) {
+                    currentUser.name = savedName;
+                }
+
+                updateUserUI(currentUser);
+                return true;
+            }
+        }
+    } catch (e) {
+        console.error('Erro ao verificar autenticação:', e);
+    }
+
+    console.log('[DEBUG] Verificação falhou, removendo token');
+    localStorage.removeItem('authToken');
+    updateUserUI(null);
+    return false;
+}
+
+function updateUserUI(user) {
+    const userArea = document.getElementById('userArea');
+    const userInitials = document.getElementById('userInitials');
+    const userAvatar = document.getElementById('userAvatar');
+    
+    if (user) {
+        if (user.picture) {
+            userAvatar.src = user.picture;
+            userAvatar.classList.remove('hidden');
+            userInitials.classList.add('hidden');
+        } else {
+            const initials = user.name ? user.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : 'US';
+            userInitials.textContent = initials;
+            userInitials.classList.remove('hidden');
+            userAvatar.classList.add('hidden');
+        }
+        
+        // Atualizar perfil
+        document.getElementById('profileName').textContent = user.name || 'Usuário';
+        document.getElementById('profileEmail').textContent = user.email || '';
+        document.getElementById('logoutBtn').classList.remove('hidden');
+        
+        if (user.picture) {
+            document.getElementById('profileImage').src = user.picture;
+            document.getElementById('profileImage').classList.remove('hidden');
+            document.getElementById('profileInitials').classList.add('hidden');
+        } else {
+            const initials = user.name ? user.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : 'US';
+            document.getElementById('profileInitials').textContent = initials;
+            document.getElementById('profileInitials').classList.remove('hidden');
+            document.getElementById('profileImage').classList.add('hidden');
+        }
+    } else {
+        userInitials.textContent = 'JD';
+        userInitials.classList.remove('hidden');
+        userAvatar.classList.add('hidden');
+        
+        // Resetar perfil
+        document.getElementById('profileName').textContent = 'João D. Silva';
+        document.getElementById('profileEmail').textContent = 'email@exemplo.com';
+        document.getElementById('logoutBtn').classList.add('hidden');
+        document.getElementById('profileInitials').textContent = 'JD';
+        document.getElementById('profileInitials').classList.remove('hidden');
+        document.getElementById('profileImage').classList.add('hidden');
+    }
+}
+
+function handleUserClick() {
+    if (currentUser) {
+        showSection('profile');
+    } else {
+        showSection('login');
+        // Pequeno delay para garantir que o DOM esteja pronto
+        setTimeout(() => initGoogleSignIn(), 100);
+    }
+}
+
+function openSuccessModal(user) {
+    const modal = document.getElementById('successModal');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+
+    // Atualizar dados do usuário no modal
+    document.getElementById('successUserName').textContent = user.name || 'Usuário';
+    document.getElementById('successUserEmail').textContent = user.email || '';
+
+    if (user.picture) {
+        document.getElementById('successUserImage').src = user.picture;
+        document.getElementById('successUserImage').classList.remove('hidden');
+        document.getElementById('successUserInitials').classList.add('hidden');
+    } else {
+        const initials = user.name ? user.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : 'US';
+        document.getElementById('successUserInitials').textContent = initials;
+        document.getElementById('successUserInitials').classList.remove('hidden');
+        document.getElementById('successUserImage').classList.add('hidden');
+    }
+}
+
+function closeSuccessModal() {
+    document.getElementById('successModal').classList.add('hidden');
+    document.getElementById('successModal').classList.remove('flex');
+}
+
+function openSettingsModal() {
+    const modal = document.getElementById('settingsModal');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+
+    // Atualizar dados do usuário no modal
+    if (currentUser) {
+        document.getElementById('settingsNameInput').value = currentUser.name || '';
+        document.getElementById('settingsEmailInput').value = currentUser.email || '';
+    } else {
+        document.getElementById('settingsNameInput').value = '';
+        document.getElementById('settingsEmailInput').value = '';
+    }
+}
+
+function closeSettingsModal() {
+    document.getElementById('settingsModal').classList.add('hidden');
+    document.getElementById('settingsModal').classList.remove('flex');
+}
+
+function openEmailVerificationModal(email) {
+    console.log('[DEBUG] openEmailVerificationModal chamado com email:', email);
+    const modal = document.getElementById('emailVerificationModal');
+    const loginSection = document.getElementById('section-login');
+    console.log('[DEBUG] Modal encontrado:', !!modal);
+    if (modal) {
+        // Esconder tela de login
+        if (loginSection) {
+            loginSection.classList.add('hidden');
+        }
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+        document.getElementById('verificationEmail').textContent = email;
+        document.getElementById('verificationCode').value = '';
+        console.log('[DEBUG] Modal classes:', modal.className);
+    } else {
+        console.error('[DEBUG] Modal não encontrado!');
+    }
+}
+
+function closeEmailVerificationModal() {
+    const modal = document.getElementById('emailVerificationModal');
+    const loginSection = document.getElementById('section-login');
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+    // Mostrar tela de login novamente
+    if (loginSection) {
+        loginSection.classList.remove('hidden');
+    }
+}
+
+let pendingEmail = null;
+
+async function verifyEmailCode() {
+    const code = document.getElementById('verificationCode').value;
+    if (!code || code.length !== 6) {
+        showToast('warning', 'Código inválido', 'Por favor, insira o código de 6 dígitos.');
+        return;
+    }
+
+    try {
+        const r = await fetch(`${AUTH_API}/auth/verify-code`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: pendingEmail, code })
+        });
+
+        const data = await r.json();
+
+        if (data.success) {
+            localStorage.setItem('authToken', data.token);
+            currentUser = data.user;
+            authToken = data.token;
+            updateUserUI(currentUser);
+            closeEmailVerificationModal();
+            showSection('home');
+            openSuccessModal(data.user);
+        } else {
+            showToast('error', 'Erro na verificação', data.error || 'Erro desconhecido ao verificar o código.');
+        }
+    } catch (e) {
+        console.error('Erro ao verificar código:', e);
+        showToast('error', 'Erro na verificação', 'Erro ao verificar o código: ' + e.message);
+    }
+}
+
+async function resendVerificationCode() {
+    if (!pendingEmail) return;
+
+    try {
+        const r = await fetch(`${AUTH_API}/auth/email`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: pendingEmail, password: 'dummy' })
+        });
+
+        const data = await r.json();
+        if (data.success) {
+            showToast('success', 'Código reenviado', 'Novo código enviado para ' + pendingEmail);
+        } else {
+            showToast('error', 'Erro ao reenviar', 'Não foi possível reenviar o código.');
+        }
+    } catch (e) {
+        console.error('Erro ao reenviar código:', e);
+        showToast('error', 'Erro ao reenviar', 'Erro ao reenviar o código: ' + e.message);
+    }
+}
+
+function saveProfileSettings() {
+    const newName = document.getElementById('settingsNameInput').value.trim();
+    if (!newName) {
+        showToast('warning', 'Nome inválido', 'Por favor, insira um nome válido.');
+        return;
+    }
+
+    if (currentUser) {
+        currentUser.name = newName;
+        updateUserUI(currentUser);
+
+        // Atualizar também no modal de sucesso
+        document.getElementById('successUserName').textContent = newName;
+
+        // Salvar no localStorage (opcional - apenas para persistência local)
+        localStorage.setItem('userName', newName);
+        showToast('success', 'Configurações salvas', 'Suas configurações foram salvas com sucesso.');
+        closeSettingsModal();
+    }
+}
+
+let googleInitialized = false;
+
+function initGoogleSignIn() {
+    console.log('[DEBUG] initGoogleSignIn chamado');
+    console.log('[DEBUG] google existe:', typeof google !== 'undefined');
+
+    if (typeof google === 'undefined') {
+        console.error('Google Identity Services não carregado');
+        return;
+    }
+
+    if (googleInitialized) {
+        console.log('[DEBUG] Google já inicializado, ignorando');
+        return;
+    }
+
+    const btnContainer = document.getElementById('googleSignInBtn');
+    console.log('[DEBUG] Container do botão encontrado:', !!btnContainer);
+
+    if (!btnContainer) {
+        console.error('Elemento googleSignInBtn não encontrado');
+        return;
+    }
+
+    console.log('[DEBUG] Inicializando Google Sign-In...');
+    google.accounts.id.initialize({
+        client_id: '905316006434-vlm47kl9u63anp749u4d34c27cuptq19.apps.googleusercontent.com',
+        callback: handleCredentialResponse,
+        auto_select: false,
+        context: 'signin'
+    });
+
+    console.log('[DEBUG] Renderizando botão...');
+    google.accounts.id.renderButton(
+        btnContainer,
+        {
+            theme: 'filled_black',
+            size: 'large',
+            type: 'standard',
+            text: 'signin_with',
+            width: 250
+        }
+    );
+
+    googleInitialized = true;
+    console.log('[DEBUG] Google Sign-In inicializado com sucesso');
+}
+
+async function handleCredentialResponse(response) {
+    try {
+        const r = await fetch(`${AUTH_API}/auth/google`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token: response.credential })
+        });
+
+        const data = await r.json();
+
+        if (data.success) {
+            localStorage.setItem('authToken', data.token);
+            currentUser = data.user;
+            authToken = data.token;
+            updateUserUI(currentUser);
+            showSection('home');
+            openSuccessModal(data.user);
+        } else {
+            showToast('error', 'Erro no login', data.error || 'Erro desconhecido ao fazer login.');
+        }
+    } catch (e) {
+        console.error('Erro ao fazer login:', e);
+        showToast('error', 'Erro no login', 'Erro ao fazer login: ' + e.message + '. Verifique se o servidor está rodando.');
+    }
+}
+
+// Client-side password validation
+function validatePasswordInput() {
+    const password = document.getElementById('loginPassword').value;
+    
+    const checks = {
+        length: password.length >= 8,
+        uppercase: /[A-Z]/.test(password),
+        lowercase: /[a-z]/.test(password),
+        number: /\d/.test(password),
+        special: /[!@#$%^&*(),.?":{}|<>]/.test(password)
+    };
+    
+    // Update UI for each requirement
+    updateRequirement('req-length', checks.length);
+    updateRequirement('req-uppercase', checks.uppercase);
+    updateRequirement('req-lowercase', checks.lowercase);
+    updateRequirement('req-number', checks.number);
+    updateRequirement('req-special', checks.special);
+    
+    // Update password strength bar
+    updatePasswordStrength(password, checks);
+    
+    return Object.values(checks).every(check => check);
+}
+
+function updatePasswordStrength(password, checks) {
+    const strength1 = document.getElementById('strength-1');
+    const strength2 = document.getElementById('strength-2');
+    const strength3 = document.getElementById('strength-3');
+    const strengthText = document.getElementById('strength-text');
+    
+    // Reset all bars
+    strength1.className = 'flex-1 rounded-full bg-gray-700 transition-all duration-300';
+    strength2.className = 'flex-1 rounded-full bg-gray-700 transition-all duration-300';
+    strength3.className = 'flex-1 rounded-full bg-gray-700 transition-all duration-300';
+    
+    if (password.length === 0) {
+        strengthText.textContent = 'Força da senha';
+        strengthText.className = 'text-[10px] text-gray-500 mt-1 uppercase tracking-wider font-bold';
+        return;
+    }
+    
+    // Calculate strength based on met requirements
+    const metRequirements = Object.values(checks).filter(check => check).length;
+    
+    if (metRequirements <= 2) {
+        // Fraca
+        strength1.className = 'flex-1 rounded-full bg-red-500 transition-all duration-300';
+        strengthText.textContent = 'Fraca';
+        strengthText.className = 'text-[10px] text-red-500 mt-1 uppercase tracking-wider font-bold';
+    } else if (metRequirements <= 4) {
+        // Média
+        strength1.className = 'flex-1 rounded-full bg-yellow-500 transition-all duration-300';
+        strength2.className = 'flex-1 rounded-full bg-yellow-500 transition-all duration-300';
+        strengthText.textContent = 'Média';
+        strengthText.className = 'text-[10px] text-yellow-500 mt-1 uppercase tracking-wider font-bold';
+    } else {
+        // Forte
+        strength1.className = 'flex-1 rounded-full bg-green-500 transition-all duration-300';
+        strength2.className = 'flex-1 rounded-full bg-green-500 transition-all duration-300';
+        strength3.className = 'flex-1 rounded-full bg-green-500 transition-all duration-300';
+        strengthText.textContent = 'Forte';
+        strengthText.className = 'text-[10px] text-green-500 mt-1 uppercase tracking-wider font-bold';
+    }
+}
+
+function updateRequirement(elementId, isValid) {
+    const element = document.getElementById(elementId);
+    const icon = element.querySelector('i');
+    
+    if (isValid) {
+        element.classList.remove('text-gray-500');
+        element.classList.add('text-green-400');
+        icon.classList.remove('fa-circle');
+        icon.classList.add('fa-check-circle');
+    } else {
+        element.classList.remove('text-green-400');
+        element.classList.add('text-gray-500');
+        icon.classList.remove('fa-check-circle');
+        icon.classList.add('fa-circle');
+    }
+}
+
+// Login por email/senha
+document.getElementById('emailLoginForm').addEventListener('submit', async function(e) {
+    console.log('[DEBUG] Formulário submetido!');
+    e.preventDefault();
+    const email = document.getElementById('loginEmail').value;
+    const password = document.getElementById('loginPassword').value;
+
+    // Client-side validation
+    if (!validatePasswordInput()) {
+        showToast('warning', 'Senha inválida', 'A senha não atende aos requisitos mínimos de segurança. Por favor, verifique os requisitos listados.');
+        return;
+    }
+
+    // Show loading state
+    const loginBtn = document.getElementById('loginSubmitBtn');
+    const loginBtnText = document.getElementById('loginBtnText');
+    const loginSpinner = document.getElementById('loginSpinner');
+    
+    loginBtn.disabled = true;
+    loginBtnText.textContent = 'Processando...';
+    loginSpinner.classList.remove('hidden');
+
+    const url = `${AUTH_API}/auth/email`;
+    console.log('[DEBUG] URL do login:', url);
+    console.log('[DEBUG] AUTH_API:', AUTH_API);
+
+    try {
+        const r = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password })
+        });
+
+        console.log('[DEBUG] Resposta status:', r.status);
+        console.log('[DEBUG] Resposta headers:', Object.fromEntries(r.headers.entries()));
+
+        const text = await r.text();
+        console.log('[DEBUG] Resposta texto:', text);
+
+        const data = JSON.parse(text);
+
+        if (data.success) {
+            pendingEmail = email;
+            console.log('[DEBUG] Abrindo modal de verificação para:', email);
+            openEmailVerificationModal(email);
+            console.log('[DEBUG] Modal deve estar aberto agora');
+        } else {
+            // Handle password validation errors from server
+            if (data.password_errors && data.password_errors.length > 0) {
+                showToast('error', 'Erro de validação', data.password_errors.join(' '));
+            } else {
+                showToast('error', 'Erro no login', data.error || 'Erro desconhecido ao fazer login.');
+            }
+        }
+    } catch (e) {
+        console.error('Erro ao fazer login:', e);
+        showToast('error', 'Erro no login', 'Erro ao fazer login: ' + e.message + '. Verifique se o servidor está rodando.');
+    } finally {
+        // Reset button state
+        loginBtn.disabled = false;
+        loginBtnText.textContent = 'Entrar';
+        loginSpinner.classList.add('hidden');
+    }
+});
+
+function logout() {
+    localStorage.removeItem('authToken');
+    currentUser = null;
+    authToken = null;
+    updateUserUI(null);
+    showSection('home');
+}
 
 // Mapa de seções a renderizar no home
 const HOME_SECTIONS = [
@@ -1146,6 +2318,20 @@ function showSection(id) {
     document.querySelectorAll('.bottom-nav button').forEach(b => b.classList.remove('active-nav-mobile'));
     const mNav = document.getElementById(`m-nav-${id}`);
     if (mNav) mNav.classList.add('active-nav-mobile');
+
+    // Esconder navbar na tela de login
+    const navbar = document.getElementById('navbar');
+    const bottomNav = document.querySelector('.bottom-nav');
+    if (id === 'login') {
+        navbar.classList.add('hidden');
+        if (bottomNav) bottomNav.classList.add('hidden');
+        document.body.style.overflow = 'hidden';
+    } else {
+        navbar.classList.remove('hidden');
+        if (bottomNav) bottomNav.classList.remove('hidden');
+        document.body.style.overflow = '';
+    }
+
     window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
@@ -1157,6 +2343,7 @@ window.addEventListener('scroll', () => {
 
 // Skeleton enquanto carrega
 document.getElementById('homeRows').innerHTML = skeletonRows(5);
+checkAuth();
 checkServer();
 </script>
 </body>
