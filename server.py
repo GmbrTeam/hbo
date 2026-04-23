@@ -100,6 +100,32 @@ def buscar_pagina(endpoint, tipo, pagina=1, extra={}):
     return [x for x in (normalizar(r, tipo) for r in data.get("results", [])) if x and x["img"]]
 
 
+ERROR_PATTERNS = [
+    "404 not found", "this media is unavailable", "not found", "404",
+    "video not found", "movie not found", "unavailable", "no video",
+    "error loading", "cannot be played", "media not available",
+]
+
+@app.route("/api/check")
+def check_player():
+    from urllib.parse import unquote as _unquote
+    url = _unquote(request.args.get("url", ""))
+    if not url:
+        return jsonify({"ok": False, "reason": "URL inválida"}), 400
+    try:
+        r = requests.get(url, timeout=10, headers={
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Referer": "https://www.google.com/"
+        })
+        html_lower = r.text.lower()
+        for pattern in ERROR_PATTERNS:
+            if pattern in html_lower:
+                return jsonify({"ok": False, "reason": pattern})
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"ok": False, "reason": str(e)})
+
+
 @app.route('/api/<path:path>', methods=['OPTIONS'])
 def handle_options(path):
     r = make_response()
