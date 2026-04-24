@@ -44,7 +44,7 @@ if !i! gtr !count! goto DONELOOP
 set "NUM=!NUMBERS!"
 set "NUM=!NUM:%i%=!"
 if not "!NUM!"=="%NUMBERS%" (
-    git add "!file%i%!"
+    git add -f "!file%i%!"
     echo Adicionado: !file%i%!
 )
 set /a i+=1
@@ -55,6 +55,13 @@ endlocal
 goto COMMIT
 
 :COMMIT
+echo Verificando se ha mudancas para commitar...
+for /f %%i in ('git diff --cached --name-only') do set HAS_CHANGES=1
+if not defined HAS_CHANGES (
+    echo Nenhuma mudanca para commitar. Nada sera enviado.
+    pause
+    exit /b
+)
 echo Digite a mensagem do commit:
 set /p MSG=
 git commit -m "%MSG%"
