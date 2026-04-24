@@ -718,6 +718,14 @@ def detalhes(tipo, tmdb_id):
 
 @app.route('/')
 @app.route('/index.html')
+@app.route('/home')
+@app.route('/movies')
+@app.route('/series')
+@app.route('/genres')
+@app.route('/search')
+@app.route('/profile')
+@app.route('/login')
+@app.route('/kids')
 def serve_index():
     return send_from_directory(BASE_DIR, 'index.html')
 
