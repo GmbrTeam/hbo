@@ -8,11 +8,12 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;600;700;800&display=swap');
         :root { --accent: #9d00ff; --bg: #000; --bottom-nav-h: 64px; --safe-bottom: env(safe-area-inset-bottom, 0px); }
         * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; touch-action:manipulation; }
         html { scroll-behavior: smooth; }
-        body { font-family:'Inter',sans-serif; background:var(--bg); color:white; overflow-x:hidden; -webkit-overflow-scrolling:touch; }
+        body { font-family:'Sora',sans-serif; color:white; overflow-x:hidden; -webkit-overflow-scrolling:touch; background:#000; }
+        #bgCanvas { position:fixed; inset:0; z-index:0; pointer-events:none; width:100%; height:100%; }
         .hero-gradient { background:linear-gradient(0deg,#000 0%,rgba(0,0,0,.7) 50%,transparent 100%); }
         .card-zoom:hover .card-img { transform:scale(1.06); }
         .scroll-hide::-webkit-scrollbar { display:none; }
@@ -38,11 +39,89 @@
             display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px;
             border-radius:12px;
             transition: background .2s;
+            position: relative;
         }
         .bottom-nav button:active { background: rgba(157,0,255,.15); }
         .bottom-nav button i { font-size: 20px; }
         .bottom-nav button span { font-size: 9px; font-weight:800; letter-spacing:.08em; }
+        .bottom-nav button.active-nav-mobile::before {
+            content: '';
+            position: absolute; top: -10px; left: 50%; transform: translateX(-50%);
+            width: 24px; height: 2px;
+            background: var(--accent); border-radius: 99px;
+        }
+        .bottom-nav button[style*="fbbf24"].active-nav-mobile::before { background: #fbbf24; }
         @media(min-width:768px){ .bottom-nav{ display:none; } }
+
+        /* ── Kids Mode ── */
+        .kids-mode-active {
+            background: #0a0a1a !important;
+        }
+        
+        .kids-mode-active #navbar {
+            background: rgba(10, 10, 26, 0.95) !important;
+            border-bottom: 2px solid rgba(255, 230, 109, 0.3);
+        }
+        
+        .kids-mode-active .bottom-nav {
+            background: rgba(10, 10, 26, 0.97) !important;
+            border-top: 2px solid rgba(255, 230, 109, 0.3);
+        }
+        
+        .kids-mode-active .genre-card {
+            background: linear-gradient(135deg, rgba(255, 230, 109, 0.1), rgba(149, 225, 211, 0.05));
+            border: 2px solid rgba(255, 230, 109, 0.2);
+        }
+        
+        .kids-mode-active .genre-card:hover {
+            border-color: rgba(255, 230, 109, 0.5);
+            background: rgba(255, 230, 109, 0.15);
+            transform: translateY(-5px);
+        }
+        
+        /* Kids decorations */
+        .kids-decoration {
+            position: fixed;
+            pointer-events: none;
+            z-index: 1;
+            opacity: 0.3;
+            animation: float 4s ease-in-out infinite;
+        }
+        
+        .kids-star {
+            font-size: 20px;
+            color: #FFE66D;
+            text-shadow: 0 0 5px rgba(255, 230, 109, 0.3);
+        }
+        
+        .kids-star:nth-child(1) { top: 15%; left: 8%; animation-delay: 0s; }
+        .kids-star:nth-child(2) { top: 25%; right: 12%; animation-delay: 1s; }
+        .kids-star:nth-child(3) { top: 65%; left: 10%; animation-delay: 2s; }
+        .kids-star:nth-child(4) { top: 75%; right: 8%; animation-delay: 3s; }
+        
+        @keyframes float {
+            0%, 100% { transform: translateY(0) rotate(0deg); opacity: 0.3; }
+            50% { transform: translateY(-15px) rotate(5deg); opacity: 0.5; }
+        }
+        
+        .kids-mode-active .card-zoom:hover .card-img {
+            transform: scale(1.05);
+        }
+        
+        .kids-mode-active .active-nav-desktop {
+            border-bottom: 2px solid #FFE66D;
+            color: #FFE66D !important;
+        }
+        
+        .kids-mode-active .active-nav-mobile {
+            color: #FFE66D !important;
+        }
+
+        /* ── Kids mode: hide adult nav links ── */
+        .kids-mode-active .adult-nav-link { display: none !important; }
+        .kids-mode-active .kids-nav-link  { display: flex !important; }
+        .adult-mode .kids-nav-link        { display: none !important; }
+        .kids-nav-link                    { display: none; }
 
         /* ── Player ── */
         #videoPlayer { background:#000; display:none; position:fixed; inset:0; z-index:200; flex-direction:column; }
@@ -52,6 +131,8 @@
         /* ── Genre Cards ── */
         .genre-card { background:linear-gradient(135deg,rgba(255,255,255,.05),rgba(255,255,255,.01)); border:1px solid rgba(255,255,255,.1); transition:all .3s; }
         @media(hover:hover){ .genre-card:hover { border-color:var(--accent); background:rgba(157,0,255,.1); transform:translateY(-5px); } }
+        @media(hover:hover){ .genre-card:hover i { transform:scale(1.25); } }
+        .genre-card i { display:inline-block; transition:transform .25s ease; }
         .genre-card:active { border-color:var(--accent); background:rgba(157,0,255,.15); transform:scale(.97); }
 
         .episode-card:active { background:rgba(255,255,255,.08); }
@@ -62,6 +143,10 @@
         .skeleton{background:linear-gradient(90deg,#1a1a1a 25%,#2a2a2a 50%,#1a1a1a 75%);background-size:200% 100%;animation:shimmer 1.5s infinite;border-radius:8px;}
         @keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
 
+        /* ── Section fade transition ── */
+        .page-section { animation: fade-in .2s ease-out; }
+        @media (prefers-reduced-motion: reduce) { .page-section { animation: none; } }
+
         /* ── Search Dropdown ── */
         #searchDropdown{position:absolute;top:calc(100% + 6px);left:0;right:0;background:rgba(10,0,20,.98);border:1px solid rgba(157,0,255,.3);border-radius:12px;z-index:999;max-height:60vh;overflow-y:auto;}
         #searchDropdown .s-item{display:flex;gap:10px;padding:12px;cursor:pointer;transition:background .2s;align-items:center; min-height:52px;}
@@ -70,15 +155,70 @@
         #searchDropdown .s-item img{width:40px;height:56px;object-fit:cover;border-radius:4px;flex:none;}
 
         .section-row { margin-bottom: 2rem; }
-        .vote-badge { position:absolute; top:6px; right:6px; background:rgba(0,0,0,.85); border:1px solid rgba(255,200,0,.4); color:#ffd700; font-size:8px; font-weight:700; padding:2px 5px; border-radius:4px; }
+
+        /* ── Top 10 Row ── */
+        .top10-wrap { flex:none; position:relative; cursor:pointer; display:inline-block; }
+        .top10-num {
+            position:absolute; bottom:-18px; left:-10px; z-index:2;
+            font-size:100px; font-weight:900; font-style:italic; line-height:1;
+            color:transparent; -webkit-text-stroke:3px rgba(255,255,255,.55);
+            user-select:none; letter-spacing:-.05em; pointer-events:none;
+            text-shadow: 2px 4px 16px rgba(0,0,0,.7);
+        }
+        @media(min-width:768px){ .top10-num { font-size:130px; bottom:-22px; left:-14px; } }
+        .top10-img-wrap {
+            position:relative; z-index:1; flex:none;
+            width:110px; overflow:hidden; border-radius:10px;
+            aspect-ratio:2/3; background:#111; border:1px solid rgba(255,255,255,.08);
+        }
+        @media(min-width:768px){ .top10-img-wrap { width:140px; } }
+        .vote-badge { position:absolute; top:6px; right:6px; background:rgba(0,0,0,.85); border:1px solid rgba(255,200,0,.4); color:#ffd700; font-size:10px; font-weight:700; padding:3px 6px; border-radius:4px; }
 
         /* ── Detail Page ── */
         #section-detail { animation: fade-in .35s ease-out; }
-        .detail-banner { position:relative; width:100%; height:55vw; min-height:220px; max-height:480px; overflow:hidden; }
-        @media(min-width:768px){ .detail-banner{ height:60vh; max-height:600px; } }
+        .detail-banner {
+            position: relative; width: 100%;
+            height: 100vh; min-height: 500px; max-height: 100vh;
+            overflow: hidden; background: #000;
+        }
+        @media(min-width:768px){ .detail-banner { height: 100vh; } }
         .detail-banner img { width:100%; height:100%; object-fit:cover; object-position:center top; }
-        .detail-banner-grad { position:absolute; inset:0; background:linear-gradient(to bottom, rgba(0,0,0,.1) 0%, rgba(0,0,0,.5) 50%, #000 100%); }
-        .detail-banner-grad-side { position:absolute; inset:0; background:linear-gradient(to right, rgba(0,0,0,.8) 0%, transparent 60%); }
+        .detail-banner-grad {
+            position: absolute; inset: 0;
+            background: linear-gradient(to bottom,
+                rgba(0,0,0,.15) 0%,
+                rgba(0,0,0,.1) 30%,
+                rgba(0,0,0,.5) 65%,
+                #000 100%);
+        }
+        .detail-banner-grad-side {
+            position: absolute; inset: 0;
+            background: linear-gradient(to right, rgba(0,0,0,.75) 0%, transparent 55%);
+        }
+        /* Netflix-style: conteúdo sobrepõe o banner, sem -mt hack */
+        .detail-hero-content {
+            position: absolute; bottom: 0; left: 0; right: 0;
+            z-index: 10; padding: 0 24px 48px;
+        }
+        @media(min-width:768px){ .detail-hero-content { padding: 0 60px 72px; max-width: 55%; } }
+        @media(min-width:1024px){ .detail-hero-content { padding: 0 80px 80px; max-width: 48%; } }
+        /* iframe do trailer sem UI */
+        #detailTrailerBg {
+            position: absolute; inset: -10% -5%;
+            width: 110%; height: 120%;
+            border: none; pointer-events: none;
+            z-index: 1;
+        }
+        .detail-mute-btn {
+            position: absolute; right: 20px; z-index: 20;
+            width: 42px; height: 42px; border-radius: 50%;
+            background: rgba(30,30,30,.6); border: 2px solid rgba(255,255,255,.4);
+            backdrop-filter: blur(10px); color: white;
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer; transition: background .2s, border-color .2s;
+            top: max(20px, env(safe-area-inset-top, 20px));
+        }
+        .detail-mute-btn:hover { background: rgba(60,60,60,.8); border-color: rgba(255,255,255,.7); }
         .detail-poster-shadow { box-shadow: 0 8px 40px rgba(0,0,0,.9), 0 0 0 1px rgba(255,255,255,.06); }
         .detail-tag { display:inline-flex; align-items:center; gap:4px; background:rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.12); border-radius:6px; padding:4px 10px; font-size:10px; font-weight:700; letter-spacing:.07em; text-transform:uppercase; }
         .cast-chip { background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.08); border-radius:8px; padding:7px 12px; font-size:10px; white-space:nowrap; }
@@ -131,7 +271,7 @@
         /* ── Hero content mobile ── */
         @media(max-width:640px){
             #heroContent { bottom: 70px !important; left:16px !important; right:16px; max-width:100%; }
-            #heroTitle { font-size:2rem !important; }
+            #heroTitle { font-size:clamp(1.4rem, 5vw, 2rem) !important; }
             #heroDesc { font-size:12px; margin-bottom:16px !important; -webkit-line-clamp:2; }
             .hero-play-group { flex-wrap:wrap; gap:8px !important; }
             .hero-play-group button { padding:10px 20px !important; font-size:12px; }
@@ -201,9 +341,95 @@
             to { opacity: 0; transform: translateX(100%); }
         }
         .toast.removing { animation: slideOut 0.3s ease-in forwards; }
+
+        /* ── Row nav arrows ── */
+        .row-arrow {
+            position: absolute; top: -20px; bottom: -8px;
+            width: 80px; display: flex; align-items: center; justify-content: center;
+            z-index: 10; cursor: pointer; border: none; background: none; padding: 0;
+            transition: opacity .25s;
+        }
+        .row-arrow-left  { left: 0; background: linear-gradient(to right, rgba(0,0,0,.45) 20%, rgba(0,0,0,.2) 60%, transparent); justify-content: flex-start; padding-left: 10px; }
+        .row-arrow-right { right: 0; background: linear-gradient(to left,  rgba(0,0,0,.45) 20%, rgba(0,0,0,.2) 60%, transparent); justify-content: flex-end; padding-right: 10px; }
+        .row-arrow .arrow-circle {
+            width: 34px; height: 34px; border-radius: 50%;
+            background: rgba(255,255,255,.15); border: 1px solid rgba(255,255,255,.25);
+            display: flex; align-items: center; justify-content: center;
+            transition: background .2s, transform .15s;
+            box-shadow: 0 2px 12px rgba(0,0,0,.6);
+        }
+        .row-arrow:hover .arrow-circle { background: rgba(255,255,255,.28); transform: scale(1.08); }
+        .row-arrow:active .arrow-circle { background: rgba(157,0,255,.5); transform: scale(.95); }
+        .row-arrow.hidden-arrow { opacity: 0; pointer-events: none; }
+
+        /* ── Ver Tudo Modal ── */
+        #verTudoModal {
+            display: none; position: fixed; inset: 0; z-index: 250;
+            background: #000; flex-direction: column;
+            padding-top: max(0px, env(safe-area-inset-top));
+        }
+        #verTudoModal.open { display: flex; }
+        #verTudoModal .vt-header {
+            flex: none; display: flex; align-items: center; gap: 12px;
+            padding: 14px 16px; border-bottom: 1px solid rgba(255,255,255,.07);
+            background: rgba(10,0,20,.98); backdrop-filter: blur(20px);
+        }
+        #verTudoModal .vt-back {
+            width: 36px; height: 36px; border-radius: 50%;
+            background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.12);
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer; flex: none; transition: background .2s;
+        }
+        #verTudoModal .vt-back:active { background: rgba(157,0,255,.3); }
+        #verTudoModal .vt-title { font-size: 14px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+        #verTudoModal .vt-grid {
+            flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch;
+            display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
+            padding: 16px;
+        }
+        @media(min-width: 480px) { #verTudoModal .vt-grid { grid-template-columns: repeat(4, 1fr); } }
+        @media(min-width: 768px) { #verTudoModal .vt-grid { grid-template-columns: repeat(5, 1fr); } }
+        @media(min-width: 1024px){ #verTudoModal .vt-grid { grid-template-columns: repeat(6, 1fr); } }
     </style>
 </head>
 <body>
+
+<!-- Animated dark background -->
+<canvas id="bgCanvas"></canvas>
+<script>
+(function(){
+    const c = document.getElementById('bgCanvas');
+    const ctx = c.getContext('2d');
+    let W, H, orbs;
+    function resize(){ W = c.width = window.innerWidth; H = c.height = window.innerHeight; }
+    function mkOrb(){
+        return { x: Math.random()*W, y: Math.random()*H, r: 200+Math.random()*320,
+            dx: (Math.random()-.5)*.3, dy: (Math.random()-.5)*.3,
+            hue: Math.random()<.6 ? 270+Math.random()*40 : 215+Math.random()*35,
+            alpha: .04+Math.random()*.07, pulse: Math.random()*Math.PI*2,
+            ps: .005+Math.random()*.008 };
+    }
+    function init(){ resize(); orbs = Array.from({length:6}, mkOrb); }
+    function draw(){
+        ctx.clearRect(0,0,W,H);
+        ctx.fillStyle='#000'; ctx.fillRect(0,0,W,H);
+        orbs.forEach(o=>{
+            o.x+=o.dx; o.y+=o.dy; o.pulse+=o.ps;
+            if(o.x<-o.r)o.x=W+o.r; if(o.x>W+o.r)o.x=-o.r;
+            if(o.y<-o.r)o.y=H+o.r; if(o.y>H+o.r)o.y=-o.r;
+            const a=o.alpha*(.8+.2*Math.sin(o.pulse));
+            const g=ctx.createRadialGradient(o.x,o.y,0,o.x,o.y,o.r);
+            g.addColorStop(0,`hsla(${o.hue},100%,55%,${a})`);
+            g.addColorStop(.5,`hsla(${o.hue},90%,40%,${a*.4})`);
+            g.addColorStop(1,`hsla(${o.hue},80%,20%,0)`);
+            ctx.fillStyle=g; ctx.beginPath(); ctx.arc(o.x,o.y,o.r,0,Math.PI*2); ctx.fill();
+        });
+        requestAnimationFrame(draw);
+    }
+    window.addEventListener('resize', resize);
+    init(); draw();
+})();
+</script>
 
 <!-- Player -->
 <div id="sourceErrorModal" class="fixed inset-0 z-[300] hidden items-center justify-center p-6">
@@ -356,6 +582,48 @@
 <!-- Toast Notifications Container -->
 <div id="toastContainer" class="fixed top-4 right-4 z-[600] flex flex-col gap-2 pointer-events-none"></div>
 
+<!-- Ver Tudo Modal -->
+<div id="verTudoModal">
+    <div class="vt-header">
+        <button class="vt-back" onclick="closeVerTudo()"><i class="fas fa-arrow-left text-white text-sm"></i></button>
+        <span id="verTudoTitle" class="vt-title text-white"></span>
+    </div>
+    <div id="verTudoGrid" class="vt-grid scroll-hide"></div>
+</div>
+
+<!-- Kids Exit PIN Modal -->
+<div id="kidsExitPinModal" class="fixed inset-0 z-[500] hidden bg-[radial-gradient(circle_at_top_right,#1e1e2e,#000000)] flex items-center justify-center text-white overflow-hidden">
+    <div class="w-full max-w-md px-6 py-12 animate-fade-in">
+        <!-- Logo HBO+ -->
+        <div class="text-center mb-10">
+            <h1 class="text-5xl font-extrabold tracking-tighter italic">
+                <span class="text-white">HBO</span><span class="text-purple-500">+</span>
+            </h1>
+            <p class="text-gray-400 mt-3 font-light text-sm uppercase tracking-widest">Onde as histórias ganham vida</p>
+        </div>
+
+        <div class="rounded-2xl p-8 md:p-10 bg-white/[0.03] backdrop-blur-[20px] border border-white/10 shadow-[0_25px_50px_-12px_rgba(0,0,0,0.5)]">
+            <h2 class="text-2xl font-semibold mb-6 text-center">Sair do Modo Kids</h2>
+            <p class="text-gray-400 text-sm text-center mb-6">Digite o PIN do perfil adulto para sair do modo infantil:</p>
+
+            <div class="space-y-4">
+                <div>
+                    <label for="kidsExitPin" class="block text-sm font-medium text-gray-400 mb-1">PIN de 4 dígitos</label>
+                    <input type="password" id="kidsExitPin" maxlength="4" class="w-full bg-white/5 border border-gray-700 rounded-lg py-3 px-4 text-white text-center text-2xl font-bold tracking-widest focus:outline-none focus:border-purple-500 transition-all" placeholder="••••">
+                </div>
+
+                <button onclick="verifyKidsExitPin()" class="w-full py-3 rounded-lg font-semibold text-white mt-6 bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-700 hover:to-purple-600 transition-all">
+                    Confirmar
+                </button>
+
+                <button onclick="closeKidsExitPinModal()" class="w-full text-gray-600 hover:text-gray-400 text-xs transition">
+                    Cancelar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Password Recovery Modal -->
 <div id="passwordRecoveryModal" class="fixed inset-0 z-[500] hidden bg-[radial-gradient(circle_at_top_right,#1e1e2e,#000000)] flex items-center justify-center text-white overflow-hidden">
     <div class="w-full max-w-md px-6 py-12 animate-fade-in">
@@ -463,6 +731,660 @@
     </div>
 </div>
 
+<!-- Registration Modal -->
+<div id="registrationModal" class="fixed inset-0 z-[500] hidden bg-[radial-gradient(circle_at_top_right,#1e1e2e,#000000)] flex items-center justify-center text-white overflow-hidden">
+    <div class="w-full max-w-md px-6 py-12 animate-fade-in">
+        <!-- Logo HBO+ -->
+        <div class="text-center mb-10">
+            <h1 class="text-5xl font-extrabold tracking-tighter italic">
+                <span class="text-white">HBO</span><span class="text-purple-500">+</span>
+            </h1>
+            <p class="text-gray-400 mt-3 font-light text-sm uppercase tracking-widest">Onde as histórias ganham vida</p>
+        </div>
+
+        <div class="rounded-2xl p-8 md:p-10 bg-white/[0.03] backdrop-blur-[20px] border border-white/10 shadow-[0_25px_50px_-12px_rgba(0,0,0,0.5)]">
+            <h2 class="text-2xl font-semibold mb-6 text-center">Criar Conta</h2>
+            
+            <!-- Step 1: Email and Password Input -->
+            <div id="regStep1" class="space-y-4">
+                <div>
+                    <label for="regEmail" class="block text-sm font-medium text-gray-400 mb-1">E-mail</label>
+                    <input type="email" id="regEmail" required
+                        class="w-full bg-white/5 border border-gray-700 rounded-lg py-3 px-4 text-white focus:outline-none focus:border-purple-500 transition-all"
+                        placeholder="nome@exemplo.com">
+                </div>
+                <div>
+                    <label for="regPassword" class="block text-sm font-medium text-gray-400 mb-1">Senha</label>
+                    <input type="password" id="regPassword" required
+                        class="w-full bg-white/5 border border-gray-700 rounded-lg py-3 px-4 text-white focus:outline-none focus:border-purple-500 transition-all"
+                        placeholder="••••••••" oninput="validateRegPasswordInput()">
+                    
+                    <!-- Password Strength Bar -->
+                    <div class="mt-3">
+                        <div class="flex gap-1 h-1.5">
+                            <div id="regStrength-1" class="flex-1 rounded-full bg-gray-700 transition-all duration-300"></div>
+                            <div id="regStrength-2" class="flex-1 rounded-full bg-gray-700 transition-all duration-300"></div>
+                            <div id="regStrength-3" class="flex-1 rounded-full bg-gray-700 transition-all duration-300"></div>
+                        </div>
+                        <p id="regStrength-text" class="text-[10px] text-gray-500 mt-1 uppercase tracking-wider font-bold">Força da senha</p>
+                    </div>
+                    
+                    <!-- Password Requirements -->
+                    <div id="regPasswordRequirements" class="mt-3 space-y-1">
+                        <p class="text-[10px] text-gray-500 uppercase tracking-wider font-bold mb-2">Requisitos da senha:</p>
+                        <div id="regReq-length" class="flex items-center gap-2 text-[10px] text-gray-500">
+                            <i class="fas fa-circle text-[6px]"></i>
+                            <span>Mínimo 8 caracteres</span>
+                        </div>
+                        <div id="regReq-uppercase" class="flex items-center gap-2 text-[10px] text-gray-500">
+                            <i class="fas fa-circle text-[6px]"></i>
+                            <span>Pelo menos uma letra maiúscula</span>
+                        </div>
+                        <div id="regReq-lowercase" class="flex items-center gap-2 text-[10px] text-gray-500">
+                            <i class="fas fa-circle text-[6px]"></i>
+                            <span>Pelo menos uma letra minúscula</span>
+                        </div>
+                        <div id="regReq-number" class="flex items-center gap-2 text-[10px] text-gray-500">
+                            <i class="fas fa-circle text-[6px]"></i>
+                            <span>Pelo menos um número</span>
+                        </div>
+                        <div id="regReq-special" class="flex items-center gap-2 text-[10px] text-gray-500">
+                            <i class="fas fa-circle text-[6px]"></i>
+                            <span>Pelo menos um caractere especial (!@#$%^&*(),.?":{}|<>)</span>
+                        </div>
+                    </div>
+                </div>
+                <div>
+                    <label for="regConfirmPassword" class="block text-sm font-medium text-gray-400 mb-1">Confirmar senha</label>
+                    <input type="password" id="regConfirmPassword" required
+                        class="w-full bg-white/5 border border-gray-700 rounded-lg py-3 px-4 text-white focus:outline-none focus:border-purple-500 transition-all"
+                        placeholder="••••••••">
+                </div>
+                <button onclick="sendRegistrationCode()" class="w-full py-3 rounded-lg font-semibold text-white mt-6 bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-700 hover:to-purple-600 transition-all">
+                    Enviar Código
+                </button>
+                <button onclick="closeRegistrationModal()" class="w-full text-gray-600 hover:text-gray-400 text-xs transition">
+                    Cancelar
+                </button>
+            </div>
+
+            <!-- Step 2: Code Verification -->
+            <div id="regStep2" class="space-y-4 hidden">
+                <p class="text-gray-400 text-sm text-center mb-6">Enviamos um código de 6 dígitos para:</p>
+                <p id="regEmailDisplay" class="text-white font-bold text-sm text-center mb-6">email@exemplo.com</p>
+                <div>
+                    <label for="regCode" class="block text-sm font-medium text-gray-400 mb-1">Código de verificação</label>
+                    <input type="text" id="regCode" maxlength="6" class="w-full bg-white/5 border border-gray-700 rounded-lg py-3 px-4 text-white text-center text-2xl font-bold tracking-widest focus:outline-none focus:border-purple-500 transition-all" placeholder="000000">
+                </div>
+                <button onclick="verifyRegistrationCode()" class="w-full py-3 rounded-lg font-semibold text-white mt-6 bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-700 hover:to-purple-600 transition-all">
+                    Verificar e Criar Conta
+                </button>
+                <button onclick="resendRegistrationCode()" class="w-full text-gray-500 hover:text-white text-sm transition">
+                    Reenviar código
+                </button>
+                <button onclick="closeRegistrationModal()" class="w-full text-gray-600 hover:text-gray-400 text-xs transition">
+                    Cancelar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Change Password Modal -->
+<div id="changePasswordModal" class="fixed inset-0 z-[500] hidden bg-[radial-gradient(circle_at_top_right,#1e1e2e,#000000)] flex items-center justify-center text-white overflow-hidden">
+    <div class="absolute inset-0 bg-black/80 backdrop-blur-sm" onclick="closeChangePasswordModal()"></div>
+    <div class="relative w-full max-w-md px-6 py-12 animate-fade-in">
+        <div class="rounded-2xl p-8 md:p-10 bg-white/[0.03] backdrop-blur-[20px] border border-white/10 shadow-[0_25px_50px_-12px_rgba(0,0,0,0.5)]">
+            <h2 class="text-2xl font-semibold mb-6 text-center">Trocar Senha</h2>
+            
+            <div class="space-y-4">
+                <div>
+                    <label for="currentPassword" class="block text-sm font-medium text-gray-400 mb-1">Senha atual</label>
+                    <input type="password" id="currentPassword" required
+                        class="w-full bg-white/5 border border-gray-700 rounded-lg py-3 px-4 text-white focus:outline-none focus:border-purple-500 transition-all"
+                        placeholder="••••••••">
+                </div>
+                <div>
+                    <label for="newPassword" class="block text-sm font-medium text-gray-400 mb-1">Nova senha</label>
+                    <input type="password" id="newPassword" required
+                        class="w-full bg-white/5 border border-gray-700 rounded-lg py-3 px-4 text-white focus:outline-none focus:border-purple-500 transition-all"
+                        placeholder="••••••••" oninput="validateNewPasswordInput()">
+                    
+                    <!-- Password Strength Bar -->
+                    <div class="mt-3">
+                        <div class="flex gap-1 h-1.5">
+                            <div id="changeStrength-1" class="flex-1 rounded-full bg-gray-700 transition-all duration-300"></div>
+                            <div id="changeStrength-2" class="flex-1 rounded-full bg-gray-700 transition-all duration-300"></div>
+                            <div id="changeStrength-3" class="flex-1 rounded-full bg-gray-700 transition-all duration-300"></div>
+                        </div>
+                        <p id="changeStrength-text" class="text-[10px] text-gray-500 mt-1 uppercase tracking-wider font-bold">Força da senha</p>
+                    </div>
+                </div>
+                <div>
+                    <label for="confirmNewPassword" class="block text-sm font-medium text-gray-400 mb-1">Confirmar nova senha</label>
+                    <input type="password" id="confirmNewPassword" required
+                        class="w-full bg-white/5 border border-gray-700 rounded-lg py-3 px-4 text-white focus:outline-none focus:border-purple-500 transition-all"
+                        placeholder="••••••••">
+                </div>
+                <button onclick="changePassword()" class="w-full py-3 rounded-lg font-semibold text-white mt-6 bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-700 hover:to-purple-600 transition-all">
+                    Alterar Senha
+                </button>
+                <button onclick="closeChangePasswordModal()" class="w-full text-gray-600 hover:text-gray-400 text-xs transition">
+                    Cancelar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ══ NEW PROFILE WIZARD MODAL ══ -->
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Sora:wght@300;400;600;700;800&display=swap');
+
+  #profileWizard {
+    font-family: 'Sora', sans-serif;
+  }
+  #profileWizard.kids-wizard {
+    font-family: 'Nunito', sans-serif;
+  }
+
+  /* ─── progress bar ─── */
+  .pw-progress-track {
+    height: 3px;
+    background: rgba(255,255,255,0.08);
+    border-radius: 99px;
+    overflow: hidden;
+  }
+  .pw-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #9d00ff, #c084fc);
+    border-radius: 99px;
+    transition: width 0.5s cubic-bezier(.4,0,.2,1);
+  }
+  .pw-progress-fill.kids {
+    background: linear-gradient(90deg, #f59e0b, #fbbf24, #34d399);
+  }
+
+  /* ─── wizard step ─── */
+  .pw-step { display: none; animation: pwFadeUp .4s ease both; }
+  .pw-step.active { display: block; }
+  @keyframes pwFadeUp {
+    from { opacity: 0; transform: translateY(18px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ─── type chooser cards ─── */
+  .pw-type-card {
+    border: 2px solid rgba(255,255,255,0.08);
+    border-radius: 20px;
+    padding: 28px 20px;
+    cursor: pointer;
+    transition: all .25s;
+    display: flex; flex-direction: column; align-items: center; gap: 12px;
+    background: rgba(255,255,255,0.03);
+    position: relative; overflow: hidden;
+  }
+  .pw-type-card:hover { border-color: rgba(157,0,255,0.5); background: rgba(157,0,255,0.08); transform: translateY(-3px); }
+  .pw-type-card.selected { border-color: #9d00ff; background: rgba(157,0,255,0.15); box-shadow: 0 0 0 4px rgba(157,0,255,0.12); }
+  .pw-type-card.kids-card:hover { border-color: rgba(251,191,36,0.6); background: rgba(251,191,36,0.08); }
+  .pw-type-card.kids-card.selected { border-color: #fbbf24; background: rgba(251,191,36,0.12); box-shadow: 0 0 0 4px rgba(251,191,36,0.12); }
+  .pw-type-icon { font-size: 3rem; line-height: 1; }
+  .pw-type-label { font-size: 15px; font-weight: 700; letter-spacing: .01em; }
+  .pw-type-sub { font-size: 11px; color: rgba(255,255,255,0.45); text-align:center; line-height: 1.4; }
+
+  /* ─── option chips ─── */
+  .pw-chip {
+    border: 1.5px solid rgba(255,255,255,0.12);
+    border-radius: 99px;
+    padding: 9px 18px;
+    font-size: 13px; font-weight: 600;
+    cursor: pointer; transition: all .2s;
+    background: rgba(255,255,255,0.04);
+    display: inline-flex; align-items: center; gap: 7px;
+    user-select: none;
+  }
+  .pw-chip:hover { border-color: rgba(157,0,255,0.5); background: rgba(157,0,255,0.1); }
+  .pw-chip.selected { border-color: #9d00ff; background: rgba(157,0,255,0.2); color: #c084fc; }
+  .pw-chip.kids-chip:hover { border-color: rgba(251,191,36,0.5); background: rgba(251,191,36,0.1); }
+  .pw-chip.kids-chip.selected { border-color: #fbbf24; background: rgba(251,191,36,0.18); color: #fbbf24; }
+
+  /* ─── age selector ─── */
+  .pw-age-btn {
+    width: 52px; height: 52px; border-radius: 14px;
+    border: 1.5px solid rgba(255,255,255,0.1);
+    font-size: 15px; font-weight: 700;
+    cursor: pointer; transition: all .2s;
+    background: rgba(255,255,255,0.04); color: white;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .pw-age-btn:hover { border-color: #fbbf24; background: rgba(251,191,36,0.12); }
+  .pw-age-btn.selected { border-color: #fbbf24; background: rgba(251,191,36,0.2); color: #fbbf24; box-shadow: 0 0 0 3px rgba(251,191,36,0.1); }
+
+  /* ─── text input ─── */
+  .pw-input {
+    width: 100%; background: rgba(255,255,255,0.05);
+    border: 1.5px solid rgba(255,255,255,0.1);
+    border-radius: 14px; padding: 14px 18px;
+    color: white; font-size: 15px; font-weight: 600;
+    outline: none; transition: border-color .2s;
+    font-family: inherit;
+  }
+  .pw-input::placeholder { color: rgba(255,255,255,0.25); font-weight: 400; }
+  .pw-input:focus { border-color: #9d00ff; }
+  .pw-input.kids-input:focus { border-color: #fbbf24; }
+
+  /* ─── CTA button ─── */
+  .pw-btn {
+    width: 100%; padding: 15px;
+    border-radius: 14px; border: none;
+    font-size: 15px; font-weight: 700; letter-spacing: .02em;
+    cursor: pointer; transition: all .2s;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+  }
+  .pw-btn-primary {
+    background: linear-gradient(135deg, #9d00ff, #7c3aed);
+    color: white; box-shadow: 0 6px 24px rgba(157,0,255,0.3);
+  }
+  .pw-btn-primary:hover { background: linear-gradient(135deg, #b020ff, #8b5cf6); transform: translateY(-1px); box-shadow: 0 8px 28px rgba(157,0,255,0.4); }
+  .pw-btn-primary:active { transform: translateY(0); }
+  .pw-btn-primary.kids { background: linear-gradient(135deg, #f59e0b, #fbbf24); color: #1a1a1a; box-shadow: 0 6px 24px rgba(245,158,11,0.3); }
+  .pw-btn-primary.kids:hover { background: linear-gradient(135deg, #f59e0b, #fde68a); box-shadow: 0 8px 28px rgba(245,158,11,0.4); }
+  .pw-btn-ghost { background: transparent; color: rgba(255,255,255,0.35); font-size: 13px; }
+  .pw-btn-ghost:hover { color: rgba(255,255,255,0.7); }
+
+  /* ─── avatar picker ─── */
+  .pw-avatar-opt {
+    width: 56px; height: 56px; border-radius: 50%;
+    font-size: 28px; display: flex; align-items: center; justify-content: center;
+    cursor: pointer; border: 2.5px solid transparent;
+    transition: all .2s; background: rgba(255,255,255,0.06);
+  }
+  .pw-avatar-opt:hover { border-color: rgba(157,0,255,0.5); transform: scale(1.1); }
+  .pw-avatar-opt.selected { border-color: #9d00ff; box-shadow: 0 0 0 3px rgba(157,0,255,0.2); transform: scale(1.1); }
+  .pw-avatar-opt.kids-av:hover { border-color: rgba(251,191,36,0.5); }
+  .pw-avatar-opt.kids-av.selected { border-color: #fbbf24; box-shadow: 0 0 0 3px rgba(251,191,36,0.2); }
+
+  /* ─── summary card ─── */
+  .pw-summary {
+    background: rgba(255,255,255,0.04);
+    border: 1.5px solid rgba(255,255,255,0.08);
+    border-radius: 16px; padding: 16px;
+  }
+
+  /* ─── PIN pad ─── */
+  .pw-pin-dot {
+    width: 16px; height: 16px; border-radius: 50%;
+    border: 2px solid rgba(251,191,36,0.4);
+    transition: all .2s;
+  }
+  .pw-pin-dot.filled { background: #fbbf24; border-color: #fbbf24; }
+  .pw-pin-dot.error  { background: #ef4444; border-color: #ef4444; animation: pinShake .3s ease; }
+  .pw-pin-btn {
+    height: 52px; border-radius: 14px;
+    border: 1.5px solid rgba(251,191,36,0.2);
+    background: rgba(251,191,36,0.06);
+    color: white; font-size: 18px; font-weight: 700;
+    cursor: pointer; transition: all .15s;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .pw-pin-btn:hover  { background: rgba(251,191,36,0.15); border-color: rgba(251,191,36,0.5); }
+  .pw-pin-btn:active { transform: scale(0.93); background: rgba(251,191,36,0.2); }
+  @keyframes pinShake {
+    0%,100% { transform: translateX(0); }
+    25%     { transform: translateX(-6px); }
+    75%     { transform: translateX(6px); }
+  }
+
+  /* ─── kids bg stars ─── */
+  .pw-star {
+    position: absolute; pointer-events: none; user-select: none;
+    animation: pwStarFloat 3s ease-in-out infinite;
+    font-size: 18px; opacity: 0.18;
+  }
+  @keyframes pwStarFloat {
+    0%,100% { transform: translateY(0) rotate(0deg); opacity: 0.18; }
+    50%     { transform: translateY(-10px) rotate(8deg); opacity: 0.3; }
+  }
+
+  /* ─── backdrop blur ─── */
+  #profileWizard .pw-card {
+    background: rgba(12, 8, 22, 0.96);
+    backdrop-filter: blur(32px);
+    -webkit-backdrop-filter: blur(32px);
+    border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 28px;
+    box-shadow: 0 32px 80px rgba(0,0,0,0.7);
+  }
+
+  /* ─── kids gradient bg ─── */
+  #profileWizard.kids-wizard .pw-card {
+    background: rgba(10, 8, 30, 0.97);
+    border-color: rgba(251,191,36,0.12);
+  }
+</style>
+
+<div id="profileWizard" class="fixed inset-0 z-[500] hidden items-center justify-center p-4 overflow-y-auto"
+     style="background: radial-gradient(ellipse at 30% 20%, rgba(80,0,180,0.18) 0%, transparent 60%), radial-gradient(ellipse at 80% 80%, rgba(30,0,80,0.25) 0%, transparent 60%), rgba(0,0,0,0.92);">
+
+  <!-- stars decoration (kids) -->
+  <div id="pwStars" class="hidden">
+    <span class="pw-star" style="top:8%;left:6%;animation-delay:0s">⭐</span>
+    <span class="pw-star" style="top:12%;right:10%;animation-delay:.7s">🌟</span>
+    <span class="pw-star" style="top:75%;left:8%;animation-delay:1.4s">✨</span>
+    <span class="pw-star" style="top:80%;right:6%;animation-delay:2.1s">⭐</span>
+    <span class="pw-star" style="top:45%;left:3%;animation-delay:1s;font-size:13px">🎈</span>
+    <span class="pw-star" style="top:50%;right:4%;animation-delay:1.8s;font-size:13px">🎉</span>
+  </div>
+
+  <div class="pw-card w-full max-w-lg mx-auto my-auto p-6 md:p-8 relative" style="min-height:520px;display:flex;flex-direction:column;">
+
+    <!-- Header -->
+    <div class="flex items-center justify-between mb-6">
+      <button id="pwBackBtn" onclick="pwBack()" class="w-9 h-9 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center transition text-gray-400 hover:text-white" style="display:none;">
+        <i class="fas fa-arrow-left text-sm"></i>
+      </button>
+      <div id="pwHeaderSpacer" class="w-9"></div>
+      <div id="pwStepLabel" class="text-xs font-bold uppercase tracking-widest text-gray-500"></div>
+      <button onclick="closeAddAccountModal()" class="w-9 h-9 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center transition text-gray-400 hover:text-white">
+        <i class="fas fa-times text-sm"></i>
+      </button>
+    </div>
+
+    <!-- Progress bar -->
+    <div class="pw-progress-track mb-8" id="pwProgressTrack">
+      <div class="pw-progress-fill" id="pwProgressFill" style="width:0%"></div>
+    </div>
+
+    <!-- Steps container -->
+    <div id="pwSteps" class="flex-1">
+
+      <!-- STEP 0: Choose type -->
+      <div class="pw-step active" id="pw-step-0">
+        <h2 class="text-2xl font-bold mb-2 text-center">Novo Perfil</h2>
+        <p class="text-sm text-gray-400 text-center mb-8">Escolha o tipo de perfil</p>
+        <div class="grid grid-cols-2 gap-4">
+          <div class="pw-type-card" id="pwTypeAdult" onclick="pwSelectType('adult')">
+            <span class="pw-type-icon">🎬</span>
+            <span class="pw-type-label">Adulto</span>
+            <span class="pw-type-sub">Acesso completo a todo conteúdo</span>
+          </div>
+          <div class="pw-type-card kids-card" id="pwTypeKids" onclick="pwSelectType('kids')">
+            <span class="pw-type-icon">🧸</span>
+            <span class="pw-type-label">Infantil</span>
+            <span class="pw-type-sub">Conteúdo seguro para crianças</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- STEP 1A: Adult name + avatar -->
+      <div class="pw-step" id="pw-step-1a">
+        <h2 class="text-2xl font-bold mb-1">Como se chama?</h2>
+        <p class="text-sm text-gray-400 mb-6">Nome e avatar que aparecerão no perfil</p>
+
+        <!-- Avatar picker -->
+        <div class="flex gap-3 flex-wrap justify-center mb-6" id="pwAdultAvatars">
+          <div class="pw-avatar-opt" data-avatar="🎭" onclick="pwSelectAvatar('🎭',this)">🎭</div>
+          <div class="pw-avatar-opt" data-avatar="🎬" onclick="pwSelectAvatar('🎬',this)">🎬</div>
+          <div class="pw-avatar-opt" data-avatar="🦁" onclick="pwSelectAvatar('🦁',this)">🦁</div>
+          <div class="pw-avatar-opt" data-avatar="🐺" onclick="pwSelectAvatar('🐺',this)">🐺</div>
+          <div class="pw-avatar-opt" data-avatar="🦋" onclick="pwSelectAvatar('🦋',this)">🦋</div>
+          <div class="pw-avatar-opt" data-avatar="🌙" onclick="pwSelectAvatar('🌙',this)">🌙</div>
+          <div class="pw-avatar-opt" data-avatar="⚡" onclick="pwSelectAvatar('⚡',this)">⚡</div>
+          <div class="pw-avatar-opt" data-avatar="🔥" onclick="pwSelectAvatar('🔥',this)">🔥</div>
+        </div>
+
+        <input class="pw-input" id="pwAdultName" type="text" placeholder="Seu nome ou apelido" maxlength="24"
+               oninput="pwCheckNext('adult-name')">
+        <div id="pwAdultNameErr" class="text-red-400 text-xs mt-2 hidden">Por favor, insira um nome.</div>
+
+        <div class="mt-6">
+          <button class="pw-btn pw-btn-primary" onclick="pwNext()">
+            Continuar <i class="fas fa-arrow-right"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- STEP 1B: Kids name + age -->
+      <div class="pw-step" id="pw-step-1b">
+        <h2 class="text-2xl font-bold mb-1" style="color:#fbbf24">👶 Qual o nome?</h2>
+        <p class="text-sm text-gray-400 mb-5">Como a criança quer ser chamada?</p>
+
+        <input class="pw-input kids-input" id="pwKidsName" type="text" placeholder="Nome da criança" maxlength="24"
+               oninput="pwCheckNext('kids-name')">
+
+        <p class="text-sm font-bold mt-6 mb-3" style="color:rgba(255,255,255,0.7)">Quantos anos tem?</p>
+        <div class="flex flex-wrap gap-2" id="pwAgeGrid">
+        </div>
+        <div id="pwKidsNameErr" class="text-red-400 text-xs mt-3 hidden">Por favor, preencha o nome e a idade.</div>
+
+        <div class="mt-6">
+          <button class="pw-btn pw-btn-primary kids" onclick="pwNext()">
+            Continuar <i class="fas fa-arrow-right"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- STEP 2 (Kids): Favorite shows -->
+      <div class="pw-step" id="pw-step-2k">
+        <div class="text-center mb-6">
+          <div style="font-size:2.5rem">📺</div>
+          <h2 class="text-xl font-bold mt-2" style="color:#fbbf24">Quais desenhos<br>ele/ela mais adora?</h2>
+          <p class="text-xs text-gray-400 mt-1">Escolha quantos quiser!</p>
+        </div>
+        <div class="flex flex-wrap gap-2 justify-center" id="pwShowsChips">
+          <span class="pw-chip kids-chip" onclick="pwToggleChip(this,'show')" data-val="Patrulha Canina">🐾 Patrulha Canina</span>
+          <span class="pw-chip kids-chip" onclick="pwToggleChip(this,'show')" data-val="Peppa Pig">🐷 Peppa Pig</span>
+          <span class="pw-chip kids-chip" onclick="pwToggleChip(this,'show')" data-val="Bluey">🐕 Bluey</span>
+          <span class="pw-chip kids-chip" onclick="pwToggleChip(this,'show')" data-val="Miraculous">🐞 Miraculous</span>
+          <span class="pw-chip kids-chip" onclick="pwToggleChip(this,'show')" data-val="Pokémon">⚡ Pokémon</span>
+          <span class="pw-chip kids-chip" onclick="pwToggleChip(this,'show')" data-val="SpongeBob">🧽 SpongeBob</span>
+          <span class="pw-chip kids-chip" onclick="pwToggleChip(this,'show')" data-val="Turma da Mônica">🐰 Turma da Mônica</span>
+          <span class="pw-chip kids-chip" onclick="pwToggleChip(this,'show')" data-val="Mickey Mouse">🐭 Mickey Mouse</span>
+          <span class="pw-chip kids-chip" onclick="pwToggleChip(this,'show')" data-val="Ben 10">🌀 Ben 10</span>
+          <span class="pw-chip kids-chip" onclick="pwToggleChip(this,'show')" data-val="Super-Heróis">🦸 Super-Heróis</span>
+          <span class="pw-chip kids-chip" onclick="pwToggleChip(this,'show')" data-val="Dinossauros">🦕 Dinossauros</span>
+          <span class="pw-chip kids-chip" onclick="pwToggleChip(this,'show')" data-val="Princesas">👑 Princesas</span>
+        </div>
+        <div class="mt-6">
+          <button class="pw-btn pw-btn-primary kids" onclick="pwNext()">
+            Continuar <i class="fas fa-arrow-right"></i>
+          </button>
+          <button class="pw-btn pw-btn-ghost mt-2" onclick="pwNext()">Pular</button>
+        </div>
+      </div>
+
+      <!-- STEP 3 (Kids): Favorite studios -->
+      <div class="pw-step" id="pw-step-3k">
+        <div class="text-center mb-6">
+          <div style="font-size:2.5rem">🎥</div>
+          <h2 class="text-xl font-bold mt-2" style="color:#fbbf24">Quais estúdios<br>ele/ela mais curte?</h2>
+          <p class="text-xs text-gray-400 mt-1">Pode escolher mais de um!</p>
+        </div>
+        <div class="flex flex-wrap gap-2 justify-center" id="pwStudiosChips">
+          <span class="pw-chip kids-chip" onclick="pwToggleChip(this,'studio')" data-val="Disney">✨ Disney</span>
+          <span class="pw-chip kids-chip" onclick="pwToggleChip(this,'studio')" data-val="Pixar">🎈 Pixar</span>
+          <span class="pw-chip kids-chip" onclick="pwToggleChip(this,'studio')" data-val="DreamWorks">🌙 DreamWorks</span>
+          <span class="pw-chip kids-chip" onclick="pwToggleChip(this,'studio')" data-val="Marvel">🕷️ Marvel</span>
+          <span class="pw-chip kids-chip" onclick="pwToggleChip(this,'studio')" data-val="Cartoon Network">📡 Cartoon Network</span>
+          <span class="pw-chip kids-chip" onclick="pwToggleChip(this,'studio')" data-val="Nickelodeon">🍊 Nickelodeon</span>
+          <span class="pw-chip kids-chip" onclick="pwToggleChip(this,'studio')" data-val="Studio Ghibli">🌿 Studio Ghibli</span>
+          <span class="pw-chip kids-chip" onclick="pwToggleChip(this,'studio')" data-val="Illumination">🍌 Illumination</span>
+          <span class="pw-chip kids-chip" onclick="pwToggleChip(this,'studio')" data-val="Warner Bros">🐦 Warner Bros</span>
+        </div>
+        <div class="mt-6">
+          <button class="pw-btn pw-btn-primary kids" onclick="pwNext()">
+            Continuar <i class="fas fa-arrow-right"></i>
+          </button>
+          <button class="pw-btn pw-btn-ghost mt-2" onclick="pwNext()">Pular</button>
+        </div>
+      </div>
+
+      <!-- STEP 4 (Kids): Avatar -->
+      <div class="pw-step" id="pw-step-4k">
+        <div class="text-center mb-6">
+          <div style="font-size:2.5rem">🎨</div>
+          <h2 class="text-xl font-bold mt-2" style="color:#fbbf24">Escolha um avatar!</h2>
+          <p class="text-xs text-gray-400 mt-1">Qual emoji representa melhor?</p>
+        </div>
+        <div class="flex flex-wrap gap-3 justify-center" id="pwKidsAvatars">
+          <div class="pw-avatar-opt kids-av" style="width:62px;height:62px;font-size:32px" data-avatar="🦁" onclick="pwSelectKidsAvatar('🦁',this)">🦁</div>
+          <div class="pw-avatar-opt kids-av" style="width:62px;height:62px;font-size:32px" data-avatar="🐼" onclick="pwSelectKidsAvatar('🐼',this)">🐼</div>
+          <div class="pw-avatar-opt kids-av" style="width:62px;height:62px;font-size:32px" data-avatar="🐸" onclick="pwSelectKidsAvatar('🐸',this)">🐸</div>
+          <div class="pw-avatar-opt kids-av" style="width:62px;height:62px;font-size:32px" data-avatar="🦄" onclick="pwSelectKidsAvatar('🦄',this)">🦄</div>
+          <div class="pw-avatar-opt kids-av" style="width:62px;height:62px;font-size:32px" data-avatar="🐉" onclick="pwSelectKidsAvatar('🐉',this)">🐉</div>
+          <div class="pw-avatar-opt kids-av" style="width:62px;height:62px;font-size:32px" data-avatar="🚀" onclick="pwSelectKidsAvatar('🚀',this)">🚀</div>
+          <div class="pw-avatar-opt kids-av" style="width:62px;height:62px;font-size:32px" data-avatar="⭐" onclick="pwSelectKidsAvatar('⭐',this)">⭐</div>
+          <div class="pw-avatar-opt kids-av" style="width:62px;height:62px;font-size:32px" data-avatar="🌈" onclick="pwSelectKidsAvatar('🌈',this)">🌈</div>
+          <div class="pw-avatar-opt kids-av" style="width:62px;height:62px;font-size:32px" data-avatar="🐢" onclick="pwSelectKidsAvatar('🐢',this)">🐢</div>
+          <div class="pw-avatar-opt kids-av" style="width:62px;height:62px;font-size:32px" data-avatar="🦊" onclick="pwSelectKidsAvatar('🦊',this)">🦊</div>
+        </div>
+        <div class="mt-6">
+          <button class="pw-btn pw-btn-primary kids" onclick="pwNext()">
+            Continuar <i class="fas fa-arrow-right"></i>
+          </button>
+          <button class="pw-btn pw-btn-ghost mt-2" onclick="pwNext()">Pular</button>
+        </div>
+      </div>
+
+      <!-- STEP 5 (Kids): PIN -->
+      <div class="pw-step" id="pw-step-pin-kids">
+        <div class="text-center mb-6">
+          <div style="font-size:2.5rem">🔒</div>
+          <h2 class="text-xl font-bold mt-2" style="color:#fbbf24">Definir PIN parental</h2>
+          <p class="text-xs text-gray-400 mt-2">Este PIN será pedido para sair do perfil infantil<br>ou aceder às definições. Só o adulto deve saber.</p>
+        </div>
+
+        <div class="flex justify-center gap-3 mb-4" id="pwPinDots">
+          <div class="pw-pin-dot" id="pwPinDot0"></div>
+          <div class="pw-pin-dot" id="pwPinDot1"></div>
+          <div class="pw-pin-dot" id="pwPinDot2"></div>
+          <div class="pw-pin-dot" id="pwPinDot3"></div>
+        </div>
+
+        <div class="grid grid-cols-3 gap-3 max-w-[220px] mx-auto" id="pwPinPad">
+          <button class="pw-pin-btn" onclick="pwPinPress('1')">1</button>
+          <button class="pw-pin-btn" onclick="pwPinPress('2')">2</button>
+          <button class="pw-pin-btn" onclick="pwPinPress('3')">3</button>
+          <button class="pw-pin-btn" onclick="pwPinPress('4')">4</button>
+          <button class="pw-pin-btn" onclick="pwPinPress('5')">5</button>
+          <button class="pw-pin-btn" onclick="pwPinPress('6')">6</button>
+          <button class="pw-pin-btn" onclick="pwPinPress('7')">7</button>
+          <button class="pw-pin-btn" onclick="pwPinPress('8')">8</button>
+          <button class="pw-pin-btn" onclick="pwPinPress('9')">9</button>
+          <button class="pw-pin-btn col-start-2" onclick="pwPinPress('0')">0</button>
+          <button class="pw-pin-btn" onclick="pwPinBackspace()"><i class="fas fa-delete-left"></i></button>
+        </div>
+
+        <div id="pwPinErr" class="text-red-400 text-xs mt-4 text-center hidden">Insira um PIN de 4 dígitos.</div>
+        <div id="pwPinConfirmWrap" class="hidden mt-6">
+          <p class="text-xs text-center text-gray-400 mb-3">Confirme o PIN</p>
+          <div class="flex justify-center gap-3 mb-4" id="pwPinConfirmDots">
+            <div class="pw-pin-dot" id="pwPinCDot0"></div>
+            <div class="pw-pin-dot" id="pwPinCDot1"></div>
+            <div class="pw-pin-dot" id="pwPinCDot2"></div>
+            <div class="pw-pin-dot" id="pwPinCDot3"></div>
+          </div>
+          <div class="grid grid-cols-3 gap-3 max-w-[220px] mx-auto">
+            <button class="pw-pin-btn" onclick="pwPinConfirmPress('1')">1</button>
+            <button class="pw-pin-btn" onclick="pwPinConfirmPress('2')">2</button>
+            <button class="pw-pin-btn" onclick="pwPinConfirmPress('3')">3</button>
+            <button class="pw-pin-btn" onclick="pwPinConfirmPress('4')">4</button>
+            <button class="pw-pin-btn" onclick="pwPinConfirmPress('5')">5</button>
+            <button class="pw-pin-btn" onclick="pwPinConfirmPress('6')">6</button>
+            <button class="pw-pin-btn" onclick="pwPinConfirmPress('7')">7</button>
+            <button class="pw-pin-btn" onclick="pwPinConfirmPress('8')">8</button>
+            <button class="pw-pin-btn" onclick="pwPinConfirmPress('9')">9</button>
+            <button class="pw-pin-btn col-start-2" onclick="pwPinConfirmPress('0')">0</button>
+            <button class="pw-pin-btn" onclick="pwPinConfirmBackspace()"><i class="fas fa-delete-left"></i></button>
+          </div>
+          <div id="pwPinMismatchErr" class="text-red-400 text-xs mt-3 text-center hidden">Os PINs não coincidem. Tente novamente.</div>
+        </div>
+
+        <div class="mt-6">
+          <button class="pw-btn pw-btn-ghost" onclick="pwSkipPin()">Pular — sem PIN</button>
+        </div>
+      </div>
+      <div class="pw-step" id="pw-step-final-adult">
+        <div class="text-center mb-6">
+          <div style="font-size:3rem" id="pwFinalAdultEmoji">🎭</div>
+          <h2 class="text-2xl font-bold mt-2" id="pwFinalAdultName">—</h2>
+          <p class="text-sm text-gray-400 mt-1">Tudo pronto para começar!</p>
+        </div>
+        <div class="pw-summary mb-6">
+          <div class="flex items-center gap-3">
+            <span class="text-2xl" id="pwFinalAdultAvatarDisp">🎭</span>
+            <div>
+              <p class="text-xs text-gray-500 uppercase tracking-wider font-bold">Perfil</p>
+              <p class="font-bold" id="pwFinalAdultNameDisp">—</p>
+            </div>
+            <span class="ml-auto text-xs bg-purple-500/20 text-purple-300 border border-purple-500/30 px-3 py-1 rounded-full font-bold">Adulto</span>
+          </div>
+        </div>
+        <button class="pw-btn pw-btn-primary" onclick="pwFinish()">
+          <i class="fas fa-check"></i> Criar Perfil
+        </button>
+        <button class="pw-btn pw-btn-ghost mt-2" onclick="closeAddAccountModal()">Cancelar</button>
+      </div>
+
+      <!-- STEP FINAL (Kids): Confirm -->
+      <div class="pw-step" id="pw-step-final-kids">
+        <div class="text-center mb-5">
+          <div style="font-size:3rem" id="pwFinalKidsEmoji">🦁</div>
+          <h2 class="text-2xl font-bold mt-2" style="color:#fbbf24" id="pwFinalKidsName">—</h2>
+          <p class="text-sm text-gray-400 mt-1">Perfil infantil pronto! 🎉</p>
+        </div>
+        <div class="pw-summary mb-3" style="border-color:rgba(251,191,36,0.2)">
+          <div class="flex items-center gap-3 mb-3">
+            <span class="text-2xl" id="pwFinalKidsAvatarDisp">🦁</span>
+            <div>
+              <p class="text-xs font-bold uppercase tracking-wider" style="color:rgba(255,255,255,0.4)">Perfil infantil</p>
+              <p class="font-bold" id="pwFinalKidsNameDisp">—</p>
+            </div>
+            <span class="ml-auto text-xs px-3 py-1 rounded-full font-bold" style="background:rgba(251,191,36,0.15);color:#fbbf24;border:1px solid rgba(251,191,36,0.3)">
+              <span id="pwFinalKidsAge">—</span> anos • Kids
+            </span>
+          </div>
+          <div id="pwFinalKidsPinBadge" class="flex items-center gap-2 mt-2 text-xs" style="display:none!important">
+            <i class="fas fa-lock text-green-400"></i>
+            <span style="color:rgba(255,255,255,0.5)">PIN parental definido</span>
+          </div>
+          <div id="pwFinalKidsShows" class="flex flex-wrap gap-1"></div>
+        </div>
+        <button class="pw-btn pw-btn-primary kids" onclick="pwFinish()">
+          <i class="fas fa-star"></i> Criar Perfil Infantil!
+        </button>
+        <button class="pw-btn pw-btn-ghost mt-2" onclick="closeAddAccountModal()">Cancelar</button>
+      </div>
+
+    </div><!-- /pwSteps -->
+  </div><!-- /pw-card -->
+</div><!-- /profileWizard -->
+
+<!-- Edit Nickname Modal -->
+<div id="editNicknameModal" class="fixed inset-0 z-[500] hidden bg-[radial-gradient(circle_at_top_right,#1e1e2e,#000000)] flex items-center justify-center text-white overflow-hidden">
+    <div class="absolute inset-0 bg-black/80 backdrop-blur-sm" onclick="closeEditNicknameModal()"></div>
+    <div class="relative w-full max-w-md px-6 py-12 animate-fade-in">
+        <div class="rounded-2xl p-8 md:p-10 bg-white/[0.03] backdrop-blur-[20px] border border-white/10 shadow-[0_25px_50px_-12px_rgba(0,0,0,0.5)]">
+            <h2 class="text-2xl font-semibold mb-6 text-center">Editar Nome</h2>
+            
+            <div class="space-y-4">
+                <div>
+                    <label for="nicknameInput" class="block text-sm font-medium text-gray-400 mb-1">Nome de exibição</label>
+                    <input type="text" id="nicknameInput" required
+                        class="w-full bg-white/5 border border-gray-700 rounded-lg py-3 px-4 text-white focus:outline-none focus:border-purple-500 transition-all"
+                        placeholder="Seu nome">
+                </div>
+                <button onclick="saveNickname()" class="w-full py-3 rounded-lg font-semibold text-white mt-6 bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-700 hover:to-purple-600 transition-all">
+                    Salvar
+                </button>
+                <button onclick="closeEditNicknameModal()" class="w-full text-gray-600 hover:text-gray-400 text-xs transition">
+                    Cancelar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Player -->
 <div id="videoPlayer">
     <div class="flex items-center justify-between px-6 py-4 bg-black/80 flex-none">
@@ -470,7 +1392,17 @@
             <i class="fas fa-arrow-left"></i> Voltar
         </button>
         <span id="playerTitle" class="text-white font-bold text-sm truncate max-w-xs"></span>
-        <div id="sourceBtns" class="flex gap-2"></div>
+        <div class="flex items-center gap-2">
+            <button id="epPrevBtn" onclick="navigateEpisode(-1)" style="display:none;"
+                class="text-white text-xs font-bold flex items-center gap-1 hover:text-purple-400 transition px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10">
+                <i class="fas fa-step-backward text-[10px]"></i> Anterior
+            </button>
+            <button id="epNextBtn" onclick="navigateEpisode(1)" style="display:none;"
+                class="text-white text-xs font-bold flex items-center gap-1 hover:text-purple-400 transition px-3 py-1.5 rounded-lg bg-purple-600/30 hover:bg-purple-600/50 border border-purple-500/40">
+                Próximo <i class="fas fa-step-forward text-[10px]"></i>
+            </button>
+            <div id="sourceBtns" class="flex gap-2"></div>
+        </div>
     </div>
     <!-- Tela de seleção de servidor -->
     <div id="serverPicker" class="flex-1 flex flex-col items-center justify-center gap-6 px-6">
@@ -518,19 +1450,25 @@
 <!-- NAVBAR -->
 <nav class="fixed top-0 w-full z-50 transition-all duration-300 px-4 md:px-6 py-3 md:py-4 flex items-center justify-between bg-transparent" id="navbar">
     <div class="flex items-center gap-3 md:gap-8 flex-1 min-w-0">
-        <h1 onclick="showSection('home')" class="text-2xl md:text-3xl font-extrabold tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-blue-500 cursor-pointer flex-none">HBO +</h1>
+        <div class="flex items-center gap-2 md:gap-4">
+            <h1 onclick="showSection('home')" class="text-2xl md:text-3xl font-extrabold tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-blue-500 cursor-pointer flex-none">HBO +</h1>
+            <img id="kidsLogo" src="https://i.postimg.cc/jSwzKPPb/image-removebg-preview.png" class="hidden h-8 md:h-10 w-auto cursor-pointer" alt="KIDS" onerror="this.style.display='none'; document.getElementById('kidsLogoFallback').classList.remove('hidden')">
+            <span id="kidsLogoFallback" class="hidden text-yellow-400 font-black text-xl md:text-2xl tracking-tighter cursor-pointer" onclick="showSection('kids')">KIDS</span>
+        </div>
         <!-- Desktop search -->
-        <div id="desktopSearchWrap" class="relative w-full max-w-[200px] md:max-w-xs">
-            <input type="text" id="searchInput" placeholder="Procurar..." autocomplete="off"
-                class="w-full bg-white/5 border border-white/10 rounded-full py-1.5 px-4 pl-9 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-all text-[11px] md:text-xs text-white">
-            <i class="fas fa-search absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500 text-[10px]"></i>
+        <div id="desktopSearchWrap" class="relative w-full max-w-[240px] md:max-w-sm">
+            <input type="text" id="searchInput" placeholder="Procurar filmes e séries..." autocomplete="off"
+                class="w-full bg-white/5 border border-white/10 rounded-full py-2 px-4 pl-9 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-all text-[13px] text-white placeholder-gray-500">
+            <i class="fas fa-search absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs"></i>
             <div id="searchDropdown" class="hidden scroll-hide"></div>
         </div>
         <div class="hidden lg:flex gap-6 text-gray-400 font-bold text-[10px] tracking-widest ml-4">
-            <a href="javascript:void(0)" onclick="showSection('home')"    class="nav-link-desk hover:text-white transition active-nav-desktop pb-1">INÍCIO</a>
-            <a href="javascript:void(0)" onclick="showSection('movies')"  class="nav-link-desk hover:text-white transition pb-1">FILMES</a>
-            <a href="javascript:void(0)" onclick="showSection('series')"  class="nav-link-desk hover:text-white transition pb-1">SÉRIES</a>
-            <a href="javascript:void(0)" onclick="showSection('genres')"  class="nav-link-desk hover:text-white transition pb-1">GÉNEROS</a>
+            <a href="javascript:void(0)" onclick="showSection('home')"    class="nav-link-desk adult-nav-link hover:text-white transition active-nav-desktop pb-1">INÍCIO</a>
+            <a href="javascript:void(0)" onclick="showSection('movies')"  class="nav-link-desk adult-nav-link hover:text-white transition pb-1">FILMES</a>
+            <a href="javascript:void(0)" onclick="showSection('series')"  class="nav-link-desk adult-nav-link hover:text-white transition pb-1">SÉRIES</a>
+            <a href="javascript:void(0)" onclick="showSection('genres')"  class="nav-link-desk adult-nav-link hover:text-white transition pb-1">GÉNEROS</a>
+            <a href="javascript:void(0)" onclick="showSection('kids')"    class="nav-link-desk hover:text-yellow-400 transition pb-1 kids-nav-only">Area KIDS</a>
+            <a href="javascript:void(0)" onclick="showSection('kids')"    class="nav-link-desk kids-nav-link hover:text-yellow-400 transition pb-1" style="color:#fbbf24;font-weight:800;">🏠 INÍCIO KIDS</a>
         </div>
     </div>
     <div class="flex items-center gap-2 md:gap-3 flex-none">
@@ -541,6 +1479,34 @@
         <button onclick="recarregarCatalogo()" title="Atualizar catálogo" class="hidden md:flex text-gray-500 hover:text-purple-400 transition text-sm w-9 h-9 items-center justify-center rounded-lg">
             <i class="fas fa-sync-alt"></i>
         </button>
+        <!-- Kids Mode Toggle -->
+        <button onclick="toggleKidsMode()" title="Modo Kids" class="hidden md:flex text-gray-500 hover:text-yellow-400 transition text-sm w-9 h-9 items-center justify-center rounded-lg">
+            <i id="navbarKidsIcon" class="fas fa-child"></i>
+        </button>
+        <!-- Kids mode badge (visible only in kids mode) -->
+        <span id="kidsBadgeNav" class="hidden items-center gap-1 px-2 py-1 rounded-full text-[10px] font-black uppercase tracking-wider" style="background:rgba(251,191,36,0.15);color:#fbbf24;border:1px solid rgba(251,191,36,0.3)">
+            <i class="fas fa-shield-alt text-[9px]"></i> KIDS
+        </span>
+        <!-- Profile Switcher -->
+        <div class="relative hidden md:block">
+            <button onclick="toggleProfileDropdown()" class="flex items-center gap-2 text-gray-400 hover:text-white transition">
+                <span id="currentProfileName" class="text-sm font-bold">Principal</span>
+                <i class="fas fa-chevron-down text-xs"></i>
+            </button>
+            <div id="profileDropdown" class="hidden absolute right-0 top-full mt-2 w-48 bg-gray-900/95 backdrop-blur border border-white/10 rounded-lg shadow-xl overflow-hidden z-50">
+                <div id="profileDropdownList" class="py-2">
+                    <!-- Profiles will be injected here -->
+                </div>
+                <div class="border-t border-white/10 pt-2">
+                    <button onclick="showSection('profile-picker')" class="w-full text-left px-4 py-2 text-sm text-gray-400 hover:text-white hover:bg-white/5 transition">
+                        <i class="fas fa-users mr-2"></i> Trocar Perfil
+                    </button>
+                    <button onclick="showSection('profile')" class="w-full text-left px-4 py-2 text-sm text-gray-400 hover:text-white hover:bg-white/5 transition">
+                        <i class="fas fa-cog mr-2"></i> Gerenciar Perfis
+                    </button>
+                </div>
+            </div>
+        </div>
         <!-- User avatar / Login button -->
         <div id="userArea" class="w-9 h-9 rounded-full bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center cursor-pointer border border-white/10 hover:border-white/40 transition active:scale-95" onclick="handleUserClick()">
             <span id="userInitials" class="text-[10px] font-bold">JD</span>
@@ -549,18 +1515,30 @@
     </div>
 </nav>
 
+<!-- Kids Mode Decorations -->
+<div id="kidsDecorations" class="hidden">
+    <i class="kids-decoration kids-star fas fa-star"></i>
+    <i class="kids-decoration kids-star fas fa-star"></i>
+    <i class="kids-decoration kids-star fas fa-star"></i>
+    <i class="kids-decoration kids-star fas fa-star"></i>
+    <i class="kids-decoration kids-star fas fa-star"></i>
+</div>
+
 <!-- BOTTOM NAV -->
 <div class="bottom-nav md:hidden">
-    <button onclick="showSection('home')" class="text-gray-400 active-nav-mobile" id="m-nav-home">
+    <button onclick="showSection('home')" class="text-gray-400 active-nav-mobile adult-nav-link" id="m-nav-home">
         <i class="fas fa-home"></i><span class="text-[9px] font-bold uppercase">Início</span>
     </button>
-    <button onclick="showSection('movies')" class="text-gray-400" id="m-nav-movies">
+    <button onclick="showSection('kids')" class="text-gray-400 kids-nav-link" id="m-nav-kids-home" style="color:#fbbf24">
+        <i class="fas fa-star"></i><span class="text-[9px] font-bold uppercase">Início</span>
+    </button>
+    <button onclick="showSection('movies')" class="text-gray-400 adult-nav-link" id="m-nav-movies">
         <i class="fas fa-film"></i><span class="text-[9px] font-bold uppercase">Filmes</span>
     </button>
-    <button onclick="showSection('series')" class="text-gray-400" id="m-nav-series">
+    <button onclick="showSection('series')" class="text-gray-400 adult-nav-link" id="m-nav-series">
         <i class="fas fa-tv"></i><span class="text-[9px] font-bold uppercase">Séries</span>
     </button>
-    <button onclick="showSection('genres')" class="text-gray-400" id="m-nav-genres">
+    <button onclick="showSection('genres')" class="text-gray-400 adult-nav-link" id="m-nav-genres">
         <i class="fas fa-th-large"></i><span class="text-[9px] font-bold uppercase">Gêneros</span>
     </button>
     <button onclick="openMobileSearch()" class="text-gray-400" id="m-nav-search">
@@ -568,8 +1546,61 @@
     </button>
 </div>
 
+<!-- ══ PROFILE PICKER ══ -->
+<div id="section-profile-picker" class="page-section hidden fixed inset-0 z-[400] bg-[radial-gradient(circle_at_top_right,#1e1e2e,#000000)] flex items-center justify-center text-white overflow-hidden">
+    <div class="w-full max-w-4xl px-6 py-12 animate-fade-in">
+        <div class="text-center mb-12">
+            <h1 class="text-4xl md:text-5xl font-extrabold tracking-tighter italic mb-4">Quem está assistindo?</h1>
+            <p class="text-gray-400 text-sm">Escolha um perfil para continuar</p>
+        </div>
+        
+        <div id="profilePickerGrid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6 md:gap-8 justify-items-center">
+            <!-- Profiles will be injected here -->
+        </div>
+        
+        <div class="flex justify-center gap-6 mt-12">
+            <button onclick="openAddAccountModal()" class="text-gray-500 hover:text-white text-sm font-bold flex items-center gap-2 transition">
+                <i class="fas fa-plus"></i> Adicionar Perfil
+            </button>
+            <button onclick="showSection('home')" class="text-gray-500 hover:text-white text-sm font-bold flex items-center gap-2 transition">
+                <i class="fas fa-arrow-left"></i> Voltar
+            </button>
+        </div>
+    </div>
+</div>
+
 <!-- ══ LOGIN ══ -->
-<div id="section-login" class="page-section hidden fixed inset-0 z-[400] bg-[radial-gradient(circle_at_top_right,#1e1e2e,#000000)] flex items-center justify-center text-white overflow-hidden">
+<div id="section-login" class="page-section hidden fixed inset-0 z-[400] flex items-center justify-center text-white overflow-hidden" style="background:#000;">
+    <!-- Partículas de fundo -->
+    <div class="login-particles" aria-hidden="true">
+        <span></span><span></span><span></span><span></span><span></span>
+        <span></span><span></span><span></span><span></span><span></span>
+    </div>
+    <style>
+        #section-login { background: radial-gradient(ellipse at 70% 20%, #1a0033 0%, #0a0010 50%, #000 100%); }
+        .login-particles { position:absolute; inset:0; overflow:hidden; pointer-events:none; }
+        .login-particles span {
+            position:absolute; display:block; border-radius:50%;
+            background:rgba(157,0,255,.15); animation:loginFloat linear infinite;
+        }
+        .login-particles span:nth-child(1)  { width:4px;  height:4px;  left:15%; animation-duration:18s; animation-delay:0s;   top:110%; }
+        .login-particles span:nth-child(2)  { width:6px;  height:6px;  left:28%; animation-duration:24s; animation-delay:3s;   top:110%; background:rgba(157,0,255,.1); }
+        .login-particles span:nth-child(3)  { width:3px;  height:3px;  left:42%; animation-duration:20s; animation-delay:7s;   top:110%; }
+        .login-particles span:nth-child(4)  { width:5px;  height:5px;  left:57%; animation-duration:16s; animation-delay:1s;   top:110%; background:rgba(100,0,200,.2); }
+        .login-particles span:nth-child(5)  { width:2px;  height:2px;  left:70%; animation-duration:22s; animation-delay:5s;   top:110%; }
+        .login-particles span:nth-child(6)  { width:7px;  height:7px;  left:83%; animation-duration:28s; animation-delay:9s;   top:110%; background:rgba(157,0,255,.08); }
+        .login-particles span:nth-child(7)  { width:3px;  height:3px;  left:8%;  animation-duration:19s; animation-delay:12s;  top:110%; }
+        .login-particles span:nth-child(8)  { width:4px;  height:4px;  left:35%; animation-duration:21s; animation-delay:6s;   top:110%; background:rgba(120,0,220,.15); }
+        .login-particles span:nth-child(9)  { width:5px;  height:5px;  left:62%; animation-duration:25s; animation-delay:2s;   top:110%; }
+        .login-particles span:nth-child(10) { width:2px;  height:2px;  left:90%; animation-duration:17s; animation-delay:14s;  top:110%; }
+        @keyframes loginFloat {
+            0%   { transform: translateY(0)   rotate(0deg);   opacity:0; }
+            10%  { opacity:1; }
+            90%  { opacity:.6; }
+            100% { transform: translateY(-110vh) rotate(360deg); opacity:0; }
+        }
+        @media (prefers-reduced-motion: reduce) { .login-particles { display:none; } }
+    </style>
     <div class="w-full max-w-md px-6 py-12 animate-fade-in">
         <!-- Logo HBO+ -->
         <div class="text-center mb-10">
@@ -610,42 +1641,7 @@
                     </div>
                     <input type="password" id="loginPassword" required
                         class="w-full bg-white/5 border border-gray-700 rounded-lg py-3 px-4 text-white focus:outline-none focus:border-purple-500 transition-all"
-                        placeholder="••••••••" oninput="validatePasswordInput()">
-                    
-                    <!-- Password Strength Bar -->
-                    <div class="mt-3">
-                        <div class="flex gap-1 h-1.5">
-                            <div id="strength-1" class="flex-1 rounded-full bg-gray-700 transition-all duration-300"></div>
-                            <div id="strength-2" class="flex-1 rounded-full bg-gray-700 transition-all duration-300"></div>
-                            <div id="strength-3" class="flex-1 rounded-full bg-gray-700 transition-all duration-300"></div>
-                        </div>
-                        <p id="strength-text" class="text-[10px] text-gray-500 mt-1 uppercase tracking-wider font-bold">Força da senha</p>
-                    </div>
-                    
-                    <!-- Password Requirements -->
-                    <div id="passwordRequirements" class="mt-3 space-y-1">
-                        <p class="text-[10px] text-gray-500 uppercase tracking-wider font-bold mb-2">Requisitos da senha:</p>
-                        <div id="req-length" class="flex items-center gap-2 text-[10px] text-gray-500">
-                            <i class="fas fa-circle text-[6px]"></i>
-                            <span>Mínimo 8 caracteres</span>
-                        </div>
-                        <div id="req-uppercase" class="flex items-center gap-2 text-[10px] text-gray-500">
-                            <i class="fas fa-circle text-[6px]"></i>
-                            <span>Pelo menos uma letra maiúscula</span>
-                        </div>
-                        <div id="req-lowercase" class="flex items-center gap-2 text-[10px] text-gray-500">
-                            <i class="fas fa-circle text-[6px]"></i>
-                            <span>Pelo menos uma letra minúscula</span>
-                        </div>
-                        <div id="req-number" class="flex items-center gap-2 text-[10px] text-gray-500">
-                            <i class="fas fa-circle text-[6px]"></i>
-                            <span>Pelo menos um número</span>
-                        </div>
-                        <div id="req-special" class="flex items-center gap-2 text-[10px] text-gray-500">
-                            <i class="fas fa-circle text-[6px]"></i>
-                            <span>Pelo menos um caractere especial (!@#$%^&*(),.?":{}|<>)</span>
-                        </div>
-                    </div>
+                        placeholder="••••••••">
                 </div>
 
                 <button type="submit" id="loginSubmitBtn" class="w-full py-3 rounded-lg font-semibold text-white mt-6 bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-700 hover:to-purple-600 transition-all flex items-center justify-center gap-2">
@@ -658,6 +1654,11 @@
                 Ao entrar, você concorda com nossos
                 <a href="#" class="text-purple-400 hover:text-purple-300">Termos de Serviço</a> e
                 <a href="#" class="text-purple-400 hover:text-purple-300">Política de Privacidade</a>.
+            </p>
+
+            <p class="text-center text-gray-500 text-sm mt-4">
+                Não tem uma conta?
+                <a href="#" onclick="openRegistrationModal(); return false;" class="text-purple-400 hover:text-purple-300 font-semibold">Criar conta</a>
             </p>
         </div>
 
@@ -734,13 +1735,39 @@
 <!-- ══ FILMES ══ -->
 <div id="section-movies" class="page-section hidden pt-20 md:pt-24 px-3 md:px-12 min-h-screen">
     <h2 class="text-3xl md:text-4xl font-black mb-6 md:mb-8 uppercase italic tracking-tighter">Filmes</h2>
-    <div id="grid-movies" class="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 md:gap-6"></div>
+    <div id="grid-movies" class="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 md:gap-6">
+        <div class="skeleton aspect-[2/3] w-full rounded-lg"></div>
+        <div class="skeleton aspect-[2/3] w-full rounded-lg"></div>
+        <div class="skeleton aspect-[2/3] w-full rounded-lg"></div>
+        <div class="skeleton aspect-[2/3] w-full rounded-lg"></div>
+        <div class="skeleton aspect-[2/3] w-full rounded-lg"></div>
+        <div class="skeleton aspect-[2/3] w-full rounded-lg"></div>
+        <div class="skeleton aspect-[2/3] w-full rounded-lg"></div>
+        <div class="skeleton aspect-[2/3] w-full rounded-lg"></div>
+        <div class="skeleton aspect-[2/3] w-full rounded-lg"></div>
+        <div class="skeleton aspect-[2/3] w-full rounded-lg"></div>
+        <div class="skeleton aspect-[2/3] w-full rounded-lg"></div>
+        <div class="skeleton aspect-[2/3] w-full rounded-lg"></div>
+    </div>
 </div>
 
 <!-- ══ SÉRIES ══ -->
 <div id="section-series" class="page-section hidden pt-20 md:pt-24 px-3 md:px-12 min-h-screen">
     <h2 class="text-3xl md:text-4xl font-black mb-6 md:mb-8 uppercase italic tracking-tighter">Séries</h2>
-    <div id="grid-series" class="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 md:gap-6"></div>
+    <div id="grid-series" class="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 md:gap-6">
+        <div class="skeleton aspect-[2/3] w-full rounded-lg"></div>
+        <div class="skeleton aspect-[2/3] w-full rounded-lg"></div>
+        <div class="skeleton aspect-[2/3] w-full rounded-lg"></div>
+        <div class="skeleton aspect-[2/3] w-full rounded-lg"></div>
+        <div class="skeleton aspect-[2/3] w-full rounded-lg"></div>
+        <div class="skeleton aspect-[2/3] w-full rounded-lg"></div>
+        <div class="skeleton aspect-[2/3] w-full rounded-lg"></div>
+        <div class="skeleton aspect-[2/3] w-full rounded-lg"></div>
+        <div class="skeleton aspect-[2/3] w-full rounded-lg"></div>
+        <div class="skeleton aspect-[2/3] w-full rounded-lg"></div>
+        <div class="skeleton aspect-[2/3] w-full rounded-lg"></div>
+        <div class="skeleton aspect-[2/3] w-full rounded-lg"></div>
+    </div>
 </div>
 
 <!-- ══ GÉNEROS ══ -->
@@ -775,21 +1802,105 @@
     <div id="grid-search" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6"></div>
 </div>
 
+<!-- ══ KIDS ZONE ══ -->
+<div id="section-kids" class="page-section hidden">
+    <!-- Kids Hero -->
+    <header class="relative h-[72vw] min-h-[280px] max-h-[75vh] md:h-[75vh] md:max-h-none w-full overflow-hidden" id="kidsHero">
+        <div class="absolute inset-0 bg-zinc-900 skeleton" id="kidsHeroSkeleton"></div>
+        <div id="kidsHeroSlides" class="absolute inset-0"></div>
+        <div class="absolute inset-0 bg-gradient-to-r from-black via-black/20 to-transparent pointer-events-none"></div>
+        <div class="absolute inset-0 hero-gradient pointer-events-none"></div>
+        <div class="absolute bottom-14 md:bottom-20 left-4 md:left-12 right-4 md:right-auto max-w-2xl" id="kidsHeroContent" style="display:none">
+            <div class="flex items-center gap-2 mb-2 md:mb-3">
+                <span class="bg-yellow-400 text-black text-[9px] md:text-[10px] px-2 py-0.5 rounded font-bold uppercase tracking-tighter">⭐ Kids</span>
+                <span id="kidsHeroBadgeType" class="text-[9px] md:text-[10px] text-gray-400 font-bold uppercase tracking-widest"></span>
+            </div>
+            <h2 id="kidsHeroTitle" class="text-3xl sm:text-5xl md:text-7xl font-black mb-2 md:mb-4 tracking-tighter uppercase italic leading-none"></h2>
+            <p id="kidsHeroDesc" class="text-gray-300 text-xs md:text-base mb-4 md:mb-8 line-clamp-2 font-light leading-relaxed italic hidden sm:block"></p>
+            <div class="flex gap-2 md:gap-3 flex-wrap">
+                <button id="kidsHeroPlayBtn" class="bg-yellow-400 text-black px-6 md:px-10 py-2.5 md:py-3 rounded-lg font-bold flex items-center gap-2 hover:scale-105 active:scale-95 transition shadow-lg text-sm md:text-base">
+                    <i class="fas fa-play text-xs md:text-sm"></i> ASSISTIR
+                </button>
+                <button id="kidsHeroInfoBtn" class="bg-white/10 backdrop-blur-md text-white px-4 md:px-5 py-2.5 md:py-3 rounded-lg font-bold hover:bg-white/20 active:bg-white/25 transition text-sm">
+                    <i class="fas fa-info-circle"></i> <span class="hidden sm:inline">DETALHES</span>
+                </button>
+            </div>
+        </div>
+        <div id="kidsHeroDots" class="absolute bottom-4 md:bottom-6 left-4 md:left-12 flex gap-2 items-center"></div>
+        <button onclick="kidsHeroNav(-1)" class="hidden md:flex absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 bg-black/40 hover:bg-black/70 border border-white/10 rounded-full items-center justify-center transition z-10"><i class="fas fa-chevron-left text-white text-xs"></i></button>
+        <button onclick="kidsHeroNav(1)"  class="hidden md:flex absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 bg-black/40 hover:bg-black/70 border border-white/10 rounded-full items-center justify-center transition z-10"><i class="fas fa-chevron-right text-white text-xs"></i></button>
+    </header>
+
+    <main class="px-3 md:px-12 py-6 md:py-12 space-y-2" id="kidsRows">
+        <!-- Skeleton loading -->
+        <div class="flex gap-4 overflow-x-auto scroll-hide pb-4">
+            <div class="flex-shrink-0 w-32 md:w-40 h-48 md:h-60 bg-yellow-400/10 rounded-2xl animate-pulse"></div>
+            <div class="flex-shrink-0 w-32 md:w-40 h-48 md:h-60 bg-yellow-400/10 rounded-2xl animate-pulse"></div>
+            <div class="flex-shrink-0 w-32 md:w-40 h-48 md:h-60 bg-yellow-400/10 rounded-2xl animate-pulse"></div>
+            <div class="flex-shrink-0 w-32 md:w-40 h-48 md:h-60 bg-yellow-400/10 rounded-2xl animate-pulse"></div>
+        </div>
+    </main>
+</div>
+
 <!-- ══ PERFIL ══ -->
 <div id="section-profile" class="page-section hidden pt-24 px-6 md:px-12 max-w-4xl mx-auto min-h-screen">
     <div class="flex flex-col md:flex-row items-center gap-10 mb-12">
-        <div id="profileAvatar" class="w-32 h-32 rounded-full bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center text-5xl font-black border border-white/10 shadow-2xl overflow-hidden">
-            <span id="profileInitials">JD</span>
-            <img id="profileImage" src="" class="w-full h-full object-cover hidden" alt="">
+        <div class="relative">
+            <div id="profileAvatar" class="w-32 h-32 rounded-full bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center text-5xl font-black border border-white/10 shadow-2xl overflow-hidden cursor-pointer" onclick="document.getElementById('avatarInput').click()">
+                <span id="profileInitials">JD</span>
+                <img id="profileImage" src="" class="w-full h-full object-cover hidden" alt="">
+            </div>
+            <button onclick="document.getElementById('avatarInput').click()" class="absolute bottom-0 right-0 w-8 h-8 bg-purple-600 rounded-full flex items-center justify-center border-2 border-black shadow-lg hover:bg-purple-500 transition">
+                <i class="fas fa-camera text-white text-xs"></i>
+            </button>
+            <input type="file" id="avatarInput" accept="image/*" class="hidden" onchange="handleAvatarUpload(event)">
         </div>
-        <div class="text-center md:text-left">
-            <h2 id="profileName" class="text-4xl font-bold mb-1">João D. Silva</h2>
+        <div class="text-center md:text-left flex-1">
+            <div class="flex items-center gap-3 justify-center md:justify-start mb-2">
+                <h2 id="profileName" class="text-4xl font-bold">João D. Silva</h2>
+                <button onclick="editNickname()" class="text-gray-500 hover:text-purple-400 transition">
+                    <i class="fas fa-pen text-sm"></i>
+                </button>
+            </div>
             <p id="profileEmail" class="text-gray-500 mb-4 tracking-widest font-bold text-[10px] uppercase">email@exemplo.com</p>
-            <button onclick="openSettingsModal()" class="text-purple-400 hover:text-purple-300 text-sm font-bold flex items-center gap-2 transition">
-                <i class="fas fa-cog"></i> Configurações da Conta
+        </div>
+    </div>
+
+    <!-- Account Actions -->
+    <div class="bg-white/5 rounded-2xl p-6 border border-white/10 mb-6">
+        <h3 class="text-xs font-bold uppercase tracking-widest text-gray-500 mb-4">Ações da Conta</h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <button onclick="openChangePasswordModal()" class="bg-white/5 hover:bg-white/10 border border-white/10 px-6 py-4 rounded-xl font-bold flex items-center gap-3 transition text-left">
+                <i class="fas fa-key text-purple-400"></i>
+                <div>
+                    <div class="text-white">Trocar Senha</div>
+                    <div class="text-[10px] text-gray-500">Alterar sua senha de acesso</div>
+                </div>
+            </button>
+            <button onclick="handleManageProfiles()" class="bg-white/5 hover:bg-white/10 border border-white/10 px-6 py-4 rounded-xl font-bold flex items-center gap-3 transition text-left">
+                <i class="fas fa-users text-purple-400"></i>
+                <div>
+                    <div class="text-white">Gerenciar Perfis</div>
+                    <div class="text-[10px] text-gray-500">Trocar ou editar perfis</div>
+                </div>
+            </button>
+            <button onclick="toggleKidsMode()" class="bg-white/5 hover:bg-white/10 border border-white/10 px-6 py-4 rounded-xl font-bold flex items-center gap-3 transition text-left">
+                <i id="kidsModeIcon" class="fas fa-child text-purple-400"></i>
+                <div>
+                    <div class="text-white">Modo Kids</div>
+                    <div id="kidsModeStatus" class="text-[10px] text-gray-500">Desativado</div>
+                </div>
+            </button>
+            <button onclick="logout()" class="bg-red-600/10 hover:bg-red-600/20 border border-red-600/30 px-6 py-4 rounded-xl font-bold flex items-center gap-3 transition text-left">
+                <i class="fas fa-sign-out-alt text-red-400"></i>
+                <div>
+                    <div class="text-red-400">Sair da Conta</div>
+                    <div class="text-[10px] text-gray-500">Encerrar sessão atual</div>
+                </div>
             </button>
         </div>
     </div>
+
     <div class="bg-white/5 rounded-2xl p-6 border border-white/10 mb-6">
         <h3 class="text-xs font-bold uppercase tracking-widest text-gray-500 mb-2">Status do Servidor</h3>
         <p id="profileServerStatus" class="text-sm font-bold text-purple-400">A verificar...</p>
@@ -799,64 +1910,60 @@
         <button onclick="recarregarCatalogo()" class="bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 transition">
             <i class="fas fa-sync-alt"></i> Recarregar Catálogo
         </button>
-        <button id="logoutBtn" onclick="logout()" class="bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 transition hidden">
-            <i class="fas fa-sign-out-alt"></i> Sair
-        </button>
     </div>
 </div>
 
 <!-- ══ DETALHE INDIVIDUAL ══ -->
 <div id="section-detail" class="page-section hidden min-h-screen pb-28">
-    <!-- Banner widescreen -->
+    <!-- Banner fullscreen (imagem ou vídeo) -->
     <div class="detail-banner" id="detailBanner">
-        <div class="absolute inset-0 bg-zinc-900 skeleton" id="detailBannerSkeleton"></div>
-        <img id="detailBannerImg" src="" class="w-full h-full object-cover object-top hidden" alt="">
-        <div class="detail-banner-grad"></div>
-        <div class="detail-banner-grad-side hidden md:block"></div>
-        <!-- botão voltar flutuante -->
-        <button onclick="closeDetail()" class="absolute top-16 md:top-20 left-4 md:left-8 z-10 flex items-center gap-2 bg-black/50 hover:bg-black/80 text-white text-xs font-bold px-4 py-2 rounded-full border border-white/10 backdrop-blur-sm transition">
+        <div class="absolute inset-0 bg-zinc-900 skeleton" id="detailBannerSkeleton" style="z-index:0;"></div>
+        <img id="detailBannerImg" src="" class="w-full h-full object-cover object-top hidden" alt="" style="position:absolute;inset:0;z-index:1;">
+        <!-- iframe trailer bg (inserido via JS) -->
+        <div class="detail-banner-grad" style="z-index:3;"></div>
+        <div class="detail-banner-grad-side hidden md:block" style="z-index:4;"></div>
+
+        <!-- Botão voltar -->
+        <button onclick="closeDetail()" class="absolute z-20 flex items-center gap-2 bg-black/40 hover:bg-black/70 text-white text-xs font-bold px-4 py-2 rounded-full border border-white/15 backdrop-blur-sm transition"
+            style="top: max(20px, env(safe-area-inset-top, 20px)); left: 16px;">
             <i class="fas fa-arrow-left"></i> Voltar
         </button>
-    </div>
 
-    <!-- Conteúdo principal -->
-    <div class="detail-content px-4 md:px-10 lg:px-20 -mt-32 md:-mt-48 relative z-10">
-        <div class="flex flex-col md:flex-row gap-6 md:gap-10 items-start">
-            <!-- Poster -->
-            <div class="flex-none w-28 md:w-44 lg:w-52">
-                <div class="aspect-[2/3] bg-zinc-800 rounded-xl overflow-hidden detail-poster-shadow skeleton" id="detailPosterSkeleton">
-                    <img id="detailPoster" src="" class="w-full h-full object-cover hidden rounded-xl" alt="">
+        <!-- Botão mudo/som -->
+        <button id="detailMuteBtn" class="detail-mute-btn hidden" onclick="toggleDetailMute()">
+            <i id="detailMuteIcon" class="fas fa-volume-mute text-sm"></i>
+        </button>
+
+        <!-- Conteúdo hero sobreposto ao banner -->
+        <div class="detail-hero-content" id="detailHeroContent">
+            <!-- Tipo badge -->
+            <p id="detailType" class="text-[10px] font-black uppercase tracking-[0.2em] text-purple-400 mb-2"></p>
+            <!-- Título -->
+            <h1 id="detailTitle" class="text-3xl md:text-5xl lg:text-6xl font-black uppercase tracking-tighter italic leading-none mb-3 text-white drop-shadow-lg"></h1>
+            <!-- Tags -->
+            <div class="flex flex-wrap gap-2 mb-4" id="detailTags"></div>
+            <!-- Sinopse -->
+            <p id="detailDesc" class="text-gray-200 text-sm md:text-base leading-relaxed font-light mb-6 max-w-xl line-clamp-3 drop-shadow"></p>
+            <!-- Botões -->
+            <div class="flex flex-wrap gap-3 items-center">
+                <button id="detailPlayBtn" class="bg-white text-black px-7 py-3 rounded-full font-black flex items-center gap-3 text-sm hover:bg-gray-200 transition shadow-2xl">
+                    <i class="fas fa-play"></i> ASSISTIR
+                </button>
+                <div id="detailUnreleasedBadge" class="hidden items-center gap-2 text-yellow-400 text-xs font-bold uppercase tracking-widest border border-yellow-400/40 bg-yellow-400/10 px-4 py-3 rounded-full">
+                    <i class="fas fa-clock"></i> <span id="detailUnreleasedDate"></span>
                 </div>
-            </div>
-
-            <!-- Info -->
-            <div class="flex-1 pt-2 md:pt-4">
-                <!-- Tipo badge -->
-                <p id="detailType" class="text-[10px] font-black uppercase tracking-[0.2em] text-purple-400 mb-2"></p>
-                <!-- Título -->
-                <h1 id="detailTitle" class="text-3xl md:text-5xl lg:text-6xl font-black uppercase tracking-tighter italic leading-none mb-4 text-white"></h1>
-                <!-- Tags -->
-                <div class="flex flex-wrap gap-2 mb-5" id="detailTags"></div>
-                <!-- Sinopse -->
-                <p id="detailDesc" class="text-gray-300 text-sm md:text-base leading-relaxed font-light mb-6 max-w-2xl"></p>
-
-                <!-- Botões de ação -->
-                <div class="flex flex-wrap gap-3 mb-6">
-                    <button id="detailPlayBtn" onclick="" class="bg-white text-black px-8 py-3 rounded-xl font-black flex items-center gap-3 text-sm hover:scale-105 transition shadow-xl shadow-white/10">
-                        <i class="fas fa-play"></i> ASSISTIR AGORA
-                    </button>
-                    <div id="detailUnreleasedBadge" class="hidden items-center gap-2 text-yellow-400 text-xs font-bold uppercase tracking-widest border border-yellow-400/40 bg-yellow-400/10 px-4 py-3 rounded-xl">
-                        <i class="fas fa-clock"></i> <span id="detailUnreleasedDate"></span>
-                    </div>
-                </div>
-
-                <!-- Elenco / info extra -->
-                <div id="detailExtra" class="flex flex-wrap gap-2 mb-2"></div>
             </div>
         </div>
+    </div>
+
+    <!-- Conteúdo abaixo do banner -->
+    <div class="detail-content px-4 md:px-10 lg:px-20 pt-8 relative z-10">
+
+        <!-- Elenco / info extra -->
+        <div id="detailExtra" class="flex flex-wrap gap-2 mb-8"></div>
 
         <!-- Divisor -->
-        <div class="border-t border-white/5 mt-10 mb-8"></div>
+        <div class="border-t border-white/5 mb-8"></div>
 
         <!-- Episódios (séries) -->
         <div id="detail-episodes-container" class="hidden mb-8">
@@ -876,7 +1983,7 @@
 </div>
 
 <script>
-const API = 'https://hbo-5ic3.onrender.com/api';
+const API = 'http://localhost:9012/api';
 const AUTH_API = 'http://localhost:9012/api';
 let serverOnline = false;
 let catalogData  = {};
@@ -920,11 +2027,17 @@ function showToast(type, title, message, duration = 5000) {
 function removeToast(toast) {
     if (!toast || toast.classList.contains('removing')) return;
     toast.classList.add('removing');
+    toast.addEventListener('animationend', () => {
+        if (toast.parentElement) {
+            toast.parentElement.removeChild(toast);
+        }
+    }, { once: true });
+    // fallback caso animationend não dispare (ex: tab em background, display:none)
     setTimeout(() => {
         if (toast.parentElement) {
             toast.parentElement.removeChild(toast);
         }
-    }, 300);
+    }, 400);
 }
 
 // ── Password Recovery ─────────────────────────────────────────────────────────
@@ -1147,6 +2260,1290 @@ function updateNewPasswordStrength(password, checks) {
     }
 }
 
+// ── Registration ─────────────────────────────────────────────────────────
+let regEmail = '';
+let regPassword = '';
+
+function openRegistrationModal() {
+    const modal = document.getElementById('registrationModal');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    document.getElementById('regStep1').classList.remove('hidden');
+    document.getElementById('regStep2').classList.add('hidden');
+    document.getElementById('regEmail').value = '';
+    document.getElementById('regPassword').value = '';
+    document.getElementById('regConfirmPassword').value = '';
+    document.getElementById('regCode').value = '';
+    regEmail = '';
+    regPassword = '';
+}
+
+function closeRegistrationModal() {
+    const modal = document.getElementById('registrationModal');
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+}
+
+function validateRegPasswordInput() {
+    const password = document.getElementById('regPassword').value;
+    
+    const checks = {
+        length: password.length >= 8,
+        uppercase: /[A-Z]/.test(password),
+        lowercase: /[a-z]/.test(password),
+        number: /\d/.test(password),
+        special: /[!@#$%^&*(),.?":{}|<>]/.test(password)
+    };
+    
+    // Update UI for each requirement
+    updateRegRequirement('regReq-length', checks.length);
+    updateRegRequirement('regReq-uppercase', checks.uppercase);
+    updateRegRequirement('regReq-lowercase', checks.lowercase);
+    updateRegRequirement('regReq-number', checks.number);
+    updateRegRequirement('regReq-special', checks.special);
+    
+    // Update password strength bar
+    updateRegPasswordStrength(password, checks);
+    
+    return Object.values(checks).every(check => check);
+}
+
+function updateRegRequirement(elementId, isValid) {
+    const element = document.getElementById(elementId);
+    const icon = element.querySelector('i');
+    
+    if (isValid) {
+        element.classList.remove('text-gray-500');
+        element.classList.add('text-green-400');
+        icon.classList.remove('fa-circle');
+        icon.classList.add('fa-check-circle');
+    } else {
+        element.classList.remove('text-green-400');
+        element.classList.add('text-gray-500');
+        icon.classList.remove('fa-check-circle');
+        icon.classList.add('fa-circle');
+    }
+}
+
+function updateRegPasswordStrength(password, checks) {
+    const strength1 = document.getElementById('regStrength-1');
+    const strength2 = document.getElementById('regStrength-2');
+    const strength3 = document.getElementById('regStrength-3');
+    const strengthText = document.getElementById('regStrength-text');
+    
+    // Reset all bars
+    strength1.className = 'flex-1 rounded-full bg-gray-700 transition-all duration-300';
+    strength2.className = 'flex-1 rounded-full bg-gray-700 transition-all duration-300';
+    strength3.className = 'flex-1 rounded-full bg-gray-700 transition-all duration-300';
+    
+    if (password.length === 0) {
+        strengthText.textContent = 'Força da senha';
+        strengthText.className = 'text-[10px] text-gray-500 mt-1 uppercase tracking-wider font-bold';
+        return;
+    }
+    
+    // Calculate strength based on met requirements
+    const metRequirements = Object.values(checks).filter(check => check).length;
+    
+    if (metRequirements <= 2) {
+        // Fraca
+        strength1.className = 'flex-1 rounded-full bg-red-500 transition-all duration-300';
+        strengthText.textContent = 'Fraca';
+        strengthText.className = 'text-[10px] text-red-500 mt-1 uppercase tracking-wider font-bold';
+    } else if (metRequirements <= 4) {
+        // Média
+        strength1.className = 'flex-1 rounded-full bg-yellow-500 transition-all duration-300';
+        strength2.className = 'flex-1 rounded-full bg-yellow-500 transition-all duration-300';
+        strengthText.textContent = 'Média';
+        strengthText.className = 'text-[10px] text-yellow-500 mt-1 uppercase tracking-wider font-bold';
+    } else {
+        // Forte
+        strength1.className = 'flex-1 rounded-full bg-green-500 transition-all duration-300';
+        strength2.className = 'flex-1 rounded-full bg-green-500 transition-all duration-300';
+        strength3.className = 'flex-1 rounded-full bg-green-500 transition-all duration-300';
+        strengthText.textContent = 'Forte';
+        strengthText.className = 'text-[10px] text-green-500 mt-1 uppercase tracking-wider font-bold';
+    }
+}
+
+async function sendRegistrationCode() {
+    const email = document.getElementById('regEmail').value;
+    const password = document.getElementById('regPassword').value;
+    const confirmPassword = document.getElementById('regConfirmPassword').value;
+
+    if (!email || !password || !confirmPassword) {
+        showToast('warning', 'Campos obrigatórios', 'Por favor, preencha todos os campos.');
+        return;
+    }
+
+    if (!validateRegPasswordInput()) {
+        showToast('warning', 'Senha inválida', 'A senha não atende aos requisitos mínimos de segurança.');
+        return;
+    }
+
+    if (password !== confirmPassword) {
+        showToast('warning', 'Senhas não conferem', 'A senha e a confirmação devem ser iguais.');
+        return;
+    }
+
+    regEmail = email;
+    regPassword = password;
+
+    try {
+        const r = await fetch(`${AUTH_API}/auth/send-reg-code`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email })
+        });
+
+        const data = await r.json();
+
+        if (data.success) {
+            document.getElementById('regEmailDisplay').textContent = email;
+            document.getElementById('regStep1').classList.add('hidden');
+            document.getElementById('regStep2').classList.remove('hidden');
+            showToast('success', 'Código enviado', 'Enviamos um código de verificação para seu email.');
+        } else {
+            showToast('error', 'Erro ao enviar código', data.error || 'Erro ao enviar código.');
+        }
+    } catch (e) {
+        console.error('Erro ao enviar código de registro:', e);
+        showToast('error', 'Erro ao enviar código', 'Erro ao enviar código: ' + e.message);
+    }
+}
+
+async function verifyRegistrationCode() {
+    const code = document.getElementById('regCode').value;
+
+    if (!code) {
+        showToast('warning', 'Código obrigatório', 'Por favor, digite o código de verificação.');
+        return;
+    }
+
+    try {
+        const r = await fetch(`${AUTH_API}/auth/register`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: regEmail, password: regPassword, code })
+        });
+
+        const data = await r.json();
+
+        if (data.success) {
+            showToast('success', 'Conta criada', 'Sua conta foi criada com sucesso! Faça login para continuar.');
+            closeRegistrationModal();
+        } else {
+            showToast('error', 'Erro ao criar conta', data.error || 'Erro ao criar conta.');
+        }
+    } catch (e) {
+        console.error('Erro ao registrar usuário:', e);
+        showToast('error', 'Erro ao criar conta', 'Erro ao criar conta: ' + e.message);
+    }
+}
+
+async function resendRegistrationCode() {
+    try {
+        const r = await fetch(`${AUTH_API}/auth/send-reg-code`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: regEmail })
+        });
+
+        const data = await r.json();
+
+        if (data.success) {
+            showToast('success', 'Código reenviado', 'Enviamos um novo código de verificação para seu email.');
+        } else {
+            showToast('error', 'Erro ao reenviar', data.error || 'Erro ao reenviar código.');
+        }
+    } catch (e) {
+        console.error('Erro ao reenviar código:', e);
+        showToast('error', 'Erro ao reenviar', 'Erro ao reenviar código: ' + e.message);
+    }
+}
+
+// ── Profile Functions ─────────────────────────────────────────────────────────
+let kidsModeEnabled = false;
+let newProfileKidsMode = false;
+let currentProfile = null;
+let profiles = [];
+
+// ── Kids Zone Functions ─────────────────────────────────────────────────────────
+// Kids hero state
+let _kidsHeroItems = [], _kidsHeroIdx = 0, _kidsHeroTimer = null;
+
+function buildKidsHeroCarousel(items) {
+    const pool = items.filter(i => i.img).slice(0, 6);
+    if (!pool.length) return;
+    _kidsHeroItems = pool;
+    _kidsHeroIdx = 0;
+
+    const slidesEl = document.getElementById('kidsHeroSlides');
+    const dotsEl   = document.getElementById('kidsHeroDots');
+    slidesEl.innerHTML = '';
+    dotsEl.innerHTML   = '';
+
+    // Criar slides IMEDIATAMENTE com poster como placeholder
+    pool.forEach((item, i) => {
+        const slide = document.createElement('div');
+        slide.className = 'hero-slide' + (i === 0 ? ' active' : '');
+        const img = document.createElement('img');
+        img.src = item.img;
+        img.alt = item.title;
+        img.setAttribute('onerror', `this.src='${item.img}'`);
+        slide.appendChild(img);
+        slidesEl.appendChild(slide);
+
+        const dot = document.createElement('button');
+        dot.className = 'hero-dot' + (i === 0 ? ' active' : '');
+        dot.onclick = () => setKidsHeroSlide(i);
+        dotsEl.appendChild(dot);
+    });
+
+    document.getElementById('kidsHeroSkeleton').style.display = 'none';
+    updateKidsHeroContent();
+    document.getElementById('kidsHeroContent').style.display = 'block';
+
+    // Timer inicia AGORA, sem esperar backdrops
+    clearInterval(_kidsHeroTimer);
+    _kidsHeroTimer = setInterval(() => setKidsHeroSlide((_kidsHeroIdx + 1) % _kidsHeroItems.length), 6000);
+
+    // Buscar backdrops em background, substituindo poster quando pronto
+    pool.forEach((item, i) => {
+        fetch(`https://api.themoviedb.org/3/${item.tipo}/${item.tmdb_id}?api_key=${TMDB_KEY_HERO}`)
+            .then(r => r.ok ? r.json() : null)
+            .then(d => {
+                if (!d || !d.backdrop_path) return;
+                const url = `https://image.tmdb.org/t/p/original${d.backdrop_path}`;
+                const preload = new Image();
+                preload.onload = () => {
+                    const slides = document.querySelectorAll('#kidsHeroSlides .hero-slide');
+                    if (slides[i]) slides[i].querySelector('img').src = url;
+                };
+                preload.src = url;
+            })
+            .catch(() => {});
+    });
+}
+
+function setKidsHeroSlide(idx) {
+    _kidsHeroIdx = idx;
+    const slides = document.querySelectorAll('#kidsHeroSlides .hero-slide');
+    const dots   = document.querySelectorAll('#kidsHeroDots .hero-dot');
+    slides.forEach((s, i) => s.classList.toggle('active', i === idx));
+    dots.forEach((d, i) => d.classList.toggle('active', i === idx));
+    updateKidsHeroContent();
+}
+
+function kidsHeroNav(dir) {
+    if (!_kidsHeroItems.length) return;
+    clearInterval(_kidsHeroTimer);
+    setKidsHeroSlide((_kidsHeroIdx + dir + _kidsHeroItems.length) % _kidsHeroItems.length);
+    _kidsHeroTimer = setInterval(() => setKidsHeroSlide((_kidsHeroIdx + 1) % _kidsHeroItems.length), 6000);
+}
+
+function updateKidsHeroContent() {
+    const item = _kidsHeroItems[_kidsHeroIdx];
+    if (!item) return;
+    document.getElementById('kidsHeroTitle').textContent    = item.title || '';
+    document.getElementById('kidsHeroDesc').textContent     = item.overview || '';
+    document.getElementById('kidsHeroBadgeType').textContent = item.tipo === 'tv' ? 'SÉRIE' : 'FILME';
+    const playBtn = document.getElementById('kidsHeroPlayBtn');
+    const infoBtn = document.getElementById('kidsHeroInfoBtn');
+    playBtn.onclick = () => openDetails(item.tmdb_id, item.tipo);
+    infoBtn.onclick = () => openDetails(item.tmdb_id, item.tipo);
+}
+
+const KIDS_SECTION_NAMES = {
+    'desenhos_favoritos': '🎨 Desenhos Favoritos',
+    'familia':            '👨‍👩‍👧 Para Ver em Família',
+    'animacao_popular':   '⭐ Animações Populares',
+    'kids_movies':        '🎬 Filmes Infantis'
+};
+
+async function loadKidsCatalog() {
+    try {
+        const r = await fetch(`${API}/kids-catalog`);
+        if (!r.ok) {
+            document.getElementById('kidsRows').innerHTML = '<p class="text-red-400 text-sm px-3 py-8">Erro ao carregar catálogo. Tente novamente mais tarde.</p>';
+            return;
+        }
+        const data = await r.json();
+
+        // Build hero from all available items
+        const allItems = Object.values(data).flat().filter(i => i && i.img);
+        if (allItems.length) buildKidsHeroCarousel(allItems);
+
+        // Build rows
+        const kidsRows = document.getElementById('kidsRows');
+        kidsRows.innerHTML = '';
+
+        for (const [key, items] of Object.entries(data)) {
+            if (!items || !items.length) continue;
+            const section = document.createElement('div');
+            section.className = 'section-row';
+            section.innerHTML = `<h3 class="text-sm font-bold text-yellow-400 uppercase tracking-widest mb-4">${KIDS_SECTION_NAMES[key] || key}</h3>`;
+            const row = document.createElement('div');
+            row.className = 'flex gap-4 overflow-x-auto scroll-hide pb-4';
+            items.forEach(item => row.appendChild(createKidsCard(item)));
+            section.appendChild(row);
+            kidsRows.appendChild(section);
+        }
+    } catch (e) {
+        console.error('[DEBUG] Erro ao carregar catálogo kids:', e);
+        document.getElementById('kidsRows').innerHTML = '<p class="text-red-400 text-sm px-3 py-8">Erro ao carregar catálogo. Verifique se o servidor está rodando.</p>';
+    }
+}
+
+function createKidsCard(item) {
+    const card = document.createElement('div');
+    card.className = 'flex-shrink-0 w-32 md:w-40 cursor-pointer group';
+    card.onclick = () => openDetails(item.tmdb_id, item.tipo);
+    
+    card.innerHTML = `
+        <div class="relative w-full h-48 md:h-60 rounded-2xl overflow-hidden bg-gradient-to-br from-yellow-400/20 to-purple-500/20 border-2 border-yellow-400/30 group-hover:border-yellow-400 transition-all duration-300 group-hover:scale-105">
+            <img src="${item.img}" class="w-full h-full object-cover" alt="${item.title}" loading="lazy">
+            <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent"></div>
+            <div class="absolute bottom-0 left-0 right-0 p-3">
+                <p class="text-white font-bold text-sm line-clamp-2">${item.title}</p>
+            </div>
+        </div>
+    `;
+    
+    return card;
+}
+
+async function searchKids(query) {
+    if (!query.trim()) {
+        document.getElementById('kidsSearchResults').classList.add('hidden');
+        return;
+    }
+    
+    try {
+        const r = await fetch(`${API}/kids-search?q=${encodeURIComponent(query)}`);
+        const items = await r.json();
+        
+        const resultsDiv = document.getElementById('kidsSearchResults');
+        const grid = document.getElementById('kidsSearchGrid');
+        
+        grid.innerHTML = '';
+        
+        if (items && items.length > 0) {
+            resultsDiv.classList.remove('hidden');
+            items.forEach(item => {
+                const card = createKidsCard(item);
+                grid.appendChild(card);
+            });
+        } else {
+            resultsDiv.classList.add('hidden');
+        }
+    } catch (e) {
+        console.error('Erro na busca kids:', e);
+    }
+}
+
+// Override search in kids zone to always use kids search
+const originalDoSearch = doSearch;
+const originalDoSearchPage = doSearchPage;
+
+function isInKidsZone() {
+    const kidsSection = document.getElementById('section-kids');
+    return kidsSection && !kidsSection.classList.contains('hidden');
+}
+
+async function doSearch(q) {
+    console.log('[DEBUG] doSearch chamado, isInKidsZone:', isInKidsZone(), 'kidsModeEnabled:', kidsModeEnabled);
+    if (isInKidsZone() || kidsModeEnabled) {
+        // Always use kids search when in kids zone or kids mode is active
+        if (!serverOnline) { searchDropdown.innerHTML = '<div class="p-3 text-xs text-gray-500">Serviço indisponível.</div>'; searchDropdown.classList.remove('hidden'); return; }
+        searchDropdown.innerHTML = '<div class="p-3 text-xs text-yellow-400">🔍 A procurar...</div>';
+        searchDropdown.classList.remove('hidden');
+        try {
+            const r = await fetch(`${API}/kids-search?q=${encodeURIComponent(q)}`);
+            const results = await r.json();
+            if (!results.length) { searchDropdown.innerHTML = '<div class="p-3 text-xs text-gray-500">Nenhum resultado.</div>'; return; }
+            searchDropdown.innerHTML = results.slice(0,6).map(item => `
+                <div class="s-item" onclick="openDetails(${item.tmdb_id},'${item.tipo}'); searchDropdown.classList.add('hidden'); searchInput.value=''">
+                    <img src="${item.img}" onerror="this.src=''">
+                    <div>
+                        <div class="text-[11px] font-bold text-white leading-tight">${item.title}</div>
+                        <div class="text-[9px] text-gray-500 mt-0.5">${item.tipo==='tv'?'📺 Série':'🎬 Filme'} • ${item.year}</div>
+                    </div>
+                </div>
+            `).join('');
+        } catch { searchDropdown.innerHTML = '<div class="p-3 text-xs text-red-500">Erro ao buscar.</div>'; }
+    } else {
+        return originalDoSearch(q);
+    }
+}
+
+async function doSearchPage(q) {
+    console.log('[DEBUG] doSearchPage chamado, isInKidsZone:', isInKidsZone(), 'kidsModeEnabled:', kidsModeEnabled);
+    if (isInKidsZone() || kidsModeEnabled) {
+        // Always use kids search when in kids zone or kids mode is active
+        const grid = document.getElementById('grid-search');
+        showSection('search');
+        grid.innerHTML = '<p class="text-gray-500 text-xs col-span-full py-8 text-center">🔍 A procurar...</p>';
+        if (!serverOnline) { grid.innerHTML = '<p class="text-gray-500 text-xs col-span-full py-8 text-center">Serviço indisponível.</p>'; return; }
+        try {
+            const r = await fetch(`${API}/kids-search?q=${encodeURIComponent(q)}`);
+            const results = await r.json();
+            grid.innerHTML = '';
+            if (!results.length) { grid.innerHTML = '<p class="text-gray-500 text-xs col-span-full py-8 text-center">Nenhum resultado.</p>'; return; }
+            results.forEach(item => grid.appendChild(createCard(item, true)));
+        } catch { grid.innerHTML = '<p class="text-red-500 text-xs col-span-full py-8 text-center">Erro ao buscar.</p>'; }
+    } else {
+        return originalDoSearchPage(q);
+    }
+}
+
+// Kids search input listener
+document.addEventListener('DOMContentLoaded', () => {
+    const kidsSearchInput = document.getElementById('kidsSearchInput');
+    if (kidsSearchInput) {
+        let searchTimeout;
+        kidsSearchInput.addEventListener('input', (e) => {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => searchKids(e.target.value), 500);
+        });
+    }
+});
+
+function loadProfiles() {
+    const stored = localStorage.getItem('profiles');
+    if (stored) {
+        profiles = JSON.parse(stored);
+    } else {
+        // Create default profile if none exist
+        profiles = [{
+            id: 'default',
+            name: 'Principal',
+            avatar: null,
+            kidsMode: false,
+            isDefault: true
+        }];
+        saveProfiles();
+    }
+}
+
+function saveProfiles() {
+    localStorage.setItem('profiles', JSON.stringify(profiles));
+}
+
+function renderProfilePicker() {
+    loadProfiles();
+    const grid = document.getElementById('profilePickerGrid');
+    grid.innerHTML = '';
+    
+    profiles.forEach(profile => {
+        const isDefault = profile.isDefault;
+        const isActive = profile.id === localStorage.getItem('currentProfileId');
+        const initials = profile.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+        let avatarHtml;
+        if (profile.avatarEmoji) {
+            avatarHtml = `<span style="font-size:2.8rem;line-height:1">${profile.avatarEmoji}</span>`;
+        } else if (profile.avatar) {
+            avatarHtml = `<img src="${profile.avatar}" class="w-full h-full object-cover rounded-full" alt="${profile.name}">`;
+        } else {
+            avatarHtml = `<span class="text-3xl font-bold">${initials}</span>`;
+        }
+        
+        const kidsBadge = profile.kidsMode 
+            ? `<div class="absolute -top-2 -right-2 bg-yellow-400 text-black text-[10px] font-bold px-2 py-0.5 rounded-full">KIDS</div>`
+            : '';
+        const isKids = profile.kidsMode;
+        const activeRing = isActive ? (isKids ? 'border-yellow-400 ring-2 ring-yellow-400 ring-offset-2 ring-offset-black' : 'border-purple-500 ring-2 ring-purple-500 ring-offset-2 ring-offset-black') : 'border-transparent group-hover:border-white';
+        const bgGrad = isKids ? 'bg-gradient-to-br from-yellow-500 to-orange-500' : 'bg-gradient-to-br from-purple-600 to-blue-600';
+        
+        const card = document.createElement('div');
+        card.className = `flex flex-col items-center gap-3 cursor-pointer group`;
+        card.innerHTML = `
+            <div class="relative w-24 h-24 md:w-32 md:h-32 rounded-full ${bgGrad} flex items-center justify-center border-4 ${activeRing} transition-all duration-300 overflow-hidden">
+                ${avatarHtml}
+                ${kidsBadge}
+                ${!isDefault ? `
+                    <div class="absolute inset-0 bg-black/80 rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                        <button onclick="event.stopPropagation(); editProfile('${profile.id}')" class="w-8 h-8 bg-white/20 hover:bg-white/30 rounded-full flex items-center justify-center transition">
+                            <i class="fas fa-pen text-white text-xs"></i>
+                        </button>
+                        <button onclick="event.stopPropagation(); deleteProfile('${profile.id}')" class="w-8 h-8 bg-red-500/80 hover:bg-red-500 rounded-full flex items-center justify-center transition">
+                            <i class="fas fa-trash text-white text-xs"></i>
+                        </button>
+                    </div>
+                ` : ''}
+            </div>
+            <span class="text-sm font-bold text-gray-300 group-hover:text-white transition">${profile.name}</span>
+            ${isActive ? '<span class="text-[10px] text-green-400">Em uso</span>' : ''}
+        `;
+        
+        if (!isDefault) {
+            card.onclick = () => {
+                const currentProfile = getCurrentProfile();
+                // If current profile is kids and trying to switch, require PIN
+                if (currentProfile && currentProfile.kidsMode && profile.id !== currentProfile.id) {
+                    openKidsExitPinModal();
+                    localStorage.setItem('pendingProfileSwitch', profile.id);
+                } else {
+                    selectProfile(profile.id);
+                }
+            };
+        }
+        
+        grid.appendChild(card);
+    });
+    
+    // Add "Add Profile" button
+    const addCard = document.createElement('div');
+    addCard.className = 'flex flex-col items-center gap-3 cursor-pointer group';
+    addCard.onclick = openAddAccountModal;
+    addCard.innerHTML = `
+        <div class="w-24 h-24 md:w-32 md:h-32 rounded-full bg-white/10 flex items-center justify-center border-4 border-transparent group-hover:border-white transition-all duration-300">
+            <i class="fas fa-plus text-3xl text-gray-400 group-hover:text-white transition"></i>
+        </div>
+        <span class="text-sm font-bold text-gray-400 group-hover:text-white transition">Adicionar Perfil</span>
+    `;
+    grid.appendChild(addCard);
+}
+
+function selectProfile(profileId) {
+    const currentProfile = getCurrentProfile();
+    
+    // If current profile is kids and trying to switch, require PIN
+    if (currentProfile && currentProfile.kidsMode && profileId !== currentProfile.id) {
+        openKidsExitPinModal();
+        // Store the target profile ID to switch after PIN verification
+        localStorage.setItem('pendingProfileSwitch', profileId);
+        return;
+    }
+    
+    const targetProfile = profiles.find(p => p.id === profileId);
+    if (targetProfile) {
+        localStorage.setItem('currentProfileId', profileId);
+        
+        // Apply profile settings
+        if (targetProfile.kidsMode && !kidsModeEnabled) {
+            toggleKidsMode();
+        } else if (!targetProfile.kidsMode && kidsModeEnabled) {
+            toggleKidsMode();
+        }
+        
+        // Update UI with profile name
+        if (targetProfile.name) {
+            currentUser.name = targetProfile.name;
+            localStorage.setItem('userName', targetProfile.name);
+        }
+        
+        updateCurrentProfileName();
+        updateUserUI(currentUser);
+        showSection('home');
+    }
+}
+
+function getCurrentProfile() {
+    const profileId = localStorage.getItem('currentProfileId');
+    if (profileId) {
+        return profiles.find(p => p.id === profileId);
+    }
+    return profiles[0]; // Return default profile
+}
+
+function toggleProfileDropdown() {
+    const dropdown = document.getElementById('profileDropdown');
+    dropdown.classList.toggle('hidden');
+    renderProfileDropdown();
+}
+
+function renderProfileDropdown() {
+    loadProfiles();
+    const list = document.getElementById('profileDropdownList');
+    list.innerHTML = '';
+    
+    profiles.forEach(profile => {
+        const isActive = profile.id === localStorage.getItem('currentProfileId');
+        const item = document.createElement('button');
+        item.className = `w-full text-left px-4 py-2 text-sm flex items-center gap-3 transition ${isActive ? 'text-white bg-white/10' : 'text-gray-400 hover:text-white hover:bg-white/5'}`;
+        item.onclick = () => {
+            selectProfile(profile.id);
+            toggleProfileDropdown();
+        };
+        
+        const initials = profile.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+        item.innerHTML = `
+            <div class="w-8 h-8 rounded-full bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center text-xs font-bold">
+                ${initials}
+            </div>
+            <span>${profile.name}</span>
+            ${isActive ? '<i class="fas fa-check ml-auto text-green-400"></i>' : ''}
+        `;
+        list.appendChild(item);
+    });
+}
+
+function updateCurrentProfileName() {
+    const profile = getCurrentProfile();
+    const nameEl = document.getElementById('currentProfileName');
+    if (nameEl && profile) {
+        nameEl.textContent = profile.name;
+    }
+}
+
+// Close dropdown when clicking outside
+document.addEventListener('click', (e) => {
+    const dropdown = document.getElementById('profileDropdown');
+    const button = e.target.closest('button');
+    if (dropdown && !dropdown.contains(e.target) && !button?.onclick?.toString().includes('toggleProfileDropdown')) {
+        dropdown.classList.add('hidden');
+    }
+});
+
+function openChangePasswordModal() {
+    const modal = document.getElementById('changePasswordModal');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    document.getElementById('currentPassword').value = '';
+    document.getElementById('newPassword').value = '';
+    document.getElementById('confirmNewPassword').value = '';
+}
+
+function closeChangePasswordModal() {
+    const modal = document.getElementById('changePasswordModal');
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+}
+
+// ══ PROFILE WIZARD ══
+const pw = {
+  step: 0,
+  type: null,        // 'adult' | 'kids'
+  name: '',
+  avatar: '',
+  age: null,
+  shows: [],
+  studios: [],
+  pin: '',
+  pinConfirm: '',
+  // adult steps: 0→type, 1→name/avatar, 2→final
+  // kids  steps: 0→type, 1→name+age, 2→shows, 3→studios, 4→avatar, 5→pin, 6→final
+  adultSteps: ['pw-step-0','pw-step-1a','pw-step-final-adult'],
+  kidsSteps:  ['pw-step-0','pw-step-1b','pw-step-2k','pw-step-3k','pw-step-4k','pw-step-pin-kids','pw-step-final-kids'],
+};
+
+function openAddAccountModal() {
+    // reset state
+    pw.step = 0; pw.type = null; pw.name = ''; pw.avatar = ''; pw.age = null; pw.shows = []; pw.studios = []; pw.pin = ''; pw.pinConfirm = '';
+    // reset PIN UI
+    for (let i = 0; i < 4; i++) {
+        const d = document.getElementById('pwPinDot'+i); if (d) d.classList.remove('filled','error');
+        const c = document.getElementById('pwPinCDot'+i); if (c) c.classList.remove('filled','error');
+    }
+    const pcw = document.getElementById('pwPinConfirmWrap'); if (pcw) pcw.classList.add('hidden');
+    const pce = document.getElementById('pwPinMismatchErr'); if (pce) pce.classList.add('hidden');
+    const pe  = document.getElementById('pwPinErr'); if (pe) pe.classList.add('hidden');
+    // build age grid
+    const ag = document.getElementById('pwAgeGrid');
+    if (ag) {
+        ag.innerHTML = '';
+        for (let i = 1; i <= 12; i++) {
+            const b = document.createElement('button');
+            b.className = 'pw-age-btn';
+            b.textContent = i;
+            b.onclick = () => { pw.age = i; document.querySelectorAll('.pw-age-btn').forEach(x=>x.classList.remove('selected')); b.classList.add('selected'); };
+            ag.appendChild(b);
+        }
+    }
+    // reset inputs
+    const an = document.getElementById('pwAdultName'); if (an) an.value = '';
+    const kn = document.getElementById('pwKidsName'); if (kn) kn.value = '';
+    // reset chips
+    document.querySelectorAll('.pw-chip').forEach(c=>c.classList.remove('selected'));
+    // reset avatar
+    document.querySelectorAll('.pw-avatar-opt').forEach(a=>a.classList.remove('selected'));
+    // reset type cards
+    document.querySelectorAll('.pw-type-card').forEach(c=>c.classList.remove('selected'));
+    // wizard mode
+    const wiz = document.getElementById('profileWizard');
+    wiz.classList.remove('kids-wizard');
+    document.getElementById('pwStars').classList.add('hidden');
+    document.getElementById('pwProgressFill').classList.remove('kids');
+    // show
+    wiz.classList.remove('hidden');
+    wiz.classList.add('flex');
+    pwGoToStep(0);
+}
+
+function closeAddAccountModal() {
+    const wiz = document.getElementById('profileWizard');
+    wiz.classList.add('hidden');
+    wiz.classList.remove('flex');
+}
+
+function pwStepList() {
+    return pw.type === 'kids' ? pw.kidsSteps : (pw.type === 'adult' ? pw.adultSteps : pw.adultSteps);
+}
+
+function pwGoToStep(idx) {
+    pw.step = idx;
+    const steps = pwStepList();
+    // hide all steps
+    document.querySelectorAll('.pw-step').forEach(s=>{ s.classList.remove('active'); });
+    // show current
+    const el = document.getElementById(steps[idx]);
+    if (el) { el.classList.remove('active'); void el.offsetWidth; el.classList.add('active'); }
+
+    // progress
+    const pct = steps.length <= 1 ? 100 : Math.round((idx / (steps.length - 1)) * 100);
+    document.getElementById('pwProgressFill').style.width = pct + '%';
+
+    // step label
+    document.getElementById('pwStepLabel').textContent = `${idx + 1} de ${steps.length}`;
+
+    // back button
+    const bb = document.getElementById('pwBackBtn');
+    const hs = document.getElementById('pwHeaderSpacer');
+    if (idx > 0) { bb.style.display='flex'; hs.style.display='none'; }
+    else         { bb.style.display='none'; hs.style.display=''; }
+}
+
+function pwSelectType(type) {
+    pw.type = type;
+    document.querySelectorAll('.pw-type-card').forEach(c=>c.classList.remove('selected'));
+    document.getElementById(type==='adult'?'pwTypeAdult':'pwTypeKids').classList.add('selected');
+
+    const wiz = document.getElementById('profileWizard');
+    const fill = document.getElementById('pwProgressFill');
+    const stars = document.getElementById('pwStars');
+
+    if (type === 'kids') {
+        wiz.classList.add('kids-wizard');
+        fill.classList.add('kids');
+        stars.classList.remove('hidden');
+    } else {
+        wiz.classList.remove('kids-wizard');
+        fill.classList.remove('kids');
+        stars.classList.add('hidden');
+    }
+
+    setTimeout(() => pwGoToStep(1), 220);
+}
+
+function pwBack() {
+    if (pw.step > 0) pwGoToStep(pw.step - 1);
+}
+
+function pwNext() {
+    const steps = pwStepList();
+    const stepId = steps[pw.step];
+
+    // Validation
+    if (stepId === 'pw-step-1a') {
+        const v = document.getElementById('pwAdultName').value.trim();
+        if (!v) { document.getElementById('pwAdultNameErr').classList.remove('hidden'); return; }
+        document.getElementById('pwAdultNameErr').classList.add('hidden');
+        pw.name = v;
+        // populate final
+        document.getElementById('pwFinalAdultEmoji').textContent = pw.avatar || '🎭';
+        document.getElementById('pwFinalAdultName').textContent = pw.name;
+        document.getElementById('pwFinalAdultAvatarDisp').textContent = pw.avatar || '🎭';
+        document.getElementById('pwFinalAdultNameDisp').textContent = pw.name;
+    }
+    if (stepId === 'pw-step-1b') {
+        const v = document.getElementById('pwKidsName').value.trim();
+        if (!v || !pw.age) { document.getElementById('pwKidsNameErr').classList.remove('hidden'); return; }
+        document.getElementById('pwKidsNameErr').classList.add('hidden');
+        pw.name = v;
+    }
+    if (stepId === 'pw-step-final-adult' || stepId === 'pw-step-final-kids') {
+        pwFinish(); return;
+    }
+    if (stepId === 'pw-step-pin-kids') {
+        if (!pw.pin) { pwGoToStep(pw.step + 1); return; } // skip se pulou
+        if (pw.pin.length < 4) { document.getElementById('pwPinErr').classList.remove('hidden'); return; }
+        document.getElementById('pwPinErr').classList.add('hidden');
+        // após definir PIN vai para final
+    }
+    if (stepId === 'pw-step-4k') {
+        // populate kids final
+        const av = pw.avatar || '🦁';
+        document.getElementById('pwFinalKidsEmoji').textContent = av;
+        document.getElementById('pwFinalKidsName').textContent = pw.name;
+        document.getElementById('pwFinalKidsAvatarDisp').textContent = av;
+        document.getElementById('pwFinalKidsNameDisp').textContent = pw.name;
+        document.getElementById('pwFinalKidsAge').textContent = pw.age || '?';
+        // show PIN badge
+        const pinBadge = document.getElementById('pwFinalKidsPinBadge');
+        if (pinBadge) pinBadge.style.display = pw.pin ? 'inline-flex' : 'none';
+        const sc = document.getElementById('pwFinalKidsShows');
+        sc.innerHTML = '';
+        [...pw.shows, ...pw.studios].slice(0,6).forEach(s=>{
+            const t = document.createElement('span');
+            t.className = 'pw-chip kids-chip selected'; t.style.cssText='padding:4px 10px;font-size:11px;';
+            t.textContent = s; sc.appendChild(t);
+        });
+    }
+
+    if (pw.step < steps.length - 1) pwGoToStep(pw.step + 1);
+}
+
+function pwCheckNext(type) {
+    // live validation feedback, no-op for now
+}
+
+function pwSelectAvatar(av, el) {
+    pw.avatar = av;
+    document.querySelectorAll('#pwAdultAvatars .pw-avatar-opt').forEach(a=>a.classList.remove('selected'));
+    el.classList.add('selected');
+}
+
+function pwSelectKidsAvatar(av, el) {
+    pw.avatar = av;
+    document.querySelectorAll('#pwKidsAvatars .pw-avatar-opt').forEach(a=>a.classList.remove('selected'));
+    el.classList.add('selected');
+}
+
+function pwToggleChip(el, group) {
+    el.classList.toggle('selected');
+    const val = el.dataset.val;
+    if (group === 'show') {
+        if (pw.shows.includes(val)) pw.shows = pw.shows.filter(x=>x!==val);
+        else pw.shows.push(val);
+    } else {
+        if (pw.studios.includes(val)) pw.studios = pw.studios.filter(x=>x!==val);
+        else pw.studios.push(val);
+    }
+}
+
+function pwUpdatePinDots(value, prefix) {
+    for (let i = 0; i < 4; i++) {
+        const dot = document.getElementById(`${prefix}${i}`);
+        if (dot) dot.classList.toggle('filled', i < value.length);
+    }
+}
+
+function pwPinPress(digit) {
+    if (pw.pin.length >= 4) return;
+    pw.pin += digit;
+    pwUpdatePinDots(pw.pin, 'pwPinDot');
+    document.getElementById('pwPinErr').classList.add('hidden');
+    if (pw.pin.length === 4) {
+        setTimeout(() => {
+            document.getElementById('pwPinConfirmWrap').classList.remove('hidden');
+        }, 200);
+    }
+}
+
+function pwPinBackspace() {
+    if (pw.pin.length === 0) return;
+    pw.pin = pw.pin.slice(0, -1);
+    pwUpdatePinDots(pw.pin, 'pwPinDot');
+    document.getElementById('pwPinConfirmWrap').classList.add('hidden');
+    pw.pinConfirm = '';
+    pwUpdatePinDots('', 'pwPinCDot');
+    document.getElementById('pwPinMismatchErr').classList.add('hidden');
+}
+
+function pwPinConfirmPress(digit) {
+    if (pw.pinConfirm.length >= 4) return;
+    pw.pinConfirm += digit;
+    pwUpdatePinDots(pw.pinConfirm, 'pwPinCDot');
+    if (pw.pinConfirm.length === 4) {
+        if (pw.pinConfirm === pw.pin) {
+            document.getElementById('pwPinMismatchErr').classList.add('hidden');
+            setTimeout(() => pwGoToStep(pw.step + 1), 300);
+        } else {
+            document.getElementById('pwPinMismatchErr').classList.remove('hidden');
+            ['pwPinCDot0','pwPinCDot1','pwPinCDot2','pwPinCDot3'].forEach(id => {
+                const d = document.getElementById(id);
+                if (d) { d.classList.add('error'); setTimeout(() => d.classList.remove('error','filled'), 500); }
+            });
+            setTimeout(() => {
+                pw.pinConfirm = '';
+                pwUpdatePinDots('', 'pwPinCDot');
+            }, 500);
+        }
+    }
+}
+
+function pwPinConfirmBackspace() {
+    if (pw.pinConfirm.length === 0) return;
+    pw.pinConfirm = pw.pinConfirm.slice(0, -1);
+    pwUpdatePinDots(pw.pinConfirm, 'pwPinCDot');
+    document.getElementById('pwPinMismatchErr').classList.add('hidden');
+}
+
+function pwSkipPin() {
+    pw.pin = '';
+    pw.pinConfirm = '';
+    // reset dots
+    pwUpdatePinDots('', 'pwPinDot');
+    pwUpdatePinDots('', 'pwPinCDot');
+    document.getElementById('pwPinConfirmWrap').classList.add('hidden');
+    pwGoToStep(pw.step + 1);
+}
+
+function pwFinish() {
+    if (!pw.name) return;
+    loadProfiles();
+    const newProfile = {
+        id: 'profile_' + Date.now(),
+        name: pw.name,
+        avatar: pw.avatar || null,
+        avatarEmoji: pw.avatar || null,
+        kidsMode: pw.type === 'kids',
+        kidsAge: pw.age,
+        kidsShows: pw.shows,
+        kidsStudios: pw.studios,
+        kidsPin: pw.pin || null,
+        createdAt: new Date().toISOString()
+    };
+    profiles.push(newProfile);
+    saveProfiles();
+    closeAddAccountModal();
+    renderProfilesList();
+    renderProfilePicker();
+    const icon = pw.type === 'kids' ? '🎉' : '✅';
+    showToast('success', 'Perfil criado', `${icon} Perfil "${pw.name}" criado com sucesso!`);
+}
+
+function editNickname() {
+    const modal = document.getElementById('editNicknameModal');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    document.getElementById('nicknameInput').value = currentUser?.name || '';
+}
+
+function closeEditNicknameModal() {
+    const modal = document.getElementById('editNicknameModal');
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+}
+
+// toggleProfileKidsMode replaced by new wizard
+
+function toggleKidsMode() {
+    const currentProfile = getCurrentProfile();
+    
+    // If trying to exit kids mode and current profile is a kids profile, require PIN
+    if (kidsModeEnabled && currentProfile && currentProfile.kidsMode) {
+        openKidsExitPinModal();
+        return;
+    }
+    
+    kidsModeEnabled = !kidsModeEnabled;
+    const icon = document.getElementById('kidsModeIcon');
+    const status = document.getElementById('kidsModeStatus');
+    const kidsLogo = document.getElementById('kidsLogo');
+    const body = document.body;
+    const kidsDecorations = document.getElementById('kidsDecorations');
+    const navbarKidsIcon = document.getElementById('navbarKidsIcon');
+    
+    const kidsBadgeNav = document.getElementById('kidsBadgeNav');
+
+    if (kidsModeEnabled) {
+        if (icon)   { icon.classList.remove('text-purple-400'); icon.classList.add('text-green-400'); }
+        if (status) { status.textContent = 'Ativado'; status.classList.remove('text-gray-500'); status.classList.add('text-green-400'); }
+        if (kidsLogo) kidsLogo.classList.remove('hidden');
+        if (kidsDecorations) kidsDecorations.classList.remove('hidden');
+        body.classList.add('kids-mode-active');
+        if (navbarKidsIcon) { navbarKidsIcon.classList.remove('text-gray-500'); navbarKidsIcon.classList.add('text-yellow-400'); }
+        if (kidsBadgeNav)   { kidsBadgeNav.classList.remove('hidden'); kidsBadgeNav.classList.add('flex'); }
+    } else {
+        if (icon)   { icon.classList.remove('text-green-400'); icon.classList.add('text-purple-400'); }
+        if (status) { status.textContent = 'Desativado'; status.classList.remove('text-green-400'); status.classList.add('text-gray-500'); }
+        if (kidsLogo) kidsLogo.classList.add('hidden');
+        if (kidsDecorations) kidsDecorations.classList.add('hidden');
+        body.classList.remove('kids-mode-active');
+        if (navbarKidsIcon) { navbarKidsIcon.classList.remove('text-yellow-400'); navbarKidsIcon.classList.add('text-gray-500'); }
+        if (kidsBadgeNav)   { kidsBadgeNav.classList.add('hidden'); kidsBadgeNav.classList.remove('flex'); }
+    }
+    
+    localStorage.setItem('kidsMode', kidsModeEnabled);
+}
+
+function openKidsExitPinModal() {
+    const modal = document.getElementById('kidsExitPinModal');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    document.getElementById('kidsExitPin').value = '';
+    document.getElementById('kidsExitPin').focus();
+}
+
+function closeKidsExitPinModal() {
+    const modal = document.getElementById('kidsExitPinModal');
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+}
+
+function handleManageProfiles() {
+    const currentProfile = getCurrentProfile();
+    
+    // If current profile is kids, require PIN to access profile management
+    if (currentProfile && currentProfile.kidsMode) {
+        openKidsExitPinModal();
+        localStorage.setItem('pendingAction', 'manageProfiles');
+    } else {
+        showSection('profile-picker');
+    }
+}
+
+function verifyKidsExitPin() {
+    const pin = document.getElementById('kidsExitPin').value;
+    const currentProfile = getCurrentProfile();
+    
+    // Use the last 4 digits of the account password as the PIN
+    const accountPassword = localStorage.getItem('accountPassword') || '';
+    const expectedPin = accountPassword.slice(-4);
+    
+    if (pin === expectedPin && pin.length === 4) {
+        // PIN correct, exit kids mode
+        kidsModeEnabled = false;
+        const icon = document.getElementById('kidsModeIcon');
+        const status = document.getElementById('kidsModeStatus');
+        const kidsLogo = document.getElementById('kidsLogo');
+        const body = document.body;
+        const kidsDecorations = document.getElementById('kidsDecorations');
+        const navbarKidsIcon = document.getElementById('navbarKidsIcon');
+        const kidsBadgeNav = document.getElementById('kidsBadgeNav');
+
+        if (icon)   { icon.classList.remove('text-green-400'); icon.classList.add('text-purple-400'); }
+        if (status) { status.textContent = 'Desativado'; status.classList.remove('text-green-400'); status.classList.add('text-gray-500'); }
+        if (kidsLogo) kidsLogo.classList.add('hidden');
+        if (kidsDecorations) kidsDecorations.classList.add('hidden');
+        body.classList.remove('kids-mode-active');
+        if (navbarKidsIcon) { navbarKidsIcon.classList.remove('text-yellow-400'); navbarKidsIcon.classList.add('text-gray-500'); }
+        if (kidsBadgeNav)   { kidsBadgeNav.classList.add('hidden'); kidsBadgeNav.classList.remove('flex'); }
+        
+        localStorage.setItem('kidsMode', kidsModeEnabled);
+        closeKidsExitPinModal();
+        
+        // Check if there's a pending profile switch
+        const pendingProfileId = localStorage.getItem('pendingProfileSwitch');
+        if (pendingProfileId) {
+            localStorage.removeItem('pendingProfileSwitch');
+            const targetProfile = profiles.find(p => p.id === pendingProfileId);
+            if (targetProfile) {
+                localStorage.setItem('currentProfileId', pendingProfileId);
+                
+                // Apply profile settings
+                if (targetProfile.kidsMode && !kidsModeEnabled) {
+                    toggleKidsMode();
+                } else if (!targetProfile.kidsMode && kidsModeEnabled) {
+                    toggleKidsMode();
+                }
+                
+                // Update UI with profile name
+                if (targetProfile.name) {
+                    currentUser.name = targetProfile.name;
+                    localStorage.setItem('userName', targetProfile.name);
+                }
+                
+                updateCurrentProfileName();
+                updateUserUI(currentUser);
+                showSection('home');
+                showToast('success', 'Perfil Alterado', `Você mudou para o perfil "${targetProfile.name}".`);
+                return;
+            }
+        }
+        
+        // Check if there's a pending action (like manage profiles)
+        const pendingAction = localStorage.getItem('pendingAction');
+        if (pendingAction === 'manageProfiles') {
+            localStorage.removeItem('pendingAction');
+            showSection('profile-picker');
+            return;
+        }
+        
+        showToast('success', 'Modo Kids Desativado', 'Você saiu do modo infantil.');
+    } else {
+        showToast('error', 'PIN Incorreto', 'O PIN digitado está incorreto. Tente novamente.');
+        document.getElementById('kidsExitPin').value = '';
+        document.getElementById('kidsExitPin').focus();
+    }
+}
+
+function handleAvatarUpload(event) {
+    const file = event.target.files[0];
+    if (file) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const img = document.getElementById('profileImage');
+            const initials = document.getElementById('profileInitials');
+            const userAvatar = document.getElementById('userAvatar');
+            const userInitials = document.getElementById('userInitials');
+            
+            img.src = e.target.result;
+            img.classList.remove('hidden');
+            initials.classList.add('hidden');
+            
+            userAvatar.src = e.target.result;
+            userAvatar.classList.remove('hidden');
+            userInitials.classList.add('hidden');
+            
+            localStorage.setItem('userAvatar', e.target.result);
+            showToast('success', 'Avatar atualizado', 'Sua foto de perfil foi atualizada!');
+        };
+        reader.readAsDataURL(file);
+    }
+}
+
+async function changePassword() {
+    const currentPassword = document.getElementById('currentPassword').value;
+    const newPassword = document.getElementById('newPassword').value;
+    const confirmNewPassword = document.getElementById('confirmNewPassword').value;
+
+    if (!currentPassword || !newPassword || !confirmNewPassword) {
+        showToast('warning', 'Campos obrigatórios', 'Por favor, preencha todos os campos.');
+        return;
+    }
+
+    if (newPassword !== confirmNewPassword) {
+        showToast('warning', 'Senhas não conferem', 'A nova senha e a confirmação devem ser iguais.');
+        return;
+    }
+
+    try {
+        const r = await fetch(`${AUTH_API}/auth/change-password`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                email: currentUser?.email,
+                current_password: currentPassword,
+                new_password: newPassword 
+            })
+        });
+
+        const data = await r.json();
+
+        if (data.success) {
+            showToast('success', 'Senha alterada', 'Sua senha foi alterada com sucesso!');
+            closeChangePasswordModal();
+        } else {
+            showToast('error', 'Erro ao alterar', data.error || 'Erro ao alterar senha.');
+        }
+    } catch (e) {
+        console.error('Erro ao alterar senha:', e);
+        showToast('error', 'Erro ao alterar', 'Erro ao alterar senha: ' + e.message);
+    }
+}
+
+function saveNickname() {
+    const nickname = document.getElementById('nicknameInput').value;
+    if (!nickname) {
+        showToast('warning', 'Nome obrigatório', 'Por favor, digite um nome.');
+        return;
+    }
+
+    currentUser.name = nickname;
+    localStorage.setItem('userName', nickname);
+    
+    document.getElementById('profileName').textContent = nickname;
+    updateUserUI(currentUser);
+    
+    closeEditNicknameModal();
+    showToast('success', 'Nome salvo', 'Seu nome foi atualizado!');
+}
+
+// addProfile replaced by pwFinish in new wizard
+
+function renderProfilesList() {
+    loadProfiles();
+    const list = document.getElementById('profilesList');
+    if (!list) return;
+    
+    list.innerHTML = '';
+    
+    profiles.forEach(profile => {
+        const isDefault = profile.isDefault;
+        const isActive = profile.id === localStorage.getItem('currentProfileId');
+        const initials = profile.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+        
+        let avatarContent;
+        if (profile.avatarEmoji) {
+            avatarContent = `<span style="font-size:2rem;line-height:1">${profile.avatarEmoji}</span>`;
+        } else if (profile.avatar) {
+            avatarContent = `<img src="${profile.avatar}" class="w-full h-full object-cover" alt="${profile.name}">`;
+        } else {
+            avatarContent = `<span class="text-2xl font-bold">${initials}</span>`;
+        }
+        const isKids = profile.kidsMode;
+        const ringClass = isActive ? (isKids ? 'border-yellow-400 ring-2 ring-yellow-400 ring-offset-2 ring-offset-black' : 'border-purple-500 ring-2 ring-purple-500 ring-offset-2 ring-offset-black') : 'border-transparent group-hover:border-white';
+        const bgClass = isKids ? 'bg-gradient-to-br from-yellow-500 to-orange-500' : 'bg-gradient-to-br from-purple-600 to-blue-600';
+        const card = document.createElement('div');
+        card.className = `relative group cursor-pointer`;
+        card.innerHTML = `
+            <div class="w-full aspect-square rounded-full ${bgClass} flex items-center justify-center border-4 ${ringClass} transition-all duration-300 overflow-hidden">
+                ${avatarContent}
+                ${isKids ? '<div class="absolute top-1 right-1 bg-yellow-400 text-black text-[8px] font-bold px-1.5 py-0.5 rounded-full">KIDS</div>' : ''}
+            </div>
+            <p class="text-center text-sm font-bold mt-2 text-gray-300 group-hover:text-white transition">${profile.name}</p>
+            ${isActive ? '<p class="text-center text-[10px] text-green-400">Em uso</p>' : ''}
+            
+            <!-- Edit/Delete buttons -->
+            <div class="absolute inset-0 bg-black/80 rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2" style="border-radius:50%">
+                ${!isDefault ? `
+                    <button onclick="event.stopPropagation(); editProfile('${profile.id}')" class="w-8 h-8 bg-white/20 hover:bg-white/30 rounded-full flex items-center justify-center transition">
+                        <i class="fas fa-pen text-white text-xs"></i>
+                    </button>
+                    <button onclick="event.stopPropagation(); deleteProfile('${profile.id}')" class="w-8 h-8 bg-red-500/80 hover:bg-red-500 rounded-full flex items-center justify-center transition">
+                        <i class="fas fa-trash text-white text-xs"></i>
+                    </button>
+                ` : ''}
+            </div>
+        `;
+        
+        if (!isDefault) {
+            card.onclick = () => selectProfile(profile.id);
+        }
+        
+        list.appendChild(card);
+    });
+}
+
+function deleteProfile(profileId) {
+    if (!confirm('Tem certeza que deseja excluir este perfil?')) return;
+    
+    loadProfiles();
+    profiles = profiles.filter(p => p.id !== profileId);
+    saveProfiles();
+    
+    // If deleted profile was active, switch to default
+    if (localStorage.getItem('currentProfileId') === profileId) {
+        const defaultProfile = profiles.find(p => p.isDefault);
+        if (defaultProfile) {
+            selectProfile(defaultProfile.id);
+        }
+    }
+    
+    renderProfilesList();
+    showToast('success', 'Perfil excluído', 'Perfil foi excluído com sucesso.');
+}
+
+function editProfile(profileId) {
+    const profile = profiles.find(p => p.id === profileId);
+    if (!profile) return;
+    
+    const newName = prompt('Digite o novo nome do perfil:', profile.name);
+    if (newName && newName.trim()) {
+        profile.name = newName.trim();
+        saveProfiles();
+        renderProfilesList();
+        updateCurrentProfileName();
+        showToast('success', 'Perfil atualizado', 'Nome do perfil foi alterado.');
+    }
+}
+
+function logout() {
+    localStorage.removeItem('authToken');
+    localStorage.removeItem('userName');
+    localStorage.removeItem('userAvatar');
+    currentUser = null;
+    authToken = null;
+    kidsModeEnabled = false;
+    
+    updateUserUI(null);
+    showSection('login');
+    showToast('info', 'Logout', 'Você saiu da conta.');
+}
+
 // ── Autenticação Google ─────────────────────────────────────────────────────────
 async function checkAuth() {
     const token = localStorage.getItem('authToken');
@@ -1206,33 +3603,50 @@ function updateUserUI(user) {
             userAvatar.classList.add('hidden');
         }
         
-        // Atualizar perfil
-        document.getElementById('profileName').textContent = user.name || 'Usuário';
-        document.getElementById('profileEmail').textContent = user.email || '';
-        document.getElementById('logoutBtn').classList.remove('hidden');
+        // Atualizar perfil (só se os elementos existirem)
+        const profileName = document.getElementById('profileName');
+        const profileEmail = document.getElementById('profileEmail');
+        const logoutBtn = document.getElementById('logoutBtn');
         
-        if (user.picture) {
-            document.getElementById('profileImage').src = user.picture;
-            document.getElementById('profileImage').classList.remove('hidden');
-            document.getElementById('profileInitials').classList.add('hidden');
-        } else {
+        if (profileName) profileName.textContent = user.name || 'Usuário';
+        if (profileEmail) profileEmail.textContent = user.email || '';
+        if (logoutBtn) logoutBtn.classList.remove('hidden');
+        
+        const profileImage = document.getElementById('profileImage');
+        const profileInitials = document.getElementById('profileInitials');
+        
+        if (user.picture && profileImage) {
+            profileImage.src = user.picture;
+            profileImage.classList.remove('hidden');
+            if (profileInitials) profileInitials.classList.add('hidden');
+        } else if (profileInitials) {
             const initials = user.name ? user.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : 'US';
-            document.getElementById('profileInitials').textContent = initials;
-            document.getElementById('profileInitials').classList.remove('hidden');
-            document.getElementById('profileImage').classList.add('hidden');
+            profileInitials.textContent = initials;
+            profileInitials.classList.remove('hidden');
+            if (profileImage) profileImage.classList.add('hidden');
         }
     } else {
-        userInitials.textContent = 'JD';
-        userInitials.classList.remove('hidden');
-        userAvatar.classList.add('hidden');
+        if (userInitials) {
+            userInitials.textContent = 'JD';
+            userInitials.classList.remove('hidden');
+        }
+        if (userAvatar) userAvatar.classList.add('hidden');
         
-        // Resetar perfil
-        document.getElementById('profileName').textContent = 'João D. Silva';
-        document.getElementById('profileEmail').textContent = 'email@exemplo.com';
-        document.getElementById('logoutBtn').classList.add('hidden');
-        document.getElementById('profileInitials').textContent = 'JD';
-        document.getElementById('profileInitials').classList.remove('hidden');
-        document.getElementById('profileImage').classList.add('hidden');
+        // Resetar perfil (só se os elementos existirem)
+        const profileName = document.getElementById('profileName');
+        const profileEmail = document.getElementById('profileEmail');
+        const logoutBtn = document.getElementById('logoutBtn');
+        const profileInitials = document.getElementById('profileInitials');
+        const profileImage = document.getElementById('profileImage');
+        
+        if (profileName) profileName.textContent = 'João D. Silva';
+        if (profileEmail) profileEmail.textContent = 'email@exemplo.com';
+        if (logoutBtn) logoutBtn.classList.add('hidden');
+        if (profileInitials) {
+            profileInitials.textContent = 'JD';
+            profileInitials.classList.remove('hidden');
+        }
+        if (profileImage) profileImage.classList.add('hidden');
     }
 }
 
@@ -1565,12 +3979,6 @@ document.getElementById('emailLoginForm').addEventListener('submit', async funct
     const email = document.getElementById('loginEmail').value;
     const password = document.getElementById('loginPassword').value;
 
-    // Client-side validation
-    if (!validatePasswordInput()) {
-        showToast('warning', 'Senha inválida', 'A senha não atende aos requisitos mínimos de segurança. Por favor, verifique os requisitos listados.');
-        return;
-    }
-
     // Show loading state
     const loginBtn = document.getElementById('loginSubmitBtn');
     const loginBtnText = document.getElementById('loginBtnText');
@@ -1592,20 +4000,22 @@ document.getElementById('emailLoginForm').addEventListener('submit', async funct
         });
 
         console.log('[DEBUG] Resposta status:', r.status);
-        console.log('[DEBUG] Resposta headers:', Object.fromEntries(r.headers.entries()));
 
-        const text = await r.text();
-        console.log('[DEBUG] Resposta texto:', text);
+        const data = await r.json();
 
-        const data = JSON.parse(text);
-
-        if (data.success) {
-            pendingEmail = email;
-            console.log('[DEBUG] Abrindo modal de verificação para:', email);
-            openEmailVerificationModal(email);
-            console.log('[DEBUG] Modal deve estar aberto agora');
+        if (data.success && data.token) {
+            // Direct login with token
+            localStorage.setItem('authToken', data.token);
+            currentUser = { email: data.email };
+            authToken = data.token;
+            
+            updateUserUI(currentUser);
+            loadProfiles();
+            renderProfilePicker();
+            showSection('profile-picker');
+            showToast('success', 'Login realizado', 'Bem-vindo de volta!');
         } else {
-            // Handle password validation errors from server
+            // Handle errors
             if (data.password_errors && data.password_errors.length > 0) {
                 showToast('error', 'Erro de validação', data.password_errors.join(' '));
             } else {
@@ -1633,19 +4043,19 @@ function logout() {
 
 // Mapa de seções a renderizar no home
 const HOME_SECTIONS = [
-    { key: 'trending_movies', label: '🔥 Em Tendência — Filmes',  color: 'text-orange-400' },
-    { key: 'trending_series', label: '📺 Em Tendência — Séries',  color: 'text-blue-400'   },
-    { key: 'lancamentos',     label: '🎬 Lançamentos',            color: 'text-green-400'  },
-    { key: 'populares_movie', label: '⭐ Filmes Populares',       color: 'text-yellow-400' },
-    { key: 'populares_tv',    label: '⭐ Séries Populares',       color: 'text-yellow-300' },
-    { key: 'top_movie',       label: '🏆 Melhores Filmes',        color: 'text-purple-400' },
-    { key: 'top_tv',          label: '🏆 Melhores Séries',        color: 'text-purple-300' },
-    { key: 'terror_movie',    label: '👻 Terror',                 color: 'text-red-500'    },
-    { key: 'acao',            label: '💥 Ação',                   color: 'text-red-400'    },
-    { key: 'sci_fi',          label: '🚀 Ficção Científica',      color: 'text-cyan-400'   },
-    { key: 'drama_tv',        label: '🎭 Drama',                  color: 'text-pink-400'   },
-    { key: 'anime',           label: '🐉 Animes',                 color: 'text-orange-300' },
-    { key: 'crime',           label: '🕵️ Crime',                  color: 'text-gray-400'   },
+    { key: 'trending_movies', label: '🔥 Em Tendência — Filmes',  color: 'text-orange-400', nav: () => showSection('movies') },
+    { key: 'trending_series', label: '📺 Em Tendência — Séries',  color: 'text-blue-400',   nav: () => showSection('series') },
+    { key: 'lancamentos',     label: '🎬 Lançamentos',            color: 'text-green-400',  nav: () => showSection('movies') },
+    { key: 'populares_movie', label: '⭐ Filmes Populares',       color: 'text-yellow-400', nav: () => showSection('movies') },
+    { key: 'populares_tv',    label: '⭐ Séries Populares',       color: 'text-yellow-300', nav: () => showSection('series') },
+    { key: 'top_movie',       label: '🏆 Melhores Filmes',        color: 'text-purple-400', nav: () => showSection('movies') },
+    { key: 'top_tv',          label: '🏆 Melhores Séries',        color: 'text-purple-300', nav: () => showSection('series') },
+    { key: 'terror_movie',    label: '👻 Terror',                 color: 'text-red-500',    nav: () => loadGenre('Terror','movie') },
+    { key: 'acao',            label: '💥 Ação',                   color: 'text-red-400',    nav: () => loadGenre('Ação','movie') },
+    { key: 'sci_fi',          label: '🚀 Ficção Científica',      color: 'text-cyan-400',   nav: () => loadGenre('Ficção','movie') },
+    { key: 'drama_tv',        label: '🎭 Drama',                  color: 'text-pink-400',   nav: () => loadGenre('Drama','tv') },
+    { key: 'anime',           label: '🐉 Animes',                 color: 'text-orange-300', nav: () => loadGenre('Animação','tv') },
+    { key: 'crime',           label: '🕵️ Crime',                  color: 'text-gray-400',   nav: () => loadGenre('Crime','movie') },
 ];
 
 // ── Server check ──────────────────────────────────────────────────────────────
@@ -1663,6 +4073,14 @@ async function checkServer() {
         renderHome();
         renderMoviesPage();
         renderSeriesPage();
+        // Se o modo kids estiver ativo, garantir que a área kids é mostrada
+        if (kidsModeEnabled) {
+            const activeSection = document.querySelector('.page-section:not(.hidden)');
+            const activeId = activeSection ? activeSection.id.replace('section-', '') : '';
+            if (activeId === 'home' || activeId === 'kids') {
+                showSection('kids');
+            }
+        }
     } catch(err) {
         clearTimeout(timer);
         serverOnline = false;
@@ -1725,15 +4143,145 @@ function createCard(item, isGrid = false) {
     return div;
 }
 
-function renderRow(label, color, items) {
+function openVerTudo(label, items) {
+    const modal = document.getElementById('verTudoModal');
+    document.getElementById('verTudoTitle').textContent = label;
+    const grid = document.getElementById('verTudoGrid');
+    grid.innerHTML = '';
+    items.forEach(item => grid.appendChild(createCard(item, true)));
+    modal.classList.add('open');
+    document.body.style.overflow = 'hidden';
+}
+
+function closeVerTudo() {
+    const modal = document.getElementById('verTudoModal');
+    modal.classList.remove('open');
+    document.body.style.overflow = '';
+}
+
+function renderRow(label, color, items, nav) {
     if (!items || !items.length) return null;
     const section = document.createElement('div');
     section.className = 'section-row';
-    section.innerHTML = `<h3 class="text-sm font-bold ${color} uppercase tracking-widest mb-4">${label}</h3>`;
+
+    // Header com label + botão "Ver tudo"
+    const header = document.createElement('div');
+    header.className = 'flex items-center justify-between mb-4';
+    header.style.cssText = 'position:relative;z-index:20;';
+    header.innerHTML = `
+        <h3 class="text-sm font-bold ${color} uppercase tracking-widest">${label}</h3>
+        <button class="flex items-center gap-1 text-xs text-gray-400 hover:text-white transition font-bold uppercase tracking-wider group" style="min-height:36px;padding:4px 8px;">
+            Ver tudo <i class="fas fa-chevron-right text-[10px] group-hover:translate-x-0.5 transition-transform"></i>
+        </button>
+    `;
+    // "Ver tudo" abre modal com todos os itens; nav original vira fallback secundário
+    header.querySelector('button').onclick = () => openVerTudo(label, items);
+    section.appendChild(header);
+
+    // Wrapper com setas de scroll
+    const wrapper = document.createElement('div');
+    wrapper.className = 'relative';
+
     const row = document.createElement('div');
     row.className = 'flex gap-4 overflow-x-auto scroll-hide pb-4';
     items.forEach(item => row.appendChild(createCard(item)));
-    section.appendChild(row);
+
+    // Seta esquerda
+    const arrowLeft = document.createElement('button');
+    arrowLeft.className = 'row-arrow row-arrow-left hidden-arrow';
+    arrowLeft.innerHTML = '<div class="arrow-circle"><i class="fas fa-chevron-left text-white text-xs"></i></div>';
+    arrowLeft.onclick = () => row.scrollBy({ left: -280, behavior: 'smooth' });
+
+    // Seta direita
+    const arrowRight = document.createElement('button');
+    arrowRight.className = 'row-arrow row-arrow-right';
+    arrowRight.innerHTML = '<div class="arrow-circle"><i class="fas fa-chevron-right text-white text-xs"></i></div>';
+    arrowRight.onclick = () => row.scrollBy({ left: 280, behavior: 'smooth' });
+
+    const updateArrows = () => {
+        const atStart = row.scrollLeft < 10;
+        const atEnd   = row.scrollLeft + row.clientWidth >= row.scrollWidth - 10;
+        const hasOverflow = row.scrollWidth > row.clientWidth + 4;
+        arrowLeft.classList.toggle('hidden-arrow', atStart);
+        arrowRight.classList.toggle('hidden-arrow', !hasOverflow || atEnd);
+    };
+
+    row.addEventListener('scroll', updateArrows, { passive: true });
+    setTimeout(updateArrows, 150);
+
+    wrapper.appendChild(arrowLeft);
+    wrapper.appendChild(row);
+    wrapper.appendChild(arrowRight);
+    section.appendChild(wrapper);
+    return section;
+}
+
+function renderTop10Row() {
+    const pool = [
+        ...(catalogData.trending_movies || []),
+        ...(catalogData.populares_movie || []),
+        ...(catalogData.trending_series || []),
+    ].filter(i => i.released !== false);
+    if (!pool.length) return null;
+    // shuffle
+    for (let i = pool.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [pool[i], pool[j]] = [pool[j], pool[i]];
+    }
+    const items = pool.slice(0, 10);
+    const section = document.createElement('div');
+    section.className = 'section-row';
+    section.innerHTML = `<h3 class="text-sm font-bold text-white uppercase tracking-widest mb-4">🏅 Em Alta Agora</h3>`;
+
+    const wrapper = document.createElement('div');
+    wrapper.className = 'relative';
+
+    const row = document.createElement('div');
+    row.className = 'flex gap-5 overflow-x-auto scroll-hide pb-10 pl-4';
+    items.forEach((item, idx) => {
+        const wrap = document.createElement('div');
+        wrap.className = 'top10-wrap card-zoom cursor-pointer';
+        wrap.onclick = () => openDetails(item.tmdb_id, item.tipo);
+        wrap.innerHTML = `
+            <span class="top10-num">${idx + 1}</span>
+            <div class="top10-img-wrap">
+                <img src="${item.img}" class="card-img w-full h-full object-cover transition-all duration-700" alt="${item.title}"
+                     onerror="this.parentElement.style.background='#1a1a2e';this.style.display='none'">
+                <div class="absolute inset-0 bg-black/60 opacity-0 hover:opacity-100 transition-all flex flex-col items-center justify-center p-4 text-center">
+                    <i class="fas fa-play text-white text-2xl mb-2"></i>
+                    <span class="text-[10px] font-bold uppercase tracking-tighter">${item.title}</span>
+                </div>
+            </div>
+        `;
+        row.appendChild(wrap);
+    });
+
+    // Seta esquerda
+    const arrowLeft = document.createElement('button');
+    arrowLeft.className = 'row-arrow row-arrow-left hidden-arrow';
+    arrowLeft.innerHTML = '<div class="arrow-circle"><i class="fas fa-chevron-left text-white text-xs"></i></div>';
+    arrowLeft.onclick = () => row.scrollBy({ left: -300, behavior: 'smooth' });
+
+    // Seta direita
+    const arrowRight = document.createElement('button');
+    arrowRight.className = 'row-arrow row-arrow-right';
+    arrowRight.innerHTML = '<div class="arrow-circle"><i class="fas fa-chevron-right text-white text-xs"></i></div>';
+    arrowRight.onclick = () => row.scrollBy({ left: 300, behavior: 'smooth' });
+
+    const updateArrows = () => {
+        const atStart = row.scrollLeft < 10;
+        const atEnd   = row.scrollLeft + row.clientWidth >= row.scrollWidth - 10;
+        const hasOverflow = row.scrollWidth > row.clientWidth + 4;
+        arrowLeft.classList.toggle('hidden-arrow', atStart);
+        arrowRight.classList.toggle('hidden-arrow', !hasOverflow || atEnd);
+    };
+    row.addEventListener('scroll', updateArrows, { passive: true });
+    setTimeout(updateArrows, 150);
+
+    wrapper.appendChild(arrowLeft);
+    wrapper.appendChild(row);
+    wrapper.appendChild(arrowRight);
+    section.appendChild(wrapper);
     return section;
 }
 
@@ -1843,6 +4391,10 @@ function renderHome() {
     const pool = [...(catalogData.trending_movies || []), ...(catalogData.trending_series || [])];
     if (pool.length) buildHeroCarousel(pool);
 
+    // Top 10 row logo abaixo da hero
+    const top10 = renderTop10Row();
+    if (top10) container.appendChild(top10);
+
     HOME_SECTIONS.forEach(({ key, label, color }) => {
         const items = catalogData[key];
         const row = renderRow(label, color, items);
@@ -1915,6 +4467,18 @@ async function loadGenre(nome, tipo) {
 let _detailPreviousSection = 'home';
 
 async function openDetails(tmdb_id, tipo) {
+    // Em kids mode, detalhe de conteúdo vem do catálogo kids apenas (sem bloqueio — kids cards abrem normalmente)
+    // Mas se a chamada vier de contexto adulto (home normal), bloquear
+    if (kidsModeEnabled) {
+        const active = document.querySelector('.page-section:not(.hidden)');
+        const activeId = active ? active.id.replace('section-', '') : '';
+        // Só permite detalhe se estiver na seção kids ou se o item veio de busca kids
+        if (!['kids','search','detail'].includes(activeId)) {
+            showSection('kids');
+            return;
+        }
+    }
+
     // Guardar seção atual para poder voltar
     const active = document.querySelector('.page-section:not(.hidden)');
     _detailPreviousSection = active ? active.id.replace('section-', '') : 'home';
@@ -1926,10 +4490,14 @@ async function openDetails(tmdb_id, tipo) {
     document.getElementById('detailTags').innerHTML = '';
     document.getElementById('detailExtra').innerHTML = '';
     document.getElementById('detailType').textContent = '';
-    document.getElementById('detailPoster').classList.add('hidden');
-    document.getElementById('detailPosterSkeleton').classList.add('skeleton');
     document.getElementById('detailBannerImg').classList.add('hidden');
     document.getElementById('detailBannerSkeleton').classList.remove('hidden');
+    // Remover iframe de trailer anterior
+    const oldTrailer = document.getElementById('detailTrailerFrame');
+    if (oldTrailer) oldTrailer.remove();
+    const oldPreview = document.getElementById('detailTrailerPreview');
+    if (oldPreview) oldPreview.remove();
+    document.getElementById('detailMuteBtn')?.classList.add('hidden');
     document.getElementById('detail-episodes-container').classList.add('hidden');
     document.getElementById('detailSimilarSection').classList.add('hidden');
     document.getElementById('detailUnreleasedBadge').classList.add('hidden');
@@ -1966,13 +4534,72 @@ async function openDetails(tmdb_id, tipo) {
             if (dr.ok) {
                 const dd = await dr.json();
                 const bp = dd.backdrop_path;
-                if (bp) {
-                    const bannerImg = document.getElementById('detailBannerImg');
+
+                // Tentar buscar trailer do YouTube
+                let trailerKey = null;
+                try {
+                    const vr = await fetch(`https://api.themoviedb.org/3/${tipo}/${tmdb_id}/videos?api_key=${TMDB_KEY}&language=pt-BR`);
+                    if (vr.ok) {
+                        const vd = await vr.json();
+                        // Prioridade: trailer PT > qualquer trailer > teaser
+                        let vid = (vd.results || []).find(v => v.site === 'YouTube' && v.type === 'Trailer' && v.iso_639_1 === 'pt');
+                        if (!vid) vid = (vd.results || []).find(v => v.site === 'YouTube' && v.type === 'Trailer');
+                        if (!vid) vid = (vd.results || []).find(v => v.site === 'YouTube' && v.type === 'Teaser');
+                        if (!vid) {
+                            // fallback: inglês
+                            const vr2 = await fetch(`https://api.themoviedb.org/3/${tipo}/${tmdb_id}/videos?api_key=${TMDB_KEY}&language=en-US`);
+                            if (vr2.ok) {
+                                const vd2 = await vr2.json();
+                                vid = (vd2.results || []).find(v => v.site === 'YouTube' && v.type === 'Trailer');
+                                if (!vid) vid = (vd2.results || []).find(v => v.site === 'YouTube');
+                            }
+                        }
+                        if (vid) trailerKey = vid.key;
+                    }
+                } catch {}
+
+                const bannerSkeleton = document.getElementById('detailBannerSkeleton');
+                const bannerImg = document.getElementById('detailBannerImg');
+
+                if (trailerKey) {
+                    bannerImg.classList.add('hidden');
+                    // Limpar elementos anteriores
+                    const oldIframe = document.getElementById('detailTrailerFrame');
+                    if (oldIframe) oldIframe.remove();
+                    const oldPreview = document.getElementById('detailTrailerPreview');
+                    if (oldPreview) oldPreview.remove();
+
+                    // iframe autoplay muted como background — estilo Netflix
+                    const iframe = document.createElement('iframe');
+                    iframe.id = 'detailTrailerFrame';
+                    // Parâmetros: autoplay, muted, loop, sem controles, sem branding, sem anotações
+                    iframe.src = `https://www.youtube-nocookie.com/embed/${trailerKey}?autoplay=1&mute=1&loop=1&playlist=${trailerKey}&controls=0&rel=0&modestbranding=1&iv_load_policy=3&disablekb=1&fs=0&playsinline=1&enablejsapi=1`;
+                    iframe.allow = 'autoplay; encrypted-media';
+                    iframe.style.cssText = `
+                        position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+                        width:177.78vh; height:100vh;
+                        min-width:100%; min-height:56.25vw;
+                        border:none; z-index:2; pointer-events:none;
+                    `;
+                    bannerSkeleton.parentElement.insertBefore(iframe, bannerSkeleton.nextSibling);
+                    bannerSkeleton.classList.add('hidden');
+
+                    // Botão mudo/som
+                    window._detailTrailerKey = trailerKey;
+                    window._detailMuted = true;
+                    const muteBtn = document.getElementById('detailMuteBtn');
+                    const muteIcon = document.getElementById('detailMuteIcon');
+                    if (muteBtn) {
+                        muteBtn.classList.remove('hidden');
+                        muteIcon.className = 'fas fa-volume-mute text-sm';
+                    }
+                } else if (bp) {
                     bannerImg.src = BACKDROP_ORIG + bp;
                     bannerImg.onload = () => {
                         bannerImg.classList.remove('hidden');
-                        document.getElementById('detailBannerSkeleton').classList.add('hidden');
+                        bannerSkeleton.classList.add('hidden');
                     };
+                    document.getElementById('detailMuteBtn')?.classList.add('hidden');
                 }
                 // Elenco
                 const cr = await fetch(`https://api.themoviedb.org/3/${tipo}/${tmdb_id}/credits?api_key=${TMDB_KEY}&language=pt-BR`);
@@ -2010,14 +4637,6 @@ async function openDetails(tmdb_id, tipo) {
         } catch {}
     })();
 
-    // ── Poster ──
-    const poster = document.getElementById('detailPoster');
-    poster.src = item.img;
-    poster.onload = () => {
-        poster.classList.remove('hidden');
-        document.getElementById('detailPosterSkeleton').classList.remove('skeleton');
-    };
-
     // ── Info ──
     document.getElementById('detailType').textContent = item.tipo === 'tv' ? '📺 Série' : '🎬 Filme';
     document.getElementById('detailTitle').textContent = item.title;
@@ -2034,6 +4653,9 @@ async function openDetails(tmdb_id, tipo) {
     // Botão assistir
     const playBtn = document.getElementById('detailPlayBtn');
     const unrelBadge = document.getElementById('detailUnreleasedBadge');
+    _currentTmdbId = tmdb_id;
+    _currentItemType = item.tipo;
+    _currentItemTitle = item.title;
     if (item.released === false) {
         playBtn.disabled = true;
         playBtn.className = 'bg-gray-700 text-gray-500 px-8 py-3 rounded-xl font-black flex items-center gap-3 text-sm cursor-not-allowed opacity-60';
@@ -2045,7 +4667,11 @@ async function openDetails(tmdb_id, tipo) {
     } else {
         playBtn.disabled = false;
         playBtn.className = 'bg-white text-black px-8 py-3 rounded-xl font-black flex items-center gap-3 text-sm hover:scale-105 transition shadow-xl shadow-white/10 cursor-pointer';
-        playBtn.onclick = () => startWatchingUrl(item.player, item.title, item.sources || []);
+        if (item.tipo === 'tv') {
+            playBtn.onclick = () => playSelectedEpisode();
+        } else {
+            playBtn.onclick = () => startWatchingUrl(item.player, item.title, item.sources || []);
+        }
         unrelBadge.classList.add('hidden');
         unrelBadge.classList.remove('flex');
     }
@@ -2077,8 +4703,11 @@ async function loadDetailEpisodes(tmdb_id, season) {
         if (!r.ok) throw new Error();
         const data = await r.json();
         if (!data.episodes?.length) { list.innerHTML = '<p class="text-gray-600 text-xs italic p-4">Sem episódios.</p>'; return; }
+        _currentSeason = season;
+        _episodeList = data.episodes;
+        _currentEpisode = data.episodes[0].id;
         list.innerHTML = data.episodes.map(ep => `
-            <div class="episode-card flex gap-4 p-3 rounded-xl transition group cursor-pointer border border-white/0 hover:border-white/10 hover:bg-white/5" onclick="startWatchingUrl('${ep.player}','${ep.title}',${JSON.stringify(ep.sources||[])})">
+            <div id="ep-${ep.id}" class="episode-card flex gap-4 p-3 rounded-xl transition group cursor-pointer border border-white/0 hover:border-white/10 hover:bg-white/5" onclick="selectEpisode(${tmdb_id},${season},${ep.id},'${ep.title.replace(/'/g, "\\'")}',${JSON.stringify(ep.sources||[])})">
                 <div class="w-32 md:w-44 flex-none aspect-video bg-zinc-800 rounded-lg overflow-hidden relative border border-white/5">
                     <img src="${ep.img||''}" class="w-full h-full object-cover opacity-50 grayscale group-hover:grayscale-0 transition duration-500" onerror="this.style.display='none'">
                     <div class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition"><i class="fas fa-play text-white text-xl drop-shadow-lg"></i></div>
@@ -2090,15 +4719,35 @@ async function loadDetailEpisodes(tmdb_id, season) {
                 </div>
             </div>
         `).join('');
+        highlightSelectedEpisode();
     } catch { list.innerHTML = '<p class="text-red-500 text-xs italic p-4">Erro ao carregar episódios.</p>'; }
 }
 
 function closeDetail() {
+    // Parar trailer ao sair
+    const iframe = document.getElementById('detailTrailerFrame');
+    if (iframe) iframe.src = '';
     showSection(_detailPreviousSection || 'home');
+}
+
+function toggleDetailMute() {
+    const iframe = document.getElementById('detailTrailerFrame');
+    if (!iframe || !window._detailTrailerKey) return;
+    window._detailMuted = !window._detailMuted;
+    const key = window._detailTrailerKey;
+    iframe.src = `https://www.youtube-nocookie.com/embed/${key}?autoplay=1&mute=${window._detailMuted?1:0}&loop=1&playlist=${key}&controls=0&rel=0&modestbranding=1&iv_load_policy=3&disablekb=1&fs=0&playsinline=1`;
+    const icon = document.getElementById('detailMuteIcon');
+    if (icon) icon.className = window._detailMuted ? 'fas fa-volume-mute text-sm' : 'fas fa-volume-up text-sm';
 }
 
 // ── Player ────────────────────────────────────────────────────────────────────
 let _currentSources = [];
+let _currentTmdbId = null;
+let _currentSeason = 1;
+let _currentEpisode = 1;
+let _currentItemType = null;
+let _currentItemTitle = '';
+let _episodeList = []; // lista completa de episódios da temporada atual
 
 function startWatchingUrl(url, title = '', sources = []) {
     _currentSources = sources.length > 0 ? sources : [{ label: 'Fonte 1', url }];
@@ -2124,6 +4773,117 @@ function startWatchingUrl(url, title = '', sources = []) {
         </button>
     `).join('');
     btns.classList.add('hidden');
+    // Mostrar/esconder botões de nav de episódio
+    if (typeof updateEpNavButtons === 'function') updateEpNavButtons();
+}
+
+function player_urls(tmdb_id, tipo, season = 1, ep = 1) {
+    if (tipo === 'tv') {
+        return [
+            { label: 'VidSrc', url: `https://vidsrc-embed.ru/embed/tv/${tmdb_id}/${season}-${ep}` },
+            { label: 'MoviesAPI', url: `https://moviesapi.club/tv/${tmdb_id}-${season}-${ep}` },
+            { label: 'MultiEmbed', url: `https://multiembed.mov/directstream.php?video_id=${tmdb_id}&tmdb=1&s=${season}&e=${ep}` },
+            { label: 'VidSrc Win', url: `https://vidsrc.win/watch/${tmdb_id}` },
+            { label: 'Rivestream', url: `https://rivestream.org/embed?type=tv&id=${tmdb_id}&season=${season}&episode=${ep}` }
+        ];
+    }
+    return [
+        { label: 'VidSrc', url: `https://vidsrc-embed.ru/embed/movie/${tmdb_id}` },
+        { label: 'MoviesAPI', url: `https://moviesapi.club/movie/${tmdb_id}` },
+        { label: 'MultiEmbed', url: `https://multiembed.mov/directstream.php?video_id=${tmdb_id}&tmdb=1` },
+        { label: 'VidSrc Win', url: `https://vidsrc.win/watch/${tmdb_id}` },
+        { label: 'Rivestream', url: `https://rivestream.org/embed?type=movie&id=${tmdb_id}` }
+    ];
+}
+
+function selectEpisode(tmdb_id, season, episode, title, sources) {
+    _currentTmdbId = tmdb_id;
+    _currentSeason = season;
+    _currentEpisode = episode;
+    _currentItemType = 'tv';
+    _currentItemTitle = title;
+    highlightSelectedEpisode();
+    // Abre o player direto na primeira fonte, sem mostrar o server picker
+    const src = sources && sources.length ? sources : player_urls(tmdb_id, 'tv', season, episode);
+    startWatchingUrl(src[0].url, `${title}`, src);
+}
+
+function highlightSelectedEpisode() {
+    document.querySelectorAll('.episode-card').forEach(card => {
+        card.classList.remove('border-purple-500', 'bg-purple-600/20');
+        card.classList.add('border-white/0');
+    });
+    const selected = document.getElementById(`ep-${_currentEpisode}`);
+    if (selected) {
+        selected.classList.remove('border-white/0');
+        selected.classList.add('border-purple-500', 'bg-purple-600/20');
+    }
+}
+
+function playSelectedEpisode() {
+    if (_currentItemType === 'tv' && _currentTmdbId) {
+        const sources = player_urls(_currentTmdbId, 'tv', _currentSeason, _currentEpisode);
+        const title = `${_currentItemTitle} - S${_currentSeason} E${_currentEpisode}`;
+        startWatchingUrl(sources[0].url, title, sources);
+    }
+}
+
+let _epNavCooldown = false;
+
+function navigateEpisode(delta) {
+    if (_epNavCooldown) return;
+    if (!_episodeList.length) return;
+    const idx = _episodeList.findIndex(ep => ep.id === _currentEpisode);
+    if (idx === -1) return;
+    const nextIdx = idx + delta;
+    if (nextIdx < 0 || nextIdx >= _episodeList.length) return;
+    const ep = _episodeList[nextIdx];
+    _currentEpisode = ep.id;
+    highlightSelectedEpisode();
+    const title = `${_currentItemTitle} - S${_currentSeason} E${ep.id}`;
+    document.getElementById('playerTitle').textContent = title;
+    const src = ep.sources && ep.sources.length ? ep.sources : player_urls(_currentTmdbId, 'tv', _currentSeason, ep.id);
+    _currentSources = src;
+    const btns = document.getElementById('sourceBtns');
+    btns.innerHTML = src.map((s, i) => `
+        <button onclick="switchSource('${s.url}', ${i})"
+            class="source-btn text-[10px] font-bold px-3 py-1 rounded-full border transition bg-white/5 border-white/20 text-gray-400 hover:border-purple-500">
+            ${s.label}
+        </button>
+    `).join('');
+    document.getElementById('serverPicker').classList.add('hidden');
+    document.getElementById('sourceBtns').classList.remove('hidden');
+    document.getElementById('playerFrame').classList.remove('hidden');
+    document.getElementById('playerFrame').src = src[0].url;
+    updateEpNavButtons();
+    // Cooldown de 3s para evitar cliques rápidos e conexão recusada
+    _epNavCooldown = true;
+    const prevBtn = document.getElementById('epPrevBtn');
+    const nextBtn = document.getElementById('epNextBtn');
+    [prevBtn, nextBtn].forEach(btn => {
+        if (!btn) return;
+        btn.disabled = true;
+        btn.style.opacity = '0.4';
+        btn.style.cursor = 'not-allowed';
+    });
+    setTimeout(() => {
+        _epNavCooldown = false;
+        [prevBtn, nextBtn].forEach(btn => {
+            if (!btn) return;
+            btn.disabled = false;
+            btn.style.opacity = '1';
+            btn.style.cursor = 'pointer';
+        });
+    }, 3000);
+}
+
+function updateEpNavButtons() {
+    const idx = _episodeList.findIndex(ep => ep.id === _currentEpisode);
+    const prevBtn = document.getElementById('epPrevBtn');
+    const nextBtn = document.getElementById('epNextBtn');
+    if (!prevBtn || !nextBtn) return;
+    prevBtn.style.display = (idx > 0) ? 'flex' : 'none';
+    nextBtn.style.display = (idx < _episodeList.length - 1) ? 'flex' : 'none';
 }
 
 const INTRO_URL = 'https://cdn.jsdelivr.net/gh/GmbrTeam/hbo@master/entradahbo.mp4';
@@ -2254,6 +5014,10 @@ function closePlayer() {
     document.getElementById('playerFrame').classList.add('hidden');
     document.getElementById('serverPicker').classList.remove('hidden');
     document.getElementById('sourceBtns').classList.add('hidden');
+    const prevBtn = document.getElementById('epPrevBtn');
+    const nextBtn = document.getElementById('epNextBtn');
+    if (prevBtn) prevBtn.style.display = 'none';
+    if (nextBtn) nextBtn.style.display = 'none';
 }
 
 // ── Search ────────────────────────────────────────────────────────────────────
@@ -2280,7 +5044,9 @@ async function doSearch(q) {
     searchDropdown.innerHTML = '<div class="p-3 text-xs text-purple-400">🔍 A procurar...</div>';
     searchDropdown.classList.remove('hidden');
     try {
-        const r = await fetch(`${API}/buscar?q=${encodeURIComponent(q)}`);
+        // Use kids search if kids mode is active
+        const endpoint = kidsModeEnabled ? `${API}/kids-search` : `${API}/buscar`;
+        const r = await fetch(`${endpoint}?q=${encodeURIComponent(q)}`);
         const results = await r.json();
         if (!results.length) { searchDropdown.innerHTML = '<div class="p-3 text-xs text-gray-500">Nenhum resultado.</div>'; return; }
         searchDropdown.innerHTML = results.slice(0,6).map(item => `
@@ -2301,7 +5067,9 @@ async function doSearchPage(q) {
     grid.innerHTML = '<p class="text-gray-500 text-xs col-span-full py-8 text-center">🔍 A procurar...</p>';
     if (!serverOnline) { grid.innerHTML = '<p class="text-gray-500 text-xs col-span-full py-8 text-center">Serviço indisponível.</p>'; return; }
     try {
-        const r = await fetch(`${API}/buscar?q=${encodeURIComponent(q)}`);
+        // Use kids search if kids mode is active
+        const endpoint = kidsModeEnabled ? `${API}/kids-search` : `${API}/buscar`;
+        const r = await fetch(`${endpoint}?q=${encodeURIComponent(q)}`);
         const results = await r.json();
         grid.innerHTML = '';
         if (!results.length) { grid.innerHTML = '<p class="text-gray-500 text-xs col-span-full py-8 text-center">Nenhum resultado.</p>'; return; }
@@ -2310,7 +5078,19 @@ async function doSearchPage(q) {
 }
 
 // ── Navigation ────────────────────────────────────────────────────────────────
+// Sections that are blocked in kids mode (redirect to kids)
+const ADULT_SECTIONS = ['home','movies','series','genres','genre-page','detail'];
+
 function showSection(id) {
+    // ── KIDS MODE GUARD ──────────────────────────────────────────────
+    // If kids mode is on, any adult section is redirected to kids zone
+    if (kidsModeEnabled && ADULT_SECTIONS.includes(id) && id !== 'detail') {
+        if (id !== 'home' && id !== 'kids') {
+            showToast('warning', '🔒 Modo Kids Ativo', 'Esta seção não está disponível no perfil infantil.');
+        }
+        id = 'kids';
+    }
+
     document.querySelectorAll('.page-section').forEach(s => s.classList.add('hidden'));
     const target = document.getElementById(`section-${id}`);
     if (target) target.classList.remove('hidden');
@@ -2318,11 +5098,87 @@ function showSection(id) {
     document.querySelectorAll('.bottom-nav button').forEach(b => b.classList.remove('active-nav-mobile'));
     const mNav = document.getElementById(`m-nav-${id}`);
     if (mNav) mNav.classList.add('active-nav-mobile');
+    // highlight kids home button in bottom nav when in kids section
+    if (id === 'kids') {
+        const kNav = document.getElementById('m-nav-kids-home');
+        if (kNav) kNav.classList.add('active-nav-mobile');
+    }
 
     // Esconder navbar na tela de login
     const navbar = document.getElementById('navbar');
     const bottomNav = document.querySelector('.bottom-nav');
-    if (id === 'login') {
+    if (navbar) {
+        if (id === 'login') {
+            navbar.classList.add('hidden');
+            if (bottomNav) bottomNav.classList.add('hidden');
+            document.body.style.overflow = 'hidden';
+        } else if (id === 'profile-picker') {
+            navbar.classList.add('hidden');
+            if (bottomNav) bottomNav.classList.add('hidden');
+            document.body.style.overflow = 'hidden';
+            renderProfilePicker();
+        } else {
+            navbar.classList.remove('hidden');
+            if (bottomNav) bottomNav.classList.remove('hidden');
+            document.body.style.overflow = '';
+        }
+    }
+
+    // Update URL with pushState
+    const pathMap = {
+        'home': '/home',
+        'login': '/login',
+        'movies': '/movies',
+        'series': '/series',
+        'genres': '/genres',
+        'profile': '/profile',
+        'search': '/search',
+        'genre-page': '/genres',
+        'detail': '/home',
+        'profile-picker': '/home',
+        'kids': '/kids'
+    };
+    
+    if (pathMap[id]) {
+        history.pushState({ section: id }, '', pathMap[id]);
+    }
+
+    // Load kids catalog when showing kids section
+    if (id === 'kids') {
+        loadKidsCatalog();
+    }
+
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// Handle browser back/forward buttons
+window.addEventListener('popstate', (event) => {
+    const path = window.location.pathname;
+    const sectionMap = {
+        '/home': 'home',
+        '/login': 'login',
+        '/movies': 'movies',
+        '/series': 'series',
+        '/genres': 'genres',
+        '/profile': 'profile',
+        '/search': 'search',
+        '/': 'home'
+    };
+    
+    const section = sectionMap[path] || 'home';
+    
+    // Show section without updating URL (to avoid loop)
+    document.querySelectorAll('.page-section').forEach(s => s.classList.add('hidden'));
+    const target = document.getElementById(`section-${section}`);
+    if (target) target.classList.remove('hidden');
+    document.querySelectorAll('.nav-link-desk').forEach(l => l.classList.remove('active-nav-desktop'));
+    document.querySelectorAll('.bottom-nav button').forEach(b => b.classList.remove('active-nav-mobile'));
+    const mNav = document.getElementById(`m-nav-${section}`);
+    if (mNav) mNav.classList.add('active-nav-mobile');
+
+    const navbar = document.getElementById('navbar');
+    const bottomNav = document.querySelector('.bottom-nav');
+    if (section === 'login') {
         navbar.classList.add('hidden');
         if (bottomNav) bottomNav.classList.add('hidden');
         document.body.style.overflow = 'hidden';
@@ -2333,7 +5189,66 @@ function showSection(id) {
     }
 
     window.scrollTo({ top: 0, behavior: 'smooth' });
-}
+});
+
+// Handle initial route on page load
+window.addEventListener('DOMContentLoaded', () => {
+    // Load profiles on startup
+    loadProfiles();
+    updateCurrentProfileName();
+
+    // Restore kids mode from active profile
+    const activeProfileId = localStorage.getItem('currentProfileId');
+    if (activeProfileId) {
+        const activeProfile = profiles.find(p => p.id === activeProfileId);
+        if (activeProfile && activeProfile.kidsMode && !kidsModeEnabled) {
+            toggleKidsMode();
+        }
+    }
+    
+    const path = window.location.pathname;
+    const sectionMap = {
+        '/home': 'home',
+        '/login': 'login',
+        '/movies': 'movies',
+        '/series': 'series',
+        '/genres': 'genres',
+        '/profile': 'profile',
+        '/search': 'search',
+        '/kids': 'kids',
+        '/': 'home'
+    };
+    
+    const section = sectionMap[path] || (kidsModeEnabled ? 'kids' : 'home');
+    
+    // Replace state to avoid adding to history
+    history.replaceState({ section: section }, '', path);
+    
+    // Show the appropriate section
+    document.querySelectorAll('.page-section').forEach(s => s.classList.add('hidden'));
+    const target = document.getElementById(`section-${section}`);
+    if (target) target.classList.remove('hidden');
+    document.querySelectorAll('.nav-link-desk').forEach(l => l.classList.remove('active-nav-desktop'));
+    document.querySelectorAll('.bottom-nav button').forEach(b => b.classList.remove('active-nav-mobile'));
+    const mNav = document.getElementById(`m-nav-${section}`);
+    if (mNav) mNav.classList.add('active-nav-mobile');
+    if (section === 'kids') {
+        const kNav = document.getElementById('m-nav-kids-home');
+        if (kNav) kNav.classList.add('active-nav-mobile');
+    }
+
+    const navbar = document.getElementById('navbar');
+    const bottomNav = document.querySelector('.bottom-nav');
+    if (section === 'login') {
+        navbar.classList.add('hidden');
+        if (bottomNav) bottomNav.classList.add('hidden');
+        document.body.style.overflow = 'hidden';
+    } else {
+        navbar.classList.remove('hidden');
+        if (bottomNav) bottomNav.classList.remove('hidden');
+        document.body.style.overflow = '';
+    }
+});
 
 window.addEventListener('scroll', () => {
     const nav = document.getElementById('navbar');
