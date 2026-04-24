@@ -1,15 +1,8 @@
 @echo off
-echo Adicionando arquivos...
+git rebase --abort
 git add .
-
-echo Commitando mudancas...
-git commit -m "Update: Password recovery system with PostgreSQL database integration"
-
-echo Puxando mudancas do GitHub...
-git pull --rebase
-
-echo Enviando para GitHub...
-git push
-
-echo Concluido!
+echo Type commit message:
+set /p MSG=
+git commit -m "%MSG%"
+git push origin master
 pause
