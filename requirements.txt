@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 flask
 flask-cors
 requests
@@ -7,14 +6,4 @@ google-auth
 google-auth-oauthlib
 google-auth-httplib2
 PyJWT
-=======
-flask
-flask-cors
-requests
-gunicorn
-google-auth
-google-auth-oauthlib
-google-auth-httplib2
-PyJWT
->>>>>>> 8b661cb838db7bb02557e22cc8ba175164d6b9cd
 psycopg2-binary
