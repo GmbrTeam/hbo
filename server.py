@@ -61,6 +61,9 @@ def add_cors_headers(response):
     response.headers['Access-Control-Allow-Origin'] = '*'
     response.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS, HEAD'
     response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+    # Bloqueia popups e redirecionamentos abertos por iframes de terceiros
+    response.headers['Permissions-Policy'] = 'popup=()'
+    response.headers['X-Content-Type-Options'] = 'nosniff'
     return response
 
 API_KEY = "aa315849db169c9aff378a6b27389a3a"
@@ -296,6 +299,36 @@ def resolver_desc(tmdb_id, tipo):
         return traduzir_para_pt(en_data["overview"])
 
     return "Sem descrição disponível."
+
+def resolver_desc_episodio(tmdb_id, season, episode_number):
+    """
+    Tenta obter sinopse de um episódio sem descrição em pt-BR:
+    1. Endpoint /translations do TMDb (sinopse humana em pt-BR)
+    2. Busca direta em inglês + tradução automática
+    3. Fallback: string vazia (sem descrição)
+    """
+    # 1. Tentar tradução humana pt-BR via TMDb /translations
+    trans_data = tmdb_get_en(f"/tv/{tmdb_id}/season/{season}/episode/{episode_number}/translations")
+    if trans_data:
+        translations = trans_data.get("translations", [])
+        pt_trans = next(
+            (t for t in translations if t.get("iso_639_1") == "pt" and t.get("iso_3166_1") == "BR"),
+            None
+        ) or next(
+            (t for t in translations if t.get("iso_639_1") == "pt"),
+            None
+        )
+        if pt_trans:
+            overview = pt_trans.get("data", {}).get("overview", "")
+            if overview:
+                return overview
+
+    # 2. Buscar em inglês e traduzir automaticamente
+    en_data = tmdb_get_en(f"/tv/{tmdb_id}/season/{season}/episode/{episode_number}")
+    if en_data and en_data.get("overview"):
+        return traduzir_para_pt(en_data["overview"])
+
+    return ""
 
 def buscar_pagina(endpoint, tipo, pagina=1, extra={}):
     data = tmdb_get(endpoint, {"page": pagina, **extra})
@@ -832,15 +865,62 @@ def episodios(tmdb_id, season):
     data = tmdb_get(f"/tv/{tmdb_id}/season/{season}")
     if not data:
         return jsonify({"error": "Temporada não encontrada."}), 404
-    eps = [{
-        "id":       ep.get("episode_number"),
-        "title":    ep.get("name", f"Episódio {ep.get('episode_number')}"),
-        "desc":     ep.get("overview", ""),
-        "duration": f"{ep.get('runtime') or 42} min",
-        "player":   player_urls(tmdb_id, "tv", season, ep.get("episode_number"))[0]["url"],
-        "sources":  player_urls(tmdb_id, "tv", season, ep.get("episode_number")),
-        "img":      IMG + ep["still_path"] if ep.get("still_path") else "",
-    } for ep in data.get("episodes", [])]
+
+    # Busca também em inglês para usar como fallback de título/desc/thumb
+    data_en = tmdb_get_en(f"/tv/{tmdb_id}/season/{season}") or {}
+    en_eps_map = {ep.get("episode_number"): ep for ep in data_en.get("episodes", [])}
+
+    def build_ep(ep):
+        num   = ep.get("episode_number")
+        en_ep = en_eps_map.get(num, {})
+
+        # Título: usa pt-BR se não for genérico, senão fallback inglês
+        pt_title = ep.get("name", "").strip()
+        en_title = en_ep.get("name", "").strip()
+        generic  = f"Episódio {num}"
+        if pt_title and pt_title.lower() not in (generic.lower(), f"episode {num}"):
+            title = pt_title
+        elif en_title:
+            title = en_title
+        else:
+            title = generic
+
+        # Thumbnail: tenta pt-BR, depois en
+        still = ep.get("still_path") or en_ep.get("still_path")
+
+        return {
+            "id":       num,
+            "title":    title,
+            "desc":     ep.get("overview", "") or en_ep.get("overview", ""),
+            "duration": f"{ep.get('runtime') or en_ep.get('runtime') or 42} min",
+            "player":   player_urls(tmdb_id, "tv", season, num)[0]["url"],
+            "sources":  player_urls(tmdb_id, "tv", season, num),
+            "img":      IMG + still if still else "",
+            "_en_desc": en_ep.get("overview", ""),  # guardado para tradução se precisar
+        }
+
+    eps = [build_ep(ep) for ep in data.get("episodes", [])]
+
+    # Resolve desc para episódios ainda sem sinopse (traduz en_desc ou busca translations)
+    sem_desc = [ep for ep in eps if not ep["desc"]]
+    if sem_desc:
+        def fetch_ep_desc(ep):
+            # Se já temos desc em inglês, só traduz (mais rápido)
+            if ep.get("_en_desc"):
+                ep["desc"] = traduzir_para_pt(ep["_en_desc"])
+            else:
+                ep["desc"] = resolver_desc_episodio(tmdb_id, season, ep["id"])
+            return ep
+
+        with ThreadPoolExecutor(max_workers=min(len(sem_desc), 8)) as ex:
+            futures = {ex.submit(fetch_ep_desc, ep): ep for ep in sem_desc}
+            for f in as_completed(futures):
+                f.result()
+
+    # Remove campo auxiliar antes de retornar
+    for ep in eps:
+        ep.pop("_en_desc", None)
+
     return jsonify({"season": season, "episodes": eps})
 
 
@@ -870,8 +950,35 @@ def detalhes(tipo, tmdb_id):
 @app.route('/profile')
 @app.route('/login')
 @app.route('/kids')
-def serve_index():
+@app.route('/movie/hbo/<path:slug>')
+@app.route('/tv/hbo/<path:slug>')
+def serve_index(**kwargs):
     return send_from_directory(BASE_DIR, 'index.html')
+
+
+@app.route('/api/resolve/<tipo>/<slug>')
+def resolve_slug(tipo, slug):
+    """
+    Resolve um slug no formato '<tmdb_id>-nome-do-titulo' ou apenas '<tmdb_id>'
+    e retorna os detalhes do item para o frontend abrir direto.
+    """
+    if tipo not in ('movie', 'tv'):
+        return jsonify({'error': 'tipo inválido'}), 400
+    # O slug começa com o tmdb_id (inteiro) seguido de '-' e o nome
+    parts = slug.split('-')
+    try:
+        tmdb_id = int(parts[0])
+    except (ValueError, IndexError):
+        return jsonify({'error': 'slug inválido'}), 400
+    data = tmdb_get(f'/{tipo}/{tmdb_id}')
+    if not data:
+        return jsonify({'error': 'Não encontrado'}), 404
+    item = normalizar(data, tipo)
+    if not item:
+        return jsonify({'error': 'Erro ao normalizar'}), 500
+    if not item['desc']:
+        item['desc'] = resolver_desc(tmdb_id, tipo)
+    return jsonify(item)
 
 
 @app.errorhandler(404)

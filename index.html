@@ -1555,21 +1555,32 @@
     </div>
     <div class="flex-1 relative overflow-hidden">
         <!-- Intro video overlay -->
-        <div id="introOverlay" class="hidden fixed inset-0 bg-black z-[250] flex flex-col items-center justify-center">
-            <video id="introVideo" src="" playsinline class="w-full h-full object-cover flex-1"></video>
-            <div class="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-4">
-                <button id="introPauseBtn" onclick="toggleIntroPause()" class="w-10 h-10 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center transition">
-                    <i id="introPauseIcon" class="fas fa-pause text-white text-sm"></i>
+        <div id="introOverlay" class="hidden fixed inset-0 bg-black z-[250]" style="display:none; flex-direction:column;">
+            <!-- Header -->
+            <div class="flex items-center justify-between px-6 bg-black/80 flex-none" style="padding-top:max(16px,env(safe-area-inset-top));padding-bottom:14px;">
+                <button onclick="skipIntro()" class="text-white text-sm font-bold flex items-center gap-2 hover:text-purple-400 transition">
+                    <i class="fas fa-arrow-left"></i> Voltar
                 </button>
-                <div class="relative w-40 h-1 bg-white/20 rounded-full cursor-pointer" id="introProgressBar" onclick="seekIntro(event)">
-                    <div id="introProgress" class="h-full bg-white rounded-full transition-all" style="width:0%"></div>
+                <span id="introTitle" class="text-white font-bold text-sm truncate max-w-xs"></span>
+                <button id="introPauseBtn" onclick="toggleIntroPause()"
+                    class="text-white text-xs font-bold flex items-center gap-2 hover:text-purple-400 transition px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10">
+                    <i id="introPauseIcon" class="fas fa-pause text-sm"></i>
+                    <span id="introPauseLabel">Pausar</span>
+                </button>
+            </div>
+            <!-- Vídeo ocupa todo o espaço restante -->
+            <video id="introVideo" src="" playsinline style="flex:1;width:100%;min-height:0;object-fit:cover;background:#000;display:block;"></video>
+            <!-- Rodapé: progresso + pular -->
+            <div class="flex-none flex items-center gap-4 px-6 py-4 bg-black/80">
+                <div class="relative flex-1 h-1 bg-white/20 rounded-full cursor-pointer" id="introProgressBar" onclick="seekIntro(event)">
+                    <div id="introProgress" class="h-full bg-purple-500 rounded-full" style="width:0%;transition:width .1s linear;"></div>
                 </div>
-                <button onclick="skipIntro()" class="text-[10px] font-bold text-white/60 hover:text-white border border-white/20 hover:border-white/60 px-3 py-1 rounded-full transition">
-                    Pular
+                <button onclick="skipIntro()" class="text-[11px] font-bold text-white/70 hover:text-white border border-white/20 hover:border-purple-400 hover:text-purple-400 px-4 py-1.5 rounded-lg transition flex-none">
+                    Pular intro
                 </button>
             </div>
         </div>
-        <iframe id="playerFrame" src="" allowfullscreen class="w-full h-full border-none hidden" allow="autoplay; encrypted-media; picture-in-picture"></iframe>
+        <iframe id="playerFrame" src="" allowfullscreen class="w-full h-full border-none hidden" allow="autoplay; encrypted-media; picture-in-picture; fullscreen"></iframe>
     </div>
     <div class="flex-none flex justify-center py-2 bg-black/60">
         <button id="notWorkingBtn" class="hidden text-[10px] text-yellow-400 border border-yellow-400/30 bg-yellow-400/10 hover:bg-yellow-400/20 px-4 py-1.5 rounded-full font-bold transition">
@@ -2060,15 +2071,21 @@
         </div>
     </div>
 
-    <div class="bg-white/5 rounded-2xl p-6 border border-white/10 mb-6">
-        <h3 class="text-xs font-bold uppercase tracking-widest text-gray-500 mb-2">Status do Servidor</h3>
-        <p id="profileServerStatus" class="text-sm font-bold text-purple-400">A verificar...</p>
-        <p class="text-[10px] text-gray-600 mt-1">Conteúdo fornecido via <code class="text-purple-500">TMDb API</code></p>
-    </div>
-    <div class="flex gap-4 flex-wrap">
-        <button onclick="recarregarCatalogo()" class="bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 transition">
-            <i class="fas fa-sync-alt"></i> Recarregar Catálogo
-        </button>
+    <div class="bg-white/5 rounded-2xl p-6 border border-white/10">
+        <h3 class="text-xs font-bold uppercase tracking-widest text-gray-500 mb-4">Sobre</h3>
+        <div class="flex items-center gap-4 mb-4">
+            <div class="w-12 h-12 rounded-xl bg-purple-600/20 border border-purple-500/30 flex items-center justify-center shrink-0">
+                <span class="text-sm font-extrabold italic text-white">HBO<span class="text-purple-400">+</span></span>
+            </div>
+            <div>
+                <p class="text-white font-bold text-sm">HBO+ Streaming</p>
+                <p class="text-gray-500 text-xs">Versão 1.0</p>
+            </div>
+        </div>
+        <div class="space-y-1 text-xs text-gray-500 mt-4">
+            <p>Desenvolvido por <span class="text-gray-400 font-semibold">Oliver &amp; Amorim</span></p>
+            <p class="text-gray-600 text-[10px]">© 2026 HBO+ Streaming. Todos os direitos reservados.</p>
+        </div>
     </div>
 </div>
 
@@ -4252,7 +4269,7 @@ async function checkServer() {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         catalogData = await r.json();
         serverOnline = true;
-        document.getElementById('profileServerStatus').textContent = '🟢 Online — Catálogo via TMDb';
+        document.getElementById('profileServerStatus').textContent = '🟢 Online';
         renderHome();
         renderMoviesPage();
         renderSeriesPage();
@@ -4612,7 +4629,7 @@ function renderHome() {
     // Footer
     const footer = document.createElement('footer');
     footer.className = 'pt-8 pb-12 border-t border-white/5 text-center';
-    footer.innerHTML = `<p class="text-[10px] font-bold tracking-[0.2em] text-gray-700 uppercase">HBO+ • Catálogo dinâmico via TMDb</p>`;
+    footer.innerHTML = `<p class="text-[10px] font-bold tracking-[0.2em] text-gray-700 uppercase">HBO+ © 2026</p>`;
     container.appendChild(footer);
 }
 
@@ -4851,6 +4868,13 @@ async function openDetails(tmdb_id, tipo) {
 
     // Mostrar a seção de detalhe imediatamente com skeleton
     showSection('detail');
+
+    // Atualiza a URL para compartilhamento (slug = tmdb_id + nome normalizado)
+    const _slugTitle = (document.getElementById('detailTitle').textContent || '').toLowerCase()
+        .replace(/[^a-z0-9\u00c0-\u024f]+/gi, '-').replace(/^-|-$/g, '') || 'titulo';
+    const _slugPath = `/${tipo}/hbo/${tmdb_id}-${_slugTitle}`;
+    history.pushState({ tipo, tmdb_id }, '', _slugPath);
+
     document.getElementById('detailTitle').textContent = '';
     document.getElementById('detailDesc').textContent = '';
     document.getElementById('detailTags').innerHTML = '';
@@ -4934,6 +4958,8 @@ async function openDetails(tmdb_id, tipo) {
                     if (oldIframe) oldIframe.remove();
                     const oldPreview = document.getElementById('detailTrailerPreview');
                     if (oldPreview) oldPreview.remove();
+                    const oldOverlay = document.getElementById('detailTrailerOverlay');
+                    if (oldOverlay) oldOverlay.remove();
 
                     // iframe autoplay muted como background — estilo Netflix
                     const iframe = document.createElement('iframe');
@@ -4942,13 +4968,32 @@ async function openDetails(tmdb_id, tipo) {
                     iframe.src = `https://www.youtube-nocookie.com/embed/${trailerKey}?autoplay=1&mute=1&loop=1&playlist=${trailerKey}&controls=0&rel=0&modestbranding=1&iv_load_policy=3&disablekb=1&fs=0&playsinline=1&enablejsapi=1`;
                     iframe.allow = 'autoplay; encrypted-media';
                     iframe.style.cssText = `
-                        position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+                        position:absolute; top:50%; left:50%; transform:translate(-50%,-60%);
                         width:177.78vh; height:100vh;
                         min-width:100%; min-height:56.25vw;
                         border:none; z-index:2; pointer-events:none;
+                        opacity:0; transition:opacity 0.6s ease;
                     `;
                     bannerSkeleton.parentElement.insertBefore(iframe, bannerSkeleton.nextSibling);
+
+                    // Cobre o iframe com overlay escuro enquanto o YouTube inicializa
+                    // (evita flash do player nativo antes de controls=0 surtir efeito)
+                    const trailerOverlay = document.createElement('div');
+                    trailerOverlay.id = 'detailTrailerOverlay';
+                    trailerOverlay.style.cssText = `
+                        position:absolute; inset:0; background:#000;
+                        z-index:3; pointer-events:none;
+                        transition:opacity 0.5s ease;
+                    `;
+                    bannerSkeleton.parentElement.insertBefore(trailerOverlay, iframe.nextSibling);
                     bannerSkeleton.classList.add('hidden');
+
+                    // Após 1.8s o YouTube já aplicou controls=0 — revela suavemente
+                    setTimeout(() => {
+                        iframe.style.opacity = '1';
+                        trailerOverlay.style.opacity = '0';
+                        setTimeout(() => trailerOverlay.remove(), 600);
+                    }, 1800);
 
                     // Botão mudo/som
                     window._detailTrailerKey = trailerKey;
@@ -5006,6 +5051,16 @@ async function openDetails(tmdb_id, tipo) {
     // ── Info ──
     document.getElementById('detailType').textContent = item.tipo === 'tv' ? '📺 Série' : '🎬 Filme';
     document.getElementById('detailTitle').textContent = item.title;
+
+    // Atualiza URL com título real após carregar
+    if (item.title && item.tmdb_id) {
+        const _st = item.title.toLowerCase()
+            .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+            .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+        history.replaceState({ tipo: item.tipo, tmdb_id: item.tmdb_id }, '',
+            `/${item.tipo}/hbo/${item.tmdb_id}-${_st}`);
+    }
+
     document.getElementById('detailDesc').textContent = item.desc || '';
 
     // Tags
@@ -5071,16 +5126,22 @@ async function loadDetailEpisodes(tmdb_id, season) {
         if (!data.episodes?.length) { list.innerHTML = '<p class="text-gray-600 text-xs italic p-4">Sem episódios.</p>'; return; }
         _currentSeason = season;
         _episodeList = data.episodes;
-        _currentEpisode = data.episodes[0].id;
+        // Só reseta pro ep 1 se não houver ep atual válido nessa temporada
+        if (!_episodeList.some(e => e.id === _currentEpisode)) {
+            _currentEpisode = data.episodes[0].id;
+        }
+        // Guarda sources num Map global para evitar JSON inline no onclick (quebra HTML)
+        window._epSourcesMap = {};
+        data.episodes.forEach(ep => { window._epSourcesMap[ep.id] = ep.sources || []; });
         list.innerHTML = data.episodes.map(ep => `
-            <div id="ep-${ep.id}" class="episode-card flex gap-4 p-3 rounded-xl transition group cursor-pointer border border-white/0 hover:border-white/10 hover:bg-white/5" onclick="selectEpisode(${tmdb_id},${season},${ep.id},'${ep.title.replace(/'/g, "\\'")}',${JSON.stringify(ep.sources||[])})">
+            <div id="ep-${ep.id}" class="episode-card flex gap-4 p-3 rounded-xl transition group cursor-pointer border border-white/0 hover:border-purple-500/50 hover:bg-purple-600/10" onclick="selectEpisode(${tmdb_id},${season},${ep.id},this.dataset.title,window._epSourcesMap[${ep.id}])" data-title="${ep.title}">
                 <div class="w-32 md:w-44 flex-none aspect-video bg-zinc-800 rounded-lg overflow-hidden relative border border-white/5">
-                    <img src="${ep.img||''}" class="w-full h-full object-cover opacity-50 grayscale group-hover:grayscale-0 transition duration-500" onerror="this.style.display='none'">
-                    <div class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition"><i class="fas fa-play text-white text-xl drop-shadow-lg"></i></div>
+                    <img src="${ep.img||''}" class="ep-thumb w-full h-full object-cover transition duration-500" onerror="this.style.display='none'">
+                    <div class="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition"><i class="fas fa-play text-white text-xl drop-shadow-lg"></i></div>
                     <span class="absolute bottom-1 right-1 bg-black/80 text-[8px] px-1 rounded font-bold">${ep.duration}</span>
                 </div>
                 <div class="flex-1 py-1">
-                    <h4 class="text-xs md:text-sm font-bold text-white uppercase group-hover:text-purple-400 transition mb-1">${ep.id}. ${ep.title}</h4>
+                    <h4 class="ep-title text-xs md:text-sm font-bold uppercase transition mb-1">${ep.id}. ${ep.title}</h4>
                     <p class="text-[10px] md:text-xs text-gray-500 line-clamp-3 italic font-light">${ep.desc||'Sem descrição.'}</p>
                 </div>
             </div>
@@ -5093,7 +5154,14 @@ function closeDetail() {
     // Parar trailer ao sair
     const iframe = document.getElementById('detailTrailerFrame');
     if (iframe) iframe.src = '';
-    showSection(_detailPreviousSection || 'home');
+    const overlay = document.getElementById('detailTrailerOverlay');
+    if (overlay) overlay.remove();
+    const section = _detailPreviousSection || 'home';
+    // Restaura URL da seção anterior
+    const sectionUrls = { home: '/home', movies: '/movies', series: '/series',
+        genres: '/genres', search: '/search', profile: '/profile', kids: '/kids' };
+    history.pushState({ section }, '', sectionUrls[section] || '/home');
+    showSection(section);
 }
 
 function toggleDetailMute() {
@@ -5178,11 +5246,23 @@ function highlightSelectedEpisode() {
     document.querySelectorAll('.episode-card').forEach(card => {
         card.classList.remove('border-purple-500', 'bg-purple-600/20');
         card.classList.add('border-white/0');
+        // Reset thumb e título para estado normal
+        const thumb = card.querySelector('.ep-thumb');
+        const title = card.querySelector('.ep-title');
+        if (thumb) { thumb.style.opacity = '0.55'; thumb.style.filter = 'grayscale(60%)'; }
+        if (title) { title.style.color = ''; }
     });
     const selected = document.getElementById(`ep-${_currentEpisode}`);
     if (selected) {
         selected.classList.remove('border-white/0');
         selected.classList.add('border-purple-500', 'bg-purple-600/20');
+        // Destaca thumb e título do ep selecionado
+        const thumb = selected.querySelector('.ep-thumb');
+        const title = selected.querySelector('.ep-title');
+        if (thumb) { thumb.style.opacity = '1'; thumb.style.filter = 'grayscale(0%)'; }
+        if (title) { title.style.color = '#c084fc'; }
+        // Rola suavemente até o card selecionado
+        selected.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
 }
 
@@ -5261,32 +5341,43 @@ function playIntroThen(callback) {
     const vid = document.getElementById('introVideo');
     _introCallback = callback;
     if (!INTRO_URL || INTRO_URL === 'SEU_VIDEO_AQUI.mp4') { callback(); return; }
-    overlay.classList.remove('hidden');
+    const titleEl = document.getElementById('introTitle');
+    if (titleEl) titleEl.textContent = document.getElementById('playerTitle')?.textContent || '';
+    overlay.style.display = 'flex';
     vid.src = INTRO_URL;
     vid.currentTime = 0;
     document.getElementById('introProgress').style.width = '0%';
-    document.getElementById('introPauseIcon').className = 'fas fa-pause text-white text-sm';
+    document.getElementById('introPauseIcon').className = 'fas fa-pause text-sm';
+    document.getElementById('introPauseLabel').textContent = 'Pausar';
     vid.ontimeupdate = () => {
         if (vid.duration) {
             document.getElementById('introProgress').style.width = (vid.currentTime / vid.duration * 100) + '%';
         }
     };
-    vid.play().catch(() => { overlay.classList.add('hidden'); callback(); });
+    vid.play().catch(() => { overlay.style.display = 'none'; callback(); });
     vid.onended = () => skipIntro();
 }
 
 function skipIntro() {
     const vid = document.getElementById('introVideo');
     vid.pause();
-    document.getElementById('introOverlay').classList.add('hidden');
+    document.getElementById('introOverlay').style.display = 'none';
     if (_introCallback) { _introCallback(); _introCallback = null; }
 }
 
 function toggleIntroPause() {
     const vid = document.getElementById('introVideo');
     const icon = document.getElementById('introPauseIcon');
-    if (vid.paused) { vid.play(); icon.className = 'fas fa-pause text-white text-sm'; }
-    else { vid.pause(); icon.className = 'fas fa-play text-white text-sm'; }
+    const label = document.getElementById('introPauseLabel');
+    if (vid.paused) {
+        vid.play();
+        icon.className = 'fas fa-pause text-sm';
+        if (label) label.textContent = 'Pausar';
+    } else {
+        vid.pause();
+        icon.className = 'fas fa-play text-sm';
+        if (label) label.textContent = 'Continuar';
+    }
 }
 
 function seekIntro(e) {
@@ -5374,7 +5465,7 @@ function closePlayer() {
     _introCallback = null;
     const vid = document.getElementById('introVideo');
     vid.pause(); vid.src = '';
-    document.getElementById('introOverlay').classList.add('hidden');
+    document.getElementById('introOverlay').style.display = 'none';
     document.getElementById('videoPlayer').style.display = 'none';
     document.getElementById('playerFrame').src = '';
     document.getElementById('playerFrame').classList.add('hidden');
@@ -5588,6 +5679,26 @@ window.addEventListener('DOMContentLoaded', async () => {
     }
     
     const path = window.location.pathname;
+
+    // Detecta rota de detalhe: /<tipo>/hbo/<tmdb_id>-<slug>
+    const detailMatch = path.match(/^\/(movie|tv)\/hbo\/(\d+)/);
+    if (detailMatch) {
+        const tipo = detailMatch[1];
+        const tmdb_id = parseInt(detailMatch[2]);
+        // Mostra home no background e abre detalhe
+        document.querySelectorAll('.page-section').forEach(s => s.classList.add('hidden'));
+        const homeSection = document.getElementById('section-home');
+        if (homeSection) homeSection.classList.remove('hidden');
+        // Aguarda o servidor estar pronto para abrir
+        const waitAndOpen = async () => {
+            let tries = 0;
+            while (!serverOnline && tries < 20) { await new Promise(r => setTimeout(r, 300)); tries++; }
+            openDetails(tmdb_id, tipo);
+        };
+        waitAndOpen();
+        return;
+    }
+
     const sectionMap = {
         '/home': 'home',
         '/login': 'login',
@@ -5641,6 +5752,79 @@ window.addEventListener('scroll', () => {
     nav.classList.toggle('glass', window.scrollY > 50);
     nav.classList.toggle('py-3', window.scrollY > 50);
 });
+
+// ── Anti-Ad / Anti-Redirect Block ─────────────────────────────────────────────
+(function() {
+    // 1) Bloqueia window.open chamado de scripts da MESMA origem (injeções no DOM)
+    const _origOpen = window.open;
+    window.open = function(url, name, specs) {
+        if (!url || url === 'about:blank') return null;
+        if (typeof url === 'string' && url.includes('youtube-nocookie.com')) {
+            return _origOpen.call(window, url, name, specs);
+        }
+        console.warn('[AdBlock] window.open bloqueado:', url);
+        return null;
+    };
+
+    // 2) Bloqueia iframes de anúncio injetados dinamicamente no DOM principal
+    const _origAppendChild = Element.prototype.appendChild;
+    Element.prototype.appendChild = function(node) {
+        if (node && node.tagName === 'IFRAME' && !node.id) {
+            const src = node.src || node.getAttribute('src') || '';
+            if (src && !src.includes('youtube') && !src.includes('googleapis')) {
+                console.warn('[AdBlock] iframe ad bloqueado:', src);
+                return node;
+            }
+        }
+        return _origAppendChild.call(this, node);
+    };
+    const _origInsertBefore = Element.prototype.insertBefore;
+    Element.prototype.insertBefore = function(node, ref) {
+        if (node && node.tagName === 'IFRAME' && !node.id) {
+            const src = node.src || node.getAttribute('src') || '';
+            if (src && !src.includes('youtube') && !src.includes('googleapis')) {
+                console.warn('[AdBlock] iframe ad bloqueado (insertBefore):', src);
+                return node;
+            }
+        }
+        return _origInsertBefore.call(this, node, ref);
+    };
+
+    // 3) Protege window.top.location — impede que o iframe redirecione a página pai.
+    //    Browsers modernos já bloqueiam isso para iframes cross-origin por padrão,
+    //    mas este guard adiciona proteção para casos edge.
+    try {
+        Object.defineProperty(window, 'location', {
+            configurable: true,
+            get() { return window._realLocation || (window._realLocation = location); },
+            set(v) { console.warn('[AdBlock] window.location override bloqueado:', v); }
+        });
+    } catch(e) {}
+
+    // 4) Quando o player está aberto e a janela perde o foco (popup abriu),
+    //    refoca imediatamente para trazer o usuário de volta.
+    let _adPopupGuard = false;
+    window.addEventListener('blur', function() {
+        const player = document.getElementById('videoPlayer');
+        if (!player || player.style.display === 'none') return;
+        if (_adPopupGuard) return;
+        _adPopupGuard = true;
+        setTimeout(() => {
+            window.focus();
+            _adPopupGuard = false;
+        }, 80);
+    });
+
+    // 5) Bloqueia visibilitychange usado por alguns players para abrir popup ao trocar de aba
+    document.addEventListener('visibilitychange', function(e) {
+        if (document.hidden) {
+            const player = document.getElementById('videoPlayer');
+            if (player && player.style.display !== 'none') {
+                e.stopImmediatePropagation();
+            }
+        }
+    }, true);
+})();
 
 // Skeleton enquanto carrega
 document.getElementById('homeRows').innerHTML = skeletonRows(5);
