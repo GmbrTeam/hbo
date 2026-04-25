@@ -4269,7 +4269,7 @@ async function checkServer() {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         catalogData = await r.json();
         serverOnline = true;
-        document.getElementById('profileServerStatus').textContent = '🟢 Online';
+        document.getElementById('profileServerStatus')?.textContent && (document.getElementById('profileServerStatus').textContent = '🟢 Online');
         renderHome();
         renderMoviesPage();
         renderSeriesPage();
@@ -4284,7 +4284,7 @@ async function checkServer() {
     } catch(err) {
         clearTimeout(timer);
         serverOnline = false;
-        document.getElementById('profileServerStatus').textContent = '🔴 Serviço indisponível';
+        document.getElementById('profileServerStatus')?.textContent && (document.getElementById('profileServerStatus').textContent = '🔴 Serviço indisponível');
         document.getElementById('homeRows').innerHTML = '<p class="text-gray-600 text-sm italic text-center py-12">Serviço indisponível. Tente novamente mais tarde.</p>';
         const hero = document.getElementById('hero');
         if (hero) hero.style.display = '';
