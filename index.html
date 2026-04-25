@@ -278,8 +278,8 @@
         @media (prefers-reduced-motion: reduce) { .page-section { animation: none; } }
 
         /* ── Fullscreen flex sections: controlled outside Tailwind to avoid hidden+flex conflict ── */
-        #section-profile-picker,
-        #section-login { display: flex; }
+        #section-profile-picker { display: flex; }
+        #section-login { display: flex; flex-direction: row; }
         #section-profile-picker.hidden,
         #section-login.hidden { display: none !important; }
 
@@ -537,39 +537,110 @@
 </head>
 <body>
 
+<!-- Banner modo demo (oculto por padrão, aparece só sem servidor) -->
+<div id="demoBanner" style="display:none;position:fixed;bottom:72px;left:50%;transform:translateX(-50%);z-index:500;background:rgba(157,0,255,0.88);backdrop-filter:blur(12px);color:white;font-size:11px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;padding:7px 20px;border-radius:99px;border:1px solid rgba(255,255,255,.2);pointer-events:none;white-space:nowrap;align-items:center;gap:8px;">
+  ⚡ Modo Demo — Servidor offline
+</div>
+
 <!-- Animated dark background -->
 <canvas id="bgCanvas"></canvas>
 <script>
 (function(){
     const c = document.getElementById('bgCanvas');
     const ctx = c.getContext('2d');
-    let W, H, orbs;
-    function resize(){ W = c.width = window.innerWidth; H = c.height = window.innerHeight; }
-    function mkOrb(){
-        return { x: Math.random()*W, y: Math.random()*H, r: 200+Math.random()*320,
-            dx: (Math.random()-.5)*.3, dy: (Math.random()-.5)*.3,
-            hue: Math.random()<.6 ? 270+Math.random()*40 : 215+Math.random()*35,
-            alpha: .04+Math.random()*.07, pulse: Math.random()*Math.PI*2,
-            ps: .005+Math.random()*.008 };
+    let W, H, orbs, stars, lines;
+    let mouse = { x: -999, y: -999 };
+
+    window.addEventListener('mousemove', e => { mouse.x = e.clientX; mouse.y = e.clientY; });
+
+    function resize(){
+        W = c.width = window.innerWidth;
+        H = c.height = window.innerHeight;
     }
-    function init(){ resize(); orbs = Array.from({length:6}, mkOrb); }
-    function draw(){
-        ctx.clearRect(0,0,W,H);
-        ctx.fillStyle='#000'; ctx.fillRect(0,0,W,H);
+
+    function mkOrb(){
+        return { x: Math.random()*W, y: Math.random()*H,
+            r: 180+Math.random()*300,
+            dx: (Math.random()-.5)*.25, dy: (Math.random()-.5)*.25,
+            hue: Math.random()<.6 ? 270+Math.random()*40 : 215+Math.random()*35,
+            alpha: .05+Math.random()*.08, pulse: Math.random()*Math.PI*2,
+            ps: .004+Math.random()*.007 };
+    }
+
+    function mkStar(){
+        return { x: Math.random()*W, y: Math.random()*H,
+            r: Math.random()<.2 ? 1.2+Math.random()*.8 : .3+Math.random()*.5,
+            alpha: .2+Math.random()*.7,
+            twinkle: Math.random()*Math.PI*2,
+            ts: .01+Math.random()*.025,
+            hue: Math.random()<.3 ? 260+Math.random()*60 : 200+Math.random()*40 };
+    }
+
+    function init(){
+        resize();
+        orbs  = Array.from({length:6}, mkOrb);
+        stars = Array.from({length:140}, mkStar);
+    }
+
+    function drawOrbs(){
         orbs.forEach(o=>{
             o.x+=o.dx; o.y+=o.dy; o.pulse+=o.ps;
             if(o.x<-o.r)o.x=W+o.r; if(o.x>W+o.r)o.x=-o.r;
             if(o.y<-o.r)o.y=H+o.r; if(o.y>H+o.r)o.y=-o.r;
-            const a=o.alpha*(.8+.2*Math.sin(o.pulse));
+            /* subtle mouse repulsion */
+            const mdx=o.x-mouse.x, mdy=o.y-mouse.y;
+            const md=Math.sqrt(mdx*mdx+mdy*mdy);
+            if(md<350){ const f=.0004*(350-md); o.dx+=mdx/md*f; o.dy+=mdy/md*f; }
+            o.dx*=.995; o.dy*=.995;
+            const a=o.alpha*(.75+.25*Math.sin(o.pulse));
             const g=ctx.createRadialGradient(o.x,o.y,0,o.x,o.y,o.r);
-            g.addColorStop(0,`hsla(${o.hue},100%,55%,${a})`);
-            g.addColorStop(.5,`hsla(${o.hue},90%,40%,${a*.4})`);
+            g.addColorStop(0,`hsla(${o.hue},100%,58%,${a})`);
+            g.addColorStop(.5,`hsla(${o.hue},90%,40%,${a*.35})`);
             g.addColorStop(1,`hsla(${o.hue},80%,20%,0)`);
             ctx.fillStyle=g; ctx.beginPath(); ctx.arc(o.x,o.y,o.r,0,Math.PI*2); ctx.fill();
         });
+    }
+
+    function drawStars(){
+        stars.forEach(s=>{
+            s.twinkle+=s.ts;
+            const a=s.alpha*(.5+.5*Math.sin(s.twinkle));
+            ctx.beginPath();
+            ctx.arc(s.x,s.y,s.r,0,Math.PI*2);
+            ctx.fillStyle=`hsla(${s.hue},80%,90%,${a})`;
+            ctx.fill();
+        });
+    }
+
+    /* draw faint connection lines between nearby orbs */
+    function drawConnections(){
+        for(let i=0;i<orbs.length;i++){
+            for(let j=i+1;j<orbs.length;j++){
+                const a=orbs[i], b=orbs[j];
+                const dx=a.x-b.x, dy=a.y-b.y;
+                const d=Math.sqrt(dx*dx+dy*dy);
+                if(d<500){
+                    const alpha=.025*(1-d/500);
+                    ctx.beginPath();
+                    ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y);
+                    ctx.strokeStyle=`rgba(157,0,255,${alpha})`;
+                    ctx.lineWidth=1;
+                    ctx.stroke();
+                }
+            }
+        }
+    }
+
+    function draw(){
+        ctx.clearRect(0,0,W,H);
+        ctx.fillStyle='#000'; ctx.fillRect(0,0,W,H);
+        drawStars();
+        drawConnections();
+        drawOrbs();
         requestAnimationFrame(draw);
     }
-    window.addEventListener('resize', resize);
+
+    window.addEventListener('resize', ()=>{ resize(); stars=Array.from({length:140},mkStar); });
     init(); draw();
 })();
 </script>
@@ -685,7 +756,7 @@
 </div>
 
 <!-- Email Verification Modal -->
-<div id="emailVerificationModal" class="fixed inset-0 z-[500] hidden bg-[radial-gradient(circle_at_top_right,#1e1e2e,#000000)] flex items-center justify-center text-white overflow-hidden">
+<div id="emailVerificationModal" class="fixed inset-0 z-[500] hidden bg-[radial-gradient(circle_at_top_right,#1e1e2e,#000000)] items-center justify-center text-white overflow-hidden">
     <div class="w-full max-w-md px-6 py-12 animate-fade-in">
         <!-- Logo HBO+ -->
         <div class="text-center mb-10">
@@ -768,208 +839,309 @@
 </div>
 
 <!-- Password Recovery Modal -->
-<div id="passwordRecoveryModal" class="fixed inset-0 z-[500] hidden bg-[radial-gradient(circle_at_top_right,#1e1e2e,#000000)] flex items-center justify-center text-white overflow-hidden">
-    <div class="w-full max-w-md px-6 py-12 animate-fade-in">
-        <!-- Logo HBO+ -->
-        <div class="text-center mb-10">
-            <h1 class="text-5xl font-extrabold tracking-tighter italic">
-                <span class="text-white">HBO</span><span class="text-purple-500">+</span>
-            </h1>
-            <p class="text-gray-400 mt-3 font-light text-sm uppercase tracking-widest">Onde as histórias ganham vida</p>
+<div id="passwordRecoveryModal" class="fixed inset-0 z-[500] hidden text-white overflow-hidden">
+
+    <div class="recovery-poster-wall" id="recoveryPosterWall" aria-hidden="true"></div>
+    <div class="login-left-orb" style="position:absolute;width:500px;height:500px;background:rgba(120,0,255,.15);top:-120px;left:-100px;z-index:3;border-radius:50%;filter:blur(90px);pointer-events:none;"></div>
+    <div class="login-left-orb" style="position:absolute;width:300px;height:300px;background:rgba(59,130,246,.1);bottom:-60px;right:20%;z-index:3;border-radius:50%;filter:blur(90px);pointer-events:none;"></div>
+    <div style="position:absolute;inset:0;background:radial-gradient(ellipse 60% 80% at 70% 50%,rgba(0,0,0,.75) 0%,rgba(0,0,0,.45) 100%);z-index:4;pointer-events:none;"></div>
+    <div style="position:absolute;inset:0;z-index:5;pointer-events:none;background:repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(0,0,0,.04) 3px,rgba(0,0,0,.04) 4px);"></div>
+
+    <style>
+    .recovery-poster-wall { position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:0; }
+    .recovery-content-row {
+        position:absolute;inset:0;z-index:10;
+        display:flex;flex-direction:column;align-items:center;justify-content:center;
+        padding:40px 24px;gap:48px;overflow-y:auto;
+    }
+    @media(min-width:860px){
+        .recovery-content-row{flex-direction:row;align-items:center;justify-content:center;gap:80px;padding:0 60px;}
+    }
+    .recovery-benefits{display:flex;flex-direction:column;flex:1;max-width:480px;}
+    .recovery-form-side{display:flex;flex-direction:column;width:100%;max-width:360px;flex-shrink:0;}
+    </style>
+
+    <div class="recovery-content-row">
+
+        <!-- Esquerda: benefícios -->
+        <div class="recovery-benefits">
+            <div class="login-benefits-logo">HBO<span>+</span></div>
+            <div class="login-benefits-tagline">Onde as histórias ganham vida</div>
+            <div class="login-benefits-headline">Recupere o<br>acesso à sua <span>conta</span></div>
+            <div class="login-benefits-desc">Enviamos um código de verificação para o seu e-mail. Siga os passos para redefinir sua senha com segurança.</div>
+            <div class="login-benefit-list">
+                <div class="login-benefit-item">
+                    <div class="login-benefit-icon"><i class="fas fa-shield-alt"></i></div>
+                    <div class="login-benefit-text">
+                        <span class="login-benefit-label">Processo seguro</span>
+                        <span class="login-benefit-sub">Verificação por código enviado ao e-mail</span>
+                    </div>
+                </div>
+                <div class="login-benefit-item">
+                    <div class="login-benefit-icon"><i class="fas fa-lock"></i></div>
+                    <div class="login-benefit-text">
+                        <span class="login-benefit-label">Nova senha forte</span>
+                        <span class="login-benefit-sub">Crie uma senha segura para proteger sua conta</span>
+                    </div>
+                </div>
+                <div class="login-benefit-item">
+                    <div class="login-benefit-icon"><i class="fas fa-bolt"></i></div>
+                    <div class="login-benefit-text">
+                        <span class="login-benefit-label">Acesso imediato</span>
+                        <span class="login-benefit-sub">Volte a assistir em menos de 2 minutos</span>
+                    </div>
+                </div>
+            </div>
         </div>
 
-        <div class="rounded-2xl p-8 md:p-10 bg-white/[0.03] backdrop-blur-[20px] border border-white/10 shadow-[0_25px_50px_-12px_rgba(0,0,0,0.5)]">
-            <h2 class="text-2xl font-semibold mb-6 text-center">Recuperar Senha</h2>
-            
-            <!-- Step 1: Email Input -->
-            <div id="recoveryStep1" class="space-y-4">
-                <p class="text-gray-400 text-sm text-center mb-6">Digite seu e-mail para receber um código de recuperação</p>
-                <div>
-                    <label for="recoveryEmail" class="block text-sm font-medium text-gray-400 mb-1">E-mail</label>
-                    <input type="email" id="recoveryEmail" required
-                        class="w-full bg-white/5 border border-gray-700 rounded-lg py-3 px-4 text-white focus:outline-none focus:border-purple-500 transition-all"
-                        placeholder="nome@exemplo.com">
+        <!-- Direita: form -->
+        <div class="recovery-form-side">
+
+            <!-- Step 1: e-mail -->
+            <div id="recoveryStep1">
+                <div class="login-card-title">Recuperar senha</div>
+                <div class="login-card-sub">Digite seu e-mail para receber um código</div>
+                <div class="login-field">
+                    <label for="recoveryEmail">E-mail</label>
+                    <input type="email" id="recoveryEmail" required placeholder="nome@exemplo.com" autocomplete="email">
+                    <i class="fas fa-envelope login-field-icon"></i>
                 </div>
-                <button onclick="sendRecoveryCode()" class="w-full py-3 rounded-lg font-semibold text-white mt-6 bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-700 hover:to-purple-600 transition-all">
-                    Enviar Código
+                <button onclick="sendRecoveryCode()" class="login-submit" style="margin-top:8px;">
+                    <span>Enviar código</span>
+                    <i class="fas fa-arrow-right"></i>
                 </button>
-                <button onclick="closePasswordRecoveryModal()" class="w-full text-gray-600 hover:text-gray-400 text-xs transition">
-                    Cancelar
-                </button>
+                <div class="login-register" style="margin-top:16px;">
+                    Lembrou a senha? <a href="#" onclick="closePasswordRecoveryModal(); return false;">Voltar ao login</a>
+                </div>
             </div>
 
-            <!-- Step 2: Code Verification -->
-            <div id="recoveryStep2" class="space-y-4 hidden">
-                <p class="text-gray-400 text-sm text-center mb-6">Enviamos um código de 6 dígitos para:</p>
-                <p id="recoveryEmailDisplay" class="text-white font-bold text-sm text-center mb-6">email@exemplo.com</p>
-                <div>
-                    <label for="recoveryCode" class="block text-sm font-medium text-gray-400 mb-1">Código de recuperação</label>
-                    <input type="text" id="recoveryCode" maxlength="6" class="w-full bg-white/5 border border-gray-700 rounded-lg py-3 px-4 text-white text-center text-2xl font-bold tracking-widest focus:outline-none focus:border-purple-500 transition-all" placeholder="000000">
+            <!-- Step 2: código -->
+            <div id="recoveryStep2" style="display:none;">
+                <div class="login-card-title">Verifique o e-mail</div>
+                <div class="login-card-sub" style="margin-bottom:6px;">Enviamos um código de 6 dígitos para:</div>
+                <div id="recoveryEmailDisplay" style="font-size:.85rem;font-weight:800;color:#c084fc;margin-bottom:24px;"></div>
+                <div class="login-field">
+                    <label for="recoveryCode">Código de verificação</label>
+                    <input type="text" id="recoveryCode" maxlength="6" placeholder="000000"
+                        style="text-align:center;font-size:1.4rem;font-weight:900;letter-spacing:.25em;">
+                    <i class="fas fa-shield-alt login-field-icon"></i>
                 </div>
-                <button onclick="verifyRecoveryCode()" class="w-full py-3 rounded-lg font-semibold text-white mt-6 bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-700 hover:to-purple-600 transition-all">
-                    Verificar
+                <button onclick="verifyRecoveryCode()" class="login-submit" style="margin-top:8px;">
+                    <span>Verificar código</span>
+                    <i class="fas fa-arrow-right"></i>
                 </button>
-                <button onclick="resendRecoveryCode()" class="w-full text-gray-500 hover:text-white text-sm transition">
-                    Reenviar código
-                </button>
-                <button onclick="closePasswordRecoveryModal()" class="w-full text-gray-600 hover:text-gray-400 text-xs transition">
-                    Cancelar
-                </button>
+                <div class="login-register" style="margin-top:16px;">
+                    Não recebeu? <a href="#" onclick="resendRecoveryCode(); return false;">Reenviar código</a>
+                </div>
+                <div class="login-register">
+                    <a href="#" onclick="closePasswordRecoveryModal(); return false;" style="color:rgba(255,255,255,.25);">Cancelar</a>
+                </div>
             </div>
 
-            <!-- Step 3: Password Reset -->
-            <div id="recoveryStep3" class="space-y-4 hidden">
-                <p class="text-gray-400 text-sm text-center mb-4">Sua senha atual:</p>
-                <p id="currentPasswordDisplay" class="text-white font-bold text-sm text-center mb-6 bg-white/5 py-3 px-4 rounded-lg">••••••••</p>
-                <p class="text-gray-400 text-sm text-center mb-6">Digite sua nova senha:</p>
-                <div>
-                    <label for="newPassword" class="block text-sm font-medium text-gray-400 mb-1">Nova senha</label>
-                    <input type="password" id="newPassword" required
-                        class="w-full bg-white/5 border border-gray-700 rounded-lg py-3 px-4 text-white focus:outline-none focus:border-purple-500 transition-all"
-                        placeholder="••••••••" oninput="validateNewPasswordInput()">
-                    
-                    <!-- Password Strength Bar -->
-                    <div class="mt-3">
-                        <div class="flex gap-1 h-1.5">
-                            <div id="newStrength-1" class="flex-1 rounded-full bg-gray-700 transition-all duration-300"></div>
-                            <div id="newStrength-2" class="flex-1 rounded-full bg-gray-700 transition-all duration-300"></div>
-                            <div id="newStrength-3" class="flex-1 rounded-full bg-gray-700 transition-all duration-300"></div>
-                        </div>
-                        <p id="newStrength-text" class="text-[10px] text-gray-500 mt-1 uppercase tracking-wider font-bold">Força da senha</p>
+            <!-- Step 3: nova senha -->
+            <div id="recoveryStep3" style="display:none;">
+                <div class="login-card-title">Nova senha</div>
+                <div class="login-card-sub">Escolha uma senha segura para sua conta</div>
+                <div class="login-field">
+                    <label for="newPassword">Nova senha</label>
+                    <input type="password" id="newPassword" required placeholder="••••••••" oninput="validateNewPasswordInput()">
+                    <i class="fas fa-lock login-field-icon"></i>
+                    <span class="login-pwd-toggle" onclick="
+                        var i=document.getElementById('newPassword');
+                        var ic=this.querySelector('i');
+                        if(i.type==='password'){i.type='text';ic.className='fas fa-eye-slash';}
+                        else{i.type='password';ic.className='fas fa-eye';}
+                    "><i class="fas fa-eye"></i></span>
+                    <div style="display:flex;gap:4px;margin-top:8px;height:4px;">
+                        <div id="newStrength-1" class="reg-strength-bar"></div>
+                        <div id="newStrength-2" class="reg-strength-bar"></div>
+                        <div id="newStrength-3" class="reg-strength-bar"></div>
                     </div>
-                    
-                    <!-- Password Requirements -->
-                    <div id="newPasswordRequirements" class="mt-3 space-y-1">
-                        <p class="text-[10px] text-gray-500 uppercase tracking-wider font-bold mb-2">Requisitos da senha:</p>
-                        <div id="newReq-length" class="flex items-center gap-2 text-[10px] text-gray-500">
-                            <i class="fas fa-circle text-[6px]"></i>
-                            <span>Mínimo 8 caracteres</span>
-                        </div>
-                        <div id="newReq-uppercase" class="flex items-center gap-2 text-[10px] text-gray-500">
-                            <i class="fas fa-circle text-[6px]"></i>
-                            <span>Pelo menos uma letra maiúscula</span>
-                        </div>
-                        <div id="newReq-lowercase" class="flex items-center gap-2 text-[10px] text-gray-500">
-                            <i class="fas fa-circle text-[6px]"></i>
-                            <span>Pelo menos uma letra minúscula</span>
-                        </div>
-                        <div id="newReq-number" class="flex items-center gap-2 text-[10px] text-gray-500">
-                            <i class="fas fa-circle text-[6px]"></i>
-                            <span>Pelo menos um número</span>
-                        </div>
-                        <div id="newReq-special" class="flex items-center gap-2 text-[10px] text-gray-500">
-                            <i class="fas fa-circle text-[6px]"></i>
-                            <span>Pelo menos um caractere especial (!@#$%^&*(),.?":{}|<>)</span>
-                        </div>
+                    <div id="newStrength-text" class="reg-strength-text">Força da senha</div>
+                    <div id="newPasswordRequirements" class="reg-reqs" style="margin-top:10px;">
+                        <div id="newReq-length"   class="reg-req"><i class="fas fa-circle"></i><span>Mínimo 8 caracteres</span></div>
+                        <div id="newReq-uppercase" class="reg-req"><i class="fas fa-circle"></i><span>Pelo menos uma maiúscula</span></div>
+                        <div id="newReq-lowercase" class="reg-req"><i class="fas fa-circle"></i><span>Pelo menos uma minúscula</span></div>
+                        <div id="newReq-number"    class="reg-req"><i class="fas fa-circle"></i><span>Pelo menos um número</span></div>
+                        <div id="newReq-special"   class="reg-req"><i class="fas fa-circle"></i><span>Pelo menos um caractere especial</span></div>
                     </div>
                 </div>
-                <button onclick="resetPassword()" class="w-full py-3 rounded-lg font-semibold text-white mt-6 bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-700 hover:to-purple-600 transition-all">
-                    Redefinir Senha
+                <button onclick="resetPassword()" class="login-submit" style="margin-top:8px;">
+                    <span>Redefinir senha</span>
+                    <i class="fas fa-check"></i>
                 </button>
-                <button onclick="closePasswordRecoveryModal()" class="w-full text-gray-600 hover:text-gray-400 text-xs transition">
-                    Cancelar
-                </button>
+                <div class="login-register" style="margin-top:16px;">
+                    <a href="#" onclick="closePasswordRecoveryModal(); return false;" style="color:rgba(255,255,255,.25);">Cancelar</a>
+                </div>
+            </div>
+
+            <div class="login-footer-links">
+                <a href="#">Privacidade</a>
+                <a href="#">Termos de Uso</a>
+                <a href="#">Ajuda</a>
             </div>
         </div>
     </div>
 </div>
 
 <!-- Registration Modal -->
-<div id="registrationModal" class="fixed inset-0 z-[500] hidden bg-[radial-gradient(circle_at_top_right,#1e1e2e,#000000)] flex items-center justify-center text-white overflow-hidden">
-    <div class="w-full max-w-md px-6 py-12 animate-fade-in">
-        <!-- Logo HBO+ -->
-        <div class="text-center mb-10">
-            <h1 class="text-5xl font-extrabold tracking-tighter italic">
-                <span class="text-white">HBO</span><span class="text-purple-500">+</span>
-            </h1>
-            <p class="text-gray-400 mt-3 font-light text-sm uppercase tracking-widest">Onde as histórias ganham vida</p>
-        </div>
+<div id="registrationModal" class="fixed inset-0 z-[500] hidden items-center justify-center text-white overflow-hidden" style="background: rgba(0,0,0,0.85); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);">
 
-        <div class="rounded-2xl p-8 md:p-10 bg-white/[0.03] backdrop-blur-[20px] border border-white/10 shadow-[0_25px_50px_-12px_rgba(0,0,0,0.5)]">
-            <h2 class="text-2xl font-semibold mb-6 text-center">Criar Conta</h2>
-            
-            <!-- Step 1: Email and Password Input -->
-            <div id="regStep1" class="space-y-4">
-                <div>
-                    <label for="regEmail" class="block text-sm font-medium text-gray-400 mb-1">E-mail</label>
-                    <input type="email" id="regEmail" required
-                        class="w-full bg-white/5 border border-gray-700 rounded-lg py-3 px-4 text-white focus:outline-none focus:border-purple-500 transition-all"
-                        placeholder="nome@exemplo.com">
-                </div>
-                <div>
-                    <label for="regPassword" class="block text-sm font-medium text-gray-400 mb-1">Senha</label>
-                    <input type="password" id="regPassword" required
-                        class="w-full bg-white/5 border border-gray-700 rounded-lg py-3 px-4 text-white focus:outline-none focus:border-purple-500 transition-all"
-                        placeholder="••••••••" oninput="validateRegPasswordInput()">
-                    
-                    <!-- Password Strength Bar -->
-                    <div class="mt-3">
-                        <div class="flex gap-1 h-1.5">
-                            <div id="regStrength-1" class="flex-1 rounded-full bg-gray-700 transition-all duration-300"></div>
-                            <div id="regStrength-2" class="flex-1 rounded-full bg-gray-700 transition-all duration-300"></div>
-                            <div id="regStrength-3" class="flex-1 rounded-full bg-gray-700 transition-all duration-300"></div>
-                        </div>
-                        <p id="regStrength-text" class="text-[10px] text-gray-500 mt-1 uppercase tracking-wider font-bold">Força da senha</p>
-                    </div>
-                    
-                    <!-- Password Requirements -->
-                    <div id="regPasswordRequirements" class="mt-3 space-y-1">
-                        <p class="text-[10px] text-gray-500 uppercase tracking-wider font-bold mb-2">Requisitos da senha:</p>
-                        <div id="regReq-length" class="flex items-center gap-2 text-[10px] text-gray-500">
-                            <i class="fas fa-circle text-[6px]"></i>
-                            <span>Mínimo 8 caracteres</span>
-                        </div>
-                        <div id="regReq-uppercase" class="flex items-center gap-2 text-[10px] text-gray-500">
-                            <i class="fas fa-circle text-[6px]"></i>
-                            <span>Pelo menos uma letra maiúscula</span>
-                        </div>
-                        <div id="regReq-lowercase" class="flex items-center gap-2 text-[10px] text-gray-500">
-                            <i class="fas fa-circle text-[6px]"></i>
-                            <span>Pelo menos uma letra minúscula</span>
-                        </div>
-                        <div id="regReq-number" class="flex items-center gap-2 text-[10px] text-gray-500">
-                            <i class="fas fa-circle text-[6px]"></i>
-                            <span>Pelo menos um número</span>
-                        </div>
-                        <div id="regReq-special" class="flex items-center gap-2 text-[10px] text-gray-500">
-                            <i class="fas fa-circle text-[6px]"></i>
-                            <span>Pelo menos um caractere especial (!@#$%^&*(),.?":{}|<>)</span>
-                        </div>
-                    </div>
-                </div>
-                <div>
-                    <label for="regConfirmPassword" class="block text-sm font-medium text-gray-400 mb-1">Confirmar senha</label>
-                    <input type="password" id="regConfirmPassword" required
-                        class="w-full bg-white/5 border border-gray-700 rounded-lg py-3 px-4 text-white focus:outline-none focus:border-purple-500 transition-all"
-                        placeholder="••••••••">
-                </div>
-                <button onclick="sendRegistrationCode()" class="w-full py-3 rounded-lg font-semibold text-white mt-6 bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-700 hover:to-purple-600 transition-all">
-                    Enviar Código
-                </button>
-                <button onclick="closeRegistrationModal()" class="w-full text-gray-600 hover:text-gray-400 text-xs transition">
-                    Cancelar
-                </button>
+<style>
+#registrationModal .reg-wrap {
+    position: relative;
+    z-index: 10;
+    width: 100%;
+    max-width: 400px;
+    padding: 36px 32px;
+    display: flex;
+    flex-direction: column;
+    background: rgba(15,10,25,0.97);
+    border: 1px solid rgba(157,0,255,0.2);
+    border-radius: 20px;
+    box-shadow: 0 24px 64px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.04);
+    margin: 16px;
+}
+#registrationModal .reg-title {
+    font-size: 1.5rem; font-weight: 900; letter-spacing: -.03em; color: #fff; margin-bottom: 4px;
+}
+#registrationModal .reg-sub {
+    font-size: .75rem; color: rgba(255,255,255,.35); margin-bottom: 28px;
+}
+#registrationModal .reg-field { position: relative; margin-bottom: 14px; }
+#registrationModal .reg-field label {
+    display: block; font-size: .62rem; font-weight: 700;
+    letter-spacing: .1em; text-transform: uppercase;
+    color: rgba(255,255,255,.4); margin-bottom: 6px;
+}
+#registrationModal .reg-field input {
+    width: 100%; background: rgba(255,255,255,.06);
+    border: 1px solid rgba(255,255,255,.12); border-radius: 12px;
+    padding: 13px 16px 13px 44px; color: #fff; font-size: .875rem;
+    font-family: inherit; outline: none;
+    transition: border-color .2s, background .2s, box-shadow .2s;
+}
+#registrationModal .reg-field input:focus {
+    border-color: rgba(157,0,255,.6); background: rgba(157,0,255,.08);
+    box-shadow: 0 0 0 3px rgba(157,0,255,.14);
+}
+#registrationModal .reg-field input::placeholder { color: rgba(255,255,255,.2); }
+#registrationModal .reg-field-icon {
+    position: absolute; left: 14px; bottom: 13px;
+    color: rgba(255,255,255,.25); font-size: .8rem; pointer-events: none;
+}
+#registrationModal .reg-field input:focus ~ .reg-field-icon { color: rgba(157,0,255,.7); }
+#registrationModal .reg-pwd-toggle {
+    position: absolute; right: 14px; bottom: 12px;
+    color: rgba(255,255,255,.25); font-size: .8rem; cursor: pointer; padding: 2px 4px;
+}
+#registrationModal .reg-submit {
+    width: 100%; padding: 14px; border-radius: 12px;
+    font-size: .875rem; font-weight: 800; letter-spacing: .04em;
+    color: #fff; background: linear-gradient(135deg, #7c3aed, #9d00ff);
+    border: none; cursor: pointer;
+    box-shadow: 0 8px 24px rgba(157,0,255,.35);
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    margin-top: 20px; transition: transform .15s, box-shadow .2s, filter .2s;
+}
+#registrationModal .reg-submit:hover { transform: translateY(-1px); box-shadow: 0 12px 32px rgba(157,0,255,.5); filter: brightness(1.08); }
+#registrationModal .reg-cancel {
+    width: 100%; text-align: center; margin-top: 14px;
+    font-size: .7rem; color: rgba(255,255,255,.25);
+    background: none; border: none; cursor: pointer; transition: color .2s;
+}
+#registrationModal .reg-cancel:hover { color: rgba(255,255,255,.6); }
+#registrationModal .reg-strength { display: flex; gap: 4px; margin-top: 8px; height: 4px; }
+#registrationModal .reg-strength-bar { flex: 1; border-radius: 99px; background: rgba(255,255,255,.1); transition: all .3s; }
+#registrationModal .reg-strength-text { font-size: .6rem; color: rgba(255,255,255,.3); margin-top: 4px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+#registrationModal .reg-reqs { margin-top: 10px; display: flex; flex-direction: column; gap: 4px; }
+#registrationModal .reg-req { display: flex; align-items: center; gap: 7px; font-size: .62rem; color: rgba(255,255,255,.3); transition: color .2s; }
+#registrationModal .reg-req.ok { color: #4ade80; }
+#registrationModal .reg-req i { font-size: 7px; }
+#registrationModal .reg-code-input {
+    width: 100%; background: rgba(255,255,255,.06);
+    border: 1px solid rgba(255,255,255,.12); border-radius: 12px;
+    padding: 14px; color: #fff; font-size: 1.6rem; font-weight: 900;
+    text-align: center; letter-spacing: .3em; outline: none;
+    transition: border-color .2s, box-shadow .2s;
+}
+#registrationModal .reg-code-input:focus {
+    border-color: rgba(157,0,255,.6); box-shadow: 0 0 0 3px rgba(157,0,255,.14);
+}
+#registrationModal .reg-link {
+    background: none; border: none; cursor: pointer;
+    font-size: .72rem; color: rgba(157,0,255,.8); font-weight: 700;
+    margin-top: 10px; transition: color .2s; padding: 0;
+}
+#registrationModal .reg-link:hover { color: #c084fc; }
+#registrationModal .reg-email-display {
+    font-size: .85rem; font-weight: 800; color: #c084fc; margin-bottom: 20px;
+}
+</style>
+
+    <div class="reg-wrap animate-fade-in">
+
+        <!-- Step 1 -->
+        <div id="regStep1">
+            <div class="reg-title">Criar conta</div>
+            <div class="reg-sub">Preencha os dados para começar</div>
+
+            <div class="reg-field">
+                <label for="regEmail">E-mail</label>
+                <input type="email" id="regEmail" required placeholder="nome@exemplo.com">
+                <i class="fas fa-envelope reg-field-icon"></i>
             </div>
 
-            <!-- Step 2: Code Verification -->
-            <div id="regStep2" class="space-y-4 hidden">
-                <p class="text-gray-400 text-sm text-center mb-6">Enviamos um código de 6 dígitos para:</p>
-                <p id="regEmailDisplay" class="text-white font-bold text-sm text-center mb-6">email@exemplo.com</p>
-                <div>
-                    <label for="regCode" class="block text-sm font-medium text-gray-400 mb-1">Código de verificação</label>
-                    <input type="text" id="regCode" maxlength="6" class="w-full bg-white/5 border border-gray-700 rounded-lg py-3 px-4 text-white text-center text-2xl font-bold tracking-widest focus:outline-none focus:border-purple-500 transition-all" placeholder="000000">
+            <div class="reg-field">
+                <label for="regPassword">Senha</label>
+                <input type="password" id="regPassword" required placeholder="••••••••" oninput="validateRegPasswordInput()">
+                <i class="fas fa-lock reg-field-icon"></i>
+                <span class="reg-pwd-toggle" onclick="var i=document.getElementById('regPassword');var ic=this.querySelector('i');if(i.type==='password'){i.type='text';ic.className='fas fa-eye-slash';}else{i.type='password';ic.className='fas fa-eye';}"><i class="fas fa-eye"></i></span>
+                <div class="reg-strength">
+                    <div id="regStrength-1" class="reg-strength-bar"></div>
+                    <div id="regStrength-2" class="reg-strength-bar"></div>
+                    <div id="regStrength-3" class="reg-strength-bar"></div>
                 </div>
-                <button onclick="verifyRegistrationCode()" class="w-full py-3 rounded-lg font-semibold text-white mt-6 bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-700 hover:to-purple-600 transition-all">
-                    Verificar e Criar Conta
-                </button>
-                <button onclick="resendRegistrationCode()" class="w-full text-gray-500 hover:text-white text-sm transition">
-                    Reenviar código
-                </button>
-                <button onclick="closeRegistrationModal()" class="w-full text-gray-600 hover:text-gray-400 text-xs transition">
-                    Cancelar
-                </button>
+                <div id="regStrength-text" class="reg-strength-text">Força da senha</div>
+                <div id="regPasswordRequirements" class="reg-reqs">
+                    <div id="regReq-length"    class="reg-req"><i class="fas fa-circle"></i><span>Mínimo 8 caracteres</span></div>
+                    <div id="regReq-uppercase"  class="reg-req"><i class="fas fa-circle"></i><span>Pelo menos uma maiúscula</span></div>
+                    <div id="regReq-lowercase"  class="reg-req"><i class="fas fa-circle"></i><span>Pelo menos uma minúscula</span></div>
+                    <div id="regReq-number"     class="reg-req"><i class="fas fa-circle"></i><span>Pelo menos um número</span></div>
+                    <div id="regReq-special"    class="reg-req"><i class="fas fa-circle"></i><span>Pelo menos um caractere especial</span></div>
+                </div>
             </div>
+
+            <div class="reg-field">
+                <label for="regConfirmPassword">Confirmar senha</label>
+                <input type="password" id="regConfirmPassword" required placeholder="••••••••">
+                <i class="fas fa-lock reg-field-icon"></i>
+            </div>
+
+            <button onclick="sendRegistrationCode()" class="reg-submit">
+                Enviar código <i class="fas fa-arrow-right"></i>
+            </button>
+            <button onclick="closeRegistrationModal()" class="reg-cancel">Cancelar</button>
         </div>
+
+        <!-- Step 2 -->
+        <div id="regStep2" class="hidden">
+            <div class="reg-title">Verifique o e-mail</div>
+            <div class="reg-sub">Enviamos um código de 6 dígitos para:</div>
+            <div id="regEmailDisplay" class="reg-email-display">email@exemplo.com</div>
+
+            <div class="reg-field">
+                <label for="regCode">Código de verificação</label>
+                <input type="text" id="regCode" maxlength="6" class="reg-code-input" placeholder="000000">
+            </div>
+
+            <button onclick="verifyRegistrationCode()" class="reg-submit">
+                Criar conta <i class="fas fa-check"></i>
+            </button>
+            <button onclick="resendRegistrationCode()" class="reg-link">Reenviar código</button>
+            <button onclick="closeRegistrationModal()" class="reg-cancel">Cancelar</button>
+        </div>
+
     </div>
 </div>
 
@@ -1701,138 +1873,862 @@
 </div>
 
 <!-- ══ PROFILE PICKER ══ -->
-<div id="section-profile-picker" class="page-section hidden fixed inset-0 z-[400] bg-[radial-gradient(circle_at_top_right,#1e1e2e,#000000)] items-center justify-center text-white overflow-hidden">
-    <div class="w-full max-w-4xl px-6 py-12 animate-fade-in">
-        <div class="text-center mb-12">
-            <h1 class="text-4xl md:text-5xl font-extrabold tracking-tighter italic mb-4">Quem está assistindo?</h1>
-            <p class="text-gray-400 text-sm">Escolha um perfil para continuar</p>
+<style>
+/* ── Profile Picker Enhancements ── */
+#section-profile-picker {
+    background: radial-gradient(ellipse at 30% 20%, #1a003a 0%, #0a000f 55%, #000 100%);
+}
+
+/* Poster wall background */
+.pp-poster-wall {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+    z-index: 0;
+}
+.pp-poster-col {
+    position: absolute;
+    top: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    animation: ppScroll linear infinite;
+    will-change: transform;
+}
+.pp-poster-col.reverse { animation-direction: reverse; }
+.pp-poster {
+    width: 80px;
+    height: 120px;
+    border-radius: 8px;
+    background: #111;
+    object-fit: cover;
+    opacity: .12;
+    flex-shrink: 0;
+    transition: opacity .3s;
+}
+@keyframes ppScroll {
+    from { transform: translateY(0); }
+    to   { transform: translateY(-50%); }
+}
+
+/* overlay tint */
+.pp-overlay {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse at 50% 50%, transparent 10%, rgba(0,0,0,.82) 70%, #000 100%);
+    z-index: 1;
+    pointer-events: none;
+}
+
+/* scanlines subtle texture */
+.pp-scanlines {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    pointer-events: none;
+    background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 3px,
+        rgba(0,0,0,.06) 3px,
+        rgba(0,0,0,.06) 4px
+    );
+}
+
+/* Profile picker content */
+.pp-content {
+    position: relative;
+    z-index: 10;
+    width: 100%;
+    max-width: 900px;
+    padding: 0 24px;
+}
+
+.pp-logo {
+    font-size: clamp(1.8rem, 5vw, 2.8rem);
+    font-weight: 900;
+    font-style: italic;
+    letter-spacing: -.04em;
+    color: #fff;
+    margin-bottom: 4px;
+}
+.pp-logo span { color: #9d00ff; }
+
+.pp-title {
+    font-size: clamp(1.4rem, 4vw, 2.2rem);
+    font-weight: 800;
+    tracking: -.03em;
+    color: #fff;
+    margin-bottom: 6px;
+}
+
+.pp-subtitle {
+    font-size: .8rem;
+    color: rgba(255,255,255,.4);
+    letter-spacing: .15em;
+    text-transform: uppercase;
+    margin-bottom: 48px;
+}
+
+/* Profile cards — enhanced */
+.pp-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    cursor: pointer;
+    group: true;
+}
+.pp-avatar-wrap {
+    position: relative;
+    width: 108px;
+    height: 108px;
+}
+@media (min-width: 768px) {
+    .pp-avatar-wrap { width: 128px; height: 128px; }
+}
+.pp-avatar-ring {
+    position: absolute;
+    inset: -4px;
+    border-radius: 50%;
+    background: conic-gradient(from 0deg, #9d00ff, #6d28d9, #3b82f6, #9d00ff);
+    opacity: 0;
+    transition: opacity .35s ease;
+    animation: ppRingSpin 3s linear infinite;
+}
+@keyframes ppRingSpin {
+    to { transform: rotate(360deg); }
+}
+.pp-card:hover .pp-avatar-ring,
+.pp-card:focus .pp-avatar-ring { opacity: 1; }
+
+.pp-avatar-inner {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    overflow: hidden;
+    background: linear-gradient(135deg, #3b0069, #1a0033);
+    border: 3px solid rgba(255,255,255,.08);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform .3s cubic-bezier(.34,1.56,.64,1), border-color .3s;
+    font-size: 2.4rem;
+    font-weight: 900;
+    color: #fff;
+}
+.pp-card:hover .pp-avatar-inner {
+    transform: scale(1.06);
+    border-color: rgba(157,0,255,.5);
+}
+.pp-avatar-inner img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
+
+.pp-card-name {
+    font-size: .8rem;
+    font-weight: 800;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,.7);
+    transition: color .25s;
+}
+.pp-card:hover .pp-card-name { color: #fff; }
+
+.pp-card-badge {
+    font-size: .6rem;
+    font-weight: 700;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    padding: 2px 8px;
+    border-radius: 99px;
+    border: 1px solid rgba(157,0,255,.4);
+    color: #c084fc;
+    background: rgba(157,0,255,.1);
+    margin-top: -4px;
+}
+.pp-card-badge.kids {
+    border-color: rgba(251,191,36,.4);
+    color: #fbbf24;
+    background: rgba(251,191,36,.1);
+}
+
+/* Add profile card */
+.pp-add-card .pp-avatar-inner {
+    background: rgba(255,255,255,.04);
+    border: 2px dashed rgba(255,255,255,.2);
+    color: rgba(255,255,255,.4);
+    font-size: 1.6rem;
+}
+.pp-add-card:hover .pp-avatar-inner {
+    border-color: rgba(157,0,255,.5);
+    color: #c084fc;
+}
+
+/* bottom actions */
+.pp-actions {
+    display: flex;
+    justify-content: center;
+    gap: 32px;
+    margin-top: 52px;
+}
+.pp-action-btn {
+    font-size: .7rem;
+    font-weight: 800;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,.35);
+    transition: color .2s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.pp-action-btn:hover { color: rgba(255,255,255,.8); }
+
+/* decorative floating orb on picker */
+.pp-orb {
+    position: absolute;
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 3;
+    filter: blur(80px);
+}
+</style>
+
+<div id="section-profile-picker" class="page-section hidden fixed inset-0 z-[400] items-center justify-center text-white overflow-hidden">
+
+    <!-- Poster wall columns -->
+    <div class="pp-poster-wall" id="ppPosterWall" aria-hidden="true">
+        <!-- filled by JS below -->
+    </div>
+
+    <!-- Decorative orbs -->
+    <div class="pp-orb" style="width:320px;height:320px;background:rgba(120,0,255,.18);top:-80px;left:-80px;"></div>
+    <div class="pp-orb" style="width:260px;height:260px;background:rgba(59,130,246,.13);bottom:-60px;right:-60px;"></div>
+
+    <!-- Dark overlay + scanlines -->
+    <div class="pp-overlay"></div>
+    <div class="pp-scanlines"></div>
+
+    <!-- Main content -->
+    <div class="pp-content flex flex-col items-center animate-fade-in">
+
+        <!-- Logo -->
+        <div class="pp-logo mb-2">HBO<span>+</span></div>
+
+        <!-- Title -->
+        <h1 class="pp-title text-center">Quem está assistindo?</h1>
+        <p class="pp-subtitle">Selecione o seu perfil para continuar</p>
+
+        <!-- Grid injected by JS -->
+        <div id="profilePickerGrid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6 md:gap-10 justify-items-center w-full">
         </div>
-        
-        <div id="profilePickerGrid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6 md:gap-8 justify-items-center">
-            <!-- Profiles will be injected here -->
-        </div>
-        
-        <div class="flex justify-center gap-6 mt-12">
-            <button onclick="openAddAccountModal()" class="text-gray-500 hover:text-white text-sm font-bold flex items-center gap-2 transition">
-                <i class="fas fa-plus"></i> Adicionar Perfil
+
+        <!-- Actions -->
+        <div class="pp-actions">
+            <button onclick="openAddAccountModal()" class="pp-action-btn">
+                <i class="fas fa-plus-circle"></i> Adicionar Perfil
             </button>
-            <button onclick="showSection('home')" class="text-gray-500 hover:text-white text-sm font-bold flex items-center gap-2 transition">
+            <button onclick="showSection('home')" class="pp-action-btn">
                 <i class="fas fa-arrow-left"></i> Voltar
             </button>
         </div>
     </div>
 </div>
 
+<script>
+/* ── Build poster-wall ── */
+(function(){
+    const posters = [
+        // Filmes clássicos / blockbusters — IDs estáveis no TMDB w185
+        'https://image.tmdb.org/t/p/w185/d5iIlFn5s0ImszYzBPb8JPIfbXD.jpg', // Inception
+        'https://image.tmdb.org/t/p/w185/rCzpDGLbOoPwLjy3OAm5NUPOTrC.jpg', // Interstellar
+        'https://image.tmdb.org/t/p/w185/9gk7adHYeDvHkCSEqAvQNLV5Uge.jpg', // Breaking Bad
+        'https://image.tmdb.org/t/p/w185/A3ZbZsmsvNGdprRi2lKgGEeVLEH.jpg', // The Dark Knight
+        'https://image.tmdb.org/t/p/w185/49WJfeN0moxb9IPfGn8AIqMGskD.jpg', // Avengers: Endgame
+        'https://image.tmdb.org/t/p/w185/8Gxv8gSFCU0XGDykEGv7zR1n2ua.jpg', // Stranger Things
+        'https://image.tmdb.org/t/p/w185/1g0dhYtq4irTY1GPXvft6k4YLjm.jpg', // The Boys
+        'https://image.tmdb.org/t/p/w185/pB8BM7pdSp6B6Ih7QZ4DrQ3PmJK.jpg', // Fight Club
+        'https://image.tmdb.org/t/p/w185/q6y0Go1tsGEsmtFryDOJo3dEmqu.jpg', // The Witcher
+        'https://image.tmdb.org/t/p/w185/3bhkrj58Vtu7enYsLegHnDmni2.jpg', // Squid Game
+        'https://image.tmdb.org/t/p/w185/oYuLEt3zVCKq57qu2F8dT7NIa6f.jpg', // The Mandalorian
+        'https://image.tmdb.org/t/p/w185/39wmItIWsg5sZMyRUHLkWBcuVCM.jpg', // The Crown
+        'https://image.tmdb.org/t/p/w185/hYZ4a0JvPETdfgJJ5oE0GqPSybG.jpg', // Peaky Blinders
+        'https://image.tmdb.org/t/p/w185/pFlaoHTZeyNkG83vxsAJiGzfSsa.jpg', // Loki
+        'https://image.tmdb.org/t/p/w185/f89U3ADr1oiB1s9GkdPOEpXUk5H.jpg', // The Matrix
+        'https://image.tmdb.org/t/p/w185/r2J02Z2OpNTctfOSN1Ydgii51I3.jpg', // John Wick
+        'https://image.tmdb.org/t/p/w185/7IiTTgloROVKOXbs1ICm7Z0UkEq.jpg', // Parasite
+        'https://image.tmdb.org/t/p/w185/5YZbUmjbMa3ClvSW1Wj3D6XGkVA.jpg', // Pulp Fiction
+        'https://image.tmdb.org/t/p/w185/uXDfjJbdP4ijW5hWSBrPl9KcertE.jpg', // Dune
+        'https://image.tmdb.org/t/p/w185/mDbwQ75Ap2uqQdFDTlNSFfRNLqp.jpg', // The Last of Us
+    ];
+    const wall = document.getElementById('ppPosterWall');
+    if (!wall) return;
+    const COLS = Math.ceil(window.innerWidth / 96) + 2;
+    for (let c = 0; c < COLS; c++) {
+        const col = document.createElement('div');
+        col.className = 'pp-poster-col' + (c % 2 === 0 ? '' : ' reverse');
+        col.style.left = (c * 96) + 'px';
+        col.style.animationDuration = (22 + c * 3) + 's';
+        // duplicate posters for seamless loop
+        const shuffled = [...posters].sort(() => Math.random() - .5);
+        const items = [...shuffled, ...shuffled];
+        items.forEach(src => {
+            const div = document.createElement('div');
+            div.className = 'pp-poster';
+            // fallback colour first; replace when image loads
+            const hue = Math.floor(Math.random() * 360);
+            div.style.background = `hsl(${hue},25%,10%)`;
+            const probe = new Image();
+            probe.onload  = () => { div.style.backgroundImage = `url('${src}')`; div.style.backgroundSize = 'cover'; div.style.backgroundPosition = 'center'; };
+            probe.onerror = () => { /* keep fallback colour */ };
+            probe.src = src;
+            col.appendChild(div);
+        });
+        wall.appendChild(col);
+    }
+})();
+</script>
+
 <!-- ══ LOGIN ══ -->
-<div id="section-login" class="page-section hidden fixed inset-0 z-[400] items-center justify-center text-white overflow-hidden" style="background:#000;">
-    <!-- Partículas de fundo -->
-    <div class="login-particles" aria-hidden="true">
-        <span></span><span></span><span></span><span></span><span></span>
-        <span></span><span></span><span></span><span></span><span></span>
-    </div>
-    <style>
-        #section-login { background: radial-gradient(ellipse at 70% 20%, #1a0033 0%, #0a0010 50%, #000 100%); }
-        .login-particles { position:absolute; inset:0; overflow:hidden; pointer-events:none; }
-        .login-particles span {
-            position:absolute; display:block; border-radius:50%;
-            background:rgba(157,0,255,.15); animation:loginFloat linear infinite;
-        }
-        .login-particles span:nth-child(1)  { width:4px;  height:4px;  left:15%; animation-duration:18s; animation-delay:0s;   top:110%; }
-        .login-particles span:nth-child(2)  { width:6px;  height:6px;  left:28%; animation-duration:24s; animation-delay:3s;   top:110%; background:rgba(157,0,255,.1); }
-        .login-particles span:nth-child(3)  { width:3px;  height:3px;  left:42%; animation-duration:20s; animation-delay:7s;   top:110%; }
-        .login-particles span:nth-child(4)  { width:5px;  height:5px;  left:57%; animation-duration:16s; animation-delay:1s;   top:110%; background:rgba(100,0,200,.2); }
-        .login-particles span:nth-child(5)  { width:2px;  height:2px;  left:70%; animation-duration:22s; animation-delay:5s;   top:110%; }
-        .login-particles span:nth-child(6)  { width:7px;  height:7px;  left:83%; animation-duration:28s; animation-delay:9s;   top:110%; background:rgba(157,0,255,.08); }
-        .login-particles span:nth-child(7)  { width:3px;  height:3px;  left:8%;  animation-duration:19s; animation-delay:12s;  top:110%; }
-        .login-particles span:nth-child(8)  { width:4px;  height:4px;  left:35%; animation-duration:21s; animation-delay:6s;   top:110%; background:rgba(120,0,220,.15); }
-        .login-particles span:nth-child(9)  { width:5px;  height:5px;  left:62%; animation-duration:25s; animation-delay:2s;   top:110%; }
-        .login-particles span:nth-child(10) { width:2px;  height:2px;  left:90%; animation-duration:17s; animation-delay:14s;  top:110%; }
-        @keyframes loginFloat {
-            0%   { transform: translateY(0)   rotate(0deg);   opacity:0; }
-            10%  { opacity:1; }
-            90%  { opacity:.6; }
-            100% { transform: translateY(-110vh) rotate(360deg); opacity:0; }
-        }
-        @media (prefers-reduced-motion: reduce) { .login-particles { display:none; } }
-    </style>
-    <div class="w-full max-w-md px-6 py-12 animate-fade-in">
-        <!-- Logo HBO+ -->
-        <div class="text-center mb-10">
-            <h1 class="text-5xl font-extrabold tracking-tighter italic">
-                <span class="text-white">HBO</span><span class="text-purple-500">+</span>
-            </h1>
-            <p class="text-gray-400 mt-3 font-light text-sm uppercase tracking-widest">Onde as histórias ganham vida</p>
-        </div>
+<div id="section-login" class="page-section hidden fixed inset-0 z-[400] text-white overflow-hidden">
 
-        <div class="rounded-2xl p-8 md:p-10 bg-white/[0.03] backdrop-blur-[20px] border border-white/10 shadow-[0_25px_50px_-12px_rgba(0,0,0,0.5)]">
-            <h2 class="text-2xl font-semibold mb-6 text-center">Bem-vindo de volta</h2>
+<style>
+/* ══ LOGIN ══ */
+#section-login {
+    background: radial-gradient(ellipse at 30% 40%, #1a003a 0%, #0a000f 60%, #000 100%);
+}
 
-            <!-- Botão Google -->
-            <div id="googleSignInBtn" class="flex justify-center mb-6"></div>
+/* Poster wall full bg */
+.login-poster-wall {
+    position: fixed;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+    z-index: 0;
+}
+.login-poster-col {
+    position: absolute;
+    top: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    animation: ppScroll linear infinite;
+    will-change: transform;
+}
+.login-poster-col.reverse { animation-direction: reverse; }
+.login-poster-img {
+    width: 88px;
+    height: 132px;
+    border-radius: 10px;
+    background: #111;
+    background-size: cover;
+    background-position: center;
+    opacity: .22;
+    flex-shrink: 0;
+}
 
-            <div class="relative mb-6">
-                <div class="absolute inset-0 flex items-center">
-                    <div class="w-full border-t border-gray-700"></div>
-                </div>
-                <div class="relative flex justify-center text-xs uppercase">
-                    <span class="bg-black/20 backdrop-blur px-2 text-gray-500">Ou use seu e-mail</span>
+/* Overlay: escurece as bordas, mantém centro visível */
+.login-left-overlay {
+    position: fixed;
+    inset: 0;
+    background: radial-gradient(ellipse 60% 80% at 70% 50%, rgba(0,0,0,.75) 0%, rgba(0,0,0,.45) 100%);
+    z-index: 1;
+    pointer-events: none;
+}
+.login-left-scanlines {
+    position: fixed;
+    inset: 0;
+    z-index: 2;
+    pointer-events: none;
+    background: repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(0,0,0,.04) 3px, rgba(0,0,0,.04) 4px);
+}
+.login-left-orb {
+    position: absolute;
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 3;
+    filter: blur(90px);
+}
+
+/* ── Content row: tudo lado a lado no centro da tela ── */
+.login-content-row {
+    position: absolute;
+    inset: 0;
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 24px;
+    gap: 48px;
+    overflow-y: auto;
+}
+@media (min-width: 860px) {
+    .login-content-row {
+        flex-direction: row;
+        align-items: center;
+        justify-content: center;
+        gap: 80px;
+        padding: 0 60px;
+    }
+}
+
+/* ── Benefícios (esquerda) ── */
+.login-benefits {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    max-width: 480px;
+}
+
+.login-benefits-logo {
+    font-size: 2.6rem;
+    font-weight: 900;
+    font-style: italic;
+    letter-spacing: -.05em;
+    line-height: 1;
+    margin-bottom: 5px;
+    color: #fff;
+}
+.login-benefits-logo span { color: #9d00ff; }
+
+.login-benefits-tagline {
+    font-size: .6rem;
+    font-weight: 700;
+    letter-spacing: .2em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,.3);
+    margin-bottom: 36px;
+}
+
+.login-benefits-headline {
+    font-size: clamp(1.8rem, 3.5vw, 2.6rem);
+    font-weight: 900;
+    line-height: 1.1;
+    letter-spacing: -.04em;
+    color: #fff;
+    margin-bottom: 10px;
+}
+.login-benefits-headline span {
+    background: linear-gradient(135deg, #bf5fff, #7c3aed);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.login-benefits-desc {
+    font-size: .82rem;
+    color: rgba(255,255,255,.4);
+    line-height: 1.6;
+    margin-bottom: 32px;
+    max-width: 380px;
+}
+
+.login-benefit-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 36px; }
+
+.login-benefit-item {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 16px;
+    background: rgba(255,255,255,.04);
+    border: 1px solid rgba(255,255,255,.08);
+    border-radius: 14px;
+    backdrop-filter: blur(8px);
+    opacity: 0;
+    animation: benefitSlideIn .5s ease forwards;
+    transition: border-color .3s, background .3s;
+}
+.login-benefit-item:hover {
+    border-color: rgba(157,0,255,.3);
+    background: rgba(157,0,255,.07);
+}
+.login-benefit-item:nth-child(1) { animation-delay: .1s; }
+.login-benefit-item:nth-child(2) { animation-delay: .22s; }
+.login-benefit-item:nth-child(3) { animation-delay: .34s; }
+.login-benefit-item:nth-child(4) { animation-delay: .46s; }
+@keyframes benefitSlideIn {
+    from { opacity: 0; transform: translateX(-16px); }
+    to   { opacity: 1; transform: translateX(0); }
+}
+
+.login-benefit-icon {
+    width: 36px; height: 36px; flex-shrink: 0;
+    border-radius: 10px;
+    background: rgba(157,0,255,.18);
+    border: 1px solid rgba(157,0,255,.3);
+    display: flex; align-items: center; justify-content: center;
+    font-size: .85rem; color: #c084fc;
+}
+.login-benefit-text { display: flex; flex-direction: column; gap: 1px; }
+.login-benefit-label { font-size: .78rem; font-weight: 800; color: rgba(255,255,255,.85); }
+.login-benefit-sub   { font-size: .63rem; color: rgba(255,255,255,.35); }
+
+.login-stats { display: flex; gap: 28px; }
+.login-stat  { display: flex; flex-direction: column; gap: 1px; }
+.login-stat-num {
+    font-size: 1.6rem; font-weight: 900; letter-spacing: -.04em;
+    background: linear-gradient(135deg, #fff 40%, rgba(157,0,255,.8));
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+}
+.login-stat-lbl { font-size: .58rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: rgba(255,255,255,.3); }
+
+/* ── Form solto, sem fundo, sem card ── */
+.login-form-side {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    max-width: 360px;
+    flex-shrink: 0;
+}
+
+.login-card-title {
+    font-size: 1.5rem;
+    font-weight: 900;
+    letter-spacing: -.03em;
+    color: #fff;
+    margin-bottom: 4px;
+}
+.login-card-sub {
+    font-size: .75rem;
+    color: rgba(255,255,255,.35);
+    margin-bottom: 24px;
+}
+
+.login-google-wrap {
+    width: 100%;
+    display: flex;
+    justify-content: flex-start;
+    margin-bottom: 4px;
+}
+
+.login-divider {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 18px 0;
+}
+.login-divider span {
+    font-size: .6rem; font-weight: 700; letter-spacing: .12em;
+    text-transform: uppercase; color: rgba(255,255,255,.2); white-space: nowrap;
+}
+.login-divider::before, .login-divider::after {
+    content: ''; flex: 1; height: 1px; background: rgba(255,255,255,.08);
+}
+
+.login-field { position: relative; margin-bottom: 14px; }
+.login-field label {
+    display: block; font-size: .62rem; font-weight: 700;
+    letter-spacing: .1em; text-transform: uppercase;
+    color: rgba(255,255,255,.4); margin-bottom: 6px;
+}
+.login-field input {
+    width: 100%;
+    background: rgba(255,255,255,.06);
+    border: 1px solid rgba(255,255,255,.12);
+    border-radius: 12px;
+    padding: 13px 16px 13px 44px;
+    color: #fff; font-size: .875rem; font-family: inherit;
+    outline: none;
+    transition: border-color .2s, background .2s, box-shadow .2s;
+}
+.login-field input:focus {
+    border-color: rgba(157,0,255,.6);
+    background: rgba(157,0,255,.08);
+    box-shadow: 0 0 0 3px rgba(157,0,255,.14);
+}
+.login-field input::placeholder { color: rgba(255,255,255,.2); }
+.login-field-icon {
+    position: absolute; left: 14px; top: 38px;
+    color: rgba(255,255,255,.25); font-size: .8rem;
+    pointer-events: none; transition: color .2s;
+}
+.login-field input:focus ~ .login-field-icon { color: rgba(157,0,255,.7); }
+
+.login-pwd-toggle {
+    position: absolute; right: 14px; top: 36px;
+    color: rgba(255,255,255,.25); font-size: .8rem;
+    cursor: pointer; padding: 2px 4px; transition: color .2s;
+}
+.login-pwd-toggle:hover { color: rgba(255,255,255,.7); }
+
+.login-forgot {
+    font-size: .65rem; font-weight: 700; letter-spacing: .06em;
+    color: rgba(157,0,255,.8); text-decoration: none;
+    transition: color .2s; display: block;
+    text-align: right; margin-bottom: 18px; margin-top: 6px;
+}
+.login-forgot:hover { color: #c084fc; }
+
+.login-submit {
+    width: 100%; padding: 14px; border-radius: 12px;
+    font-size: .875rem; font-weight: 800; letter-spacing: .04em;
+    color: #fff; background: linear-gradient(135deg, #7c3aed, #9d00ff);
+    border: none; cursor: pointer;
+    transition: transform .15s, box-shadow .2s, filter .2s;
+    box-shadow: 0 8px 24px rgba(157,0,255,.35);
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    margin-top: 20px; position: relative; overflow: hidden;
+}
+.login-submit::after {
+    content: ''; position: absolute; inset: 0;
+    background: linear-gradient(135deg, rgba(255,255,255,.12), transparent);
+    border-radius: 12px;
+}
+.login-submit:hover { transform: translateY(-1px); box-shadow: 0 12px 32px rgba(157,0,255,.5); filter: brightness(1.08); }
+.login-submit:active { transform: translateY(0); }
+
+.login-register {
+    text-align: left; margin-top: 16px;
+    font-size: .75rem; color: rgba(255,255,255,.3);
+}
+.login-register a { color: #c084fc; font-weight: 700; text-decoration: none; transition: color .2s; }
+.login-register a:hover { color: #fff; }
+
+.login-footer-links {
+    display: flex; gap: 20px; margin-top: 28px;
+}
+.login-footer-links a {
+    font-size: .58rem; font-weight: 700; letter-spacing: .1em;
+    text-transform: uppercase; color: rgba(255,255,255,.18);
+    text-decoration: none; transition: color .2s;
+}
+.login-footer-links a:hover { color: rgba(255,255,255,.5); }
+</style>
+
+<!-- ── Poster wall (full bg) ── -->
+<div class="login-poster-wall" id="loginPosterWall" aria-hidden="true"></div>
+<div class="login-left-orb" style="width:500px;height:500px;background:rgba(120,0,255,.15);top:-120px;left:-100px;"></div>
+<div class="login-left-orb" style="width:300px;height:300px;background:rgba(59,130,246,.1);bottom:-60px;right:20%;"></div>
+<div class="login-left-overlay"></div>
+<div class="login-left-scanlines"></div>
+
+<!-- ── Content row: benefits + form lado a lado ── -->
+<div class="login-content-row">
+
+    <!-- Benefícios -->
+    <div class="login-benefits">
+        <div class="login-benefits-logo">HBO<span>+</span></div>
+        <div class="login-benefits-tagline">Onde as histórias ganham vida</div>
+        <div class="login-benefits-headline">Tudo que você<br>ama em um só <span>lugar</span></div>
+        <div class="login-benefits-desc">Acesse milhares de filmes, séries e conteúdo exclusivo com qualidade 4K e múltiplos perfis.</div>
+        <div class="login-benefit-list">
+            <div class="login-benefit-item">
+                <div class="login-benefit-icon"><i class="fas fa-bolt"></i></div>
+                <div class="login-benefit-text">
+                    <span class="login-benefit-label">Streaming 4K Ultra HD</span>
+                    <span class="login-benefit-sub">Qualidade máxima em todos os dispositivos</span>
                 </div>
             </div>
-
-            <!-- Formulário Email/Senha -->
-            <form id="emailLoginForm" class="space-y-4">
-                <div>
-                    <label for="loginEmail" class="block text-sm font-medium text-gray-400 mb-1">E-mail</label>
-                    <input type="email" id="loginEmail" required
-                        class="w-full bg-white/5 border border-gray-700 rounded-lg py-3 px-4 text-white focus:outline-none focus:border-purple-500 transition-all"
-                        placeholder="nome@exemplo.com">
+            <div class="login-benefit-item">
+                <div class="login-benefit-icon"><i class="fas fa-users"></i></div>
+                <div class="login-benefit-text">
+                    <span class="login-benefit-label">Múltiplos Perfis</span>
+                    <span class="login-benefit-sub">Personalize para cada membro da família</span>
                 </div>
-
-                <div>
-                    <div class="flex justify-between mb-1">
-                        <label for="loginPassword" class="block text-sm font-medium text-gray-400">Senha</label>
-                        <a href="#" onclick="openPasswordRecoveryModal(); return false;" class="text-xs text-purple-400 hover:text-purple-300">Esqueceu a senha?</a>
-                    </div>
-                    <input type="password" id="loginPassword" required
-                        class="w-full bg-white/5 border border-gray-700 rounded-lg py-3 px-4 text-white focus:outline-none focus:border-purple-500 transition-all"
-                        placeholder="••••••••">
+            </div>
+            <div class="login-benefit-item">
+                <div class="login-benefit-icon"><i class="fas fa-child"></i></div>
+                <div class="login-benefit-text">
+                    <span class="login-benefit-label">Modo Kids Protegido</span>
+                    <span class="login-benefit-sub">Conteúdo seguro com controlo parental</span>
                 </div>
+            </div>
+            <div class="login-benefit-item">
+                <div class="login-benefit-icon"><i class="fas fa-film"></i></div>
+                <div class="login-benefit-text">
+                    <span class="login-benefit-label">1000+ Títulos</span>
+                    <span class="login-benefit-sub">Filmes, séries e exclusivos originais</span>
+                </div>
+            </div>
+        </div>
+        <div class="login-stats">
+            <div class="login-stat"><span class="login-stat-num">1K+</span><span class="login-stat-lbl">Títulos</span></div>
+            <div class="login-stat"><span class="login-stat-num">4K</span><span class="login-stat-lbl">Qualidade</span></div>
+            <div class="login-stat"><span class="login-stat-num">5</span><span class="login-stat-lbl">Perfis</span></div>
+        </div>
+    </div>
 
-                <button type="submit" id="loginSubmitBtn" class="w-full py-3 rounded-lg font-semibold text-white mt-6 bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-700 hover:to-purple-600 transition-all flex items-center justify-center gap-2">
+    <!-- Form solto, sem card, sem fundo -->
+    <div class="login-form-side">
+
+        <!-- PAINEL LOGIN -->
+        <div id="loginPanel">
+            <div class="login-card-title">Bem-vindo de volta</div>
+            <div class="login-card-sub">Acesse sua conta para continuar</div>
+
+            <div class="login-google-wrap">
+                <div id="googleSignInBtn"></div>
+            </div>
+
+            <div class="login-divider"><span>ou com e-mail</span></div>
+
+            <form id="emailLoginForm">
+                <div class="login-field">
+                    <label for="loginEmail">E-mail</label>
+                    <input type="email" id="loginEmail" required placeholder="nome@exemplo.com" autocomplete="email">
+                    <i class="fas fa-envelope login-field-icon"></i>
+                </div>
+                <div class="login-field" style="margin-bottom:6px;">
+                    <label for="loginPassword">Senha</label>
+                    <input type="password" id="loginPassword" required placeholder="••••••••" autocomplete="current-password">
+                    <i class="fas fa-lock login-field-icon"></i>
+                    <span class="login-pwd-toggle" onclick="
+                        var inp=document.getElementById('loginPassword');
+                        var ic=this.querySelector('i');
+                        if(inp.type==='password'){inp.type='text';ic.className='fas fa-eye-slash';}
+                        else{inp.type='password';ic.className='fas fa-eye';}
+                    "><i class="fas fa-eye"></i></span>
+                </div>
+                <a href="#" onclick="openPasswordRecoveryModal(); return false;" class="login-forgot">Esqueceu a senha?</a>
+                <button type="submit" id="loginSubmitBtn" class="login-submit">
                     <span id="loginBtnText">Entrar</span>
                     <i id="loginSpinner" class="fas fa-spinner fa-spin hidden"></i>
+                    <i class="fas fa-arrow-right" id="loginArrow"></i>
                 </button>
             </form>
 
-            <p class="text-center text-gray-500 text-sm mt-8">
-                Ao entrar, você concorda com nossos
-                <a href="#" class="text-purple-400 hover:text-purple-300">Termos de Serviço</a> e
-                <a href="#" class="text-purple-400 hover:text-purple-300">Política de Privacidade</a>.
-            </p>
+            <div class="login-register">
+                Não tem conta? <a href="#" onclick="switchToRegister(); return false;">Criar conta grátis</a>
+            </div>
 
-            <p class="text-center text-gray-500 text-sm mt-4">
-                Não tem uma conta?
-                <a href="#" onclick="openRegistrationModal(); return false;" class="text-purple-400 hover:text-purple-300 font-semibold">Criar conta</a>
-            </p>
+            <div class="login-footer-links">
+                <a href="#">Privacidade</a>
+                <a href="#">Termos de Uso</a>
+                <a href="#">Ajuda</a>
+            </div>
         </div>
 
-        <div class="mt-12 flex justify-center gap-6 text-xs text-gray-600 uppercase tracking-widest">
-            <a href="#" class="hover:text-gray-400">Privacidade</a>
-            <a href="#" class="hover:text-gray-400">Termos de Uso</a>
-            <a href="#" class="hover:text-gray-400">Ajuda</a>
+        <!-- PAINEL REGISTRO -->
+        <div id="registerPanel" style="display:none;">
+            <div class="login-card-title">Criar conta</div>
+            <div class="login-card-sub">Preencha os dados para começar</div>
+
+            <!-- Step 1: dados -->
+            <div id="regInlineStep1">
+                <div class="login-field">
+                    <label for="regInlineEmail">E-mail</label>
+                    <input type="email" id="regInlineEmail" required placeholder="nome@exemplo.com" autocomplete="email">
+                    <i class="fas fa-envelope login-field-icon"></i>
+                </div>
+                <div class="login-field">
+                    <label for="regInlinePassword">Senha</label>
+                    <input type="password" id="regInlinePassword" required placeholder="••••••••" oninput="validateInlineRegPassword()">
+                    <i class="fas fa-lock login-field-icon"></i>
+                    <span class="login-pwd-toggle" onclick="
+                        var i=document.getElementById('regInlinePassword');
+                        var ic=this.querySelector('i');
+                        if(i.type==='password'){i.type='text';ic.className='fas fa-eye-slash';}
+                        else{i.type='password';ic.className='fas fa-eye';}
+                    "><i class="fas fa-eye"></i></span>
+                    <div style="display:flex;gap:4px;margin-top:8px;height:4px;">
+                        <div id="inlineStrength-1" class="reg-strength-bar"></div>
+                        <div id="inlineStrength-2" class="reg-strength-bar"></div>
+                        <div id="inlineStrength-3" class="reg-strength-bar"></div>
+                    </div>
+                    <div id="inlineStrengthText" class="reg-strength-text">Força da senha</div>
+                    <div id="inlineReqs" class="reg-reqs" style="margin-top:8px;">
+                        <div id="inlineReq-length"   class="reg-req"><i class="fas fa-circle"></i><span>Mínimo 8 caracteres</span></div>
+                        <div id="inlineReq-upper"    class="reg-req"><i class="fas fa-circle"></i><span>Pelo menos uma maiúscula</span></div>
+                        <div id="inlineReq-lower"    class="reg-req"><i class="fas fa-circle"></i><span>Pelo menos uma minúscula</span></div>
+                        <div id="inlineReq-number"   class="reg-req"><i class="fas fa-circle"></i><span>Pelo menos um número</span></div>
+                        <div id="inlineReq-special"  class="reg-req"><i class="fas fa-circle"></i><span>Pelo menos um especial (!@#$%^&*)</span></div>
+                    </div>
+                </div>
+                <div class="login-field" style="margin-bottom:6px;">
+                    <label for="regInlineConfirm">Confirmar senha</label>
+                    <input type="password" id="regInlineConfirm" required placeholder="••••••••">
+                    <i class="fas fa-lock login-field-icon"></i>
+                </div>
+                <button onclick="sendInlineRegistrationCode()" class="login-submit" style="margin-top:20px;">
+                    <span>Enviar código</span>
+                    <i class="fas fa-arrow-right"></i>
+                </button>
+            </div>
+
+            <!-- Step 2: código -->
+            <div id="regInlineStep2" style="display:none;">
+                <div class="login-card-sub" style="margin-bottom:6px;">Enviamos um código para:</div>
+                <div id="regInlineEmailDisplay" style="font-size:.85rem;font-weight:800;color:#c084fc;margin-bottom:24px;"></div>
+                <div class="login-field">
+                    <label for="regInlineCode">Código de verificação</label>
+                    <input type="text" id="regInlineCode" maxlength="6" placeholder="000000" style="text-align:center;font-size:1.4rem;font-weight:900;letter-spacing:.25em;">
+                    <i class="fas fa-shield-alt login-field-icon"></i>
+                </div>
+                <button onclick="verifyInlineRegistrationCode()" class="login-submit" style="margin-top:20px;">
+                    <span>Criar conta</span>
+                    <i class="fas fa-check"></i>
+                </button>
+                <button onclick="resendInlineCode()" class="login-forgot" style="float:none;display:block;margin-top:12px;text-align:center;">Reenviar código</button>
+            </div>
+
+            <div class="login-register" style="margin-top:16px;">
+                Já tem conta? <a href="#" onclick="switchToLogin(); return false;">Entrar</a>
+            </div>
+
+            <div class="login-footer-links">
+                <a href="#">Privacidade</a>
+                <a href="#">Termos de Uso</a>
+                <a href="#">Ajuda</a>
+            </div>
         </div>
+
     </div>
 
-    <style>
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(20px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
+</div>
+<script>
+/* ── Build login poster-wall (same as profile picker) ── */
+(function(){
+    const posters = [
+        'https://image.tmdb.org/t/p/w185/d5iIlFn5s0ImszYzBPb8JPIfbXD.jpg',
+        'https://image.tmdb.org/t/p/w185/rCzpDGLbOoPwLjy3OAm5NUPOTrC.jpg',
+        'https://image.tmdb.org/t/p/w185/9gk7adHYeDvHkCSEqAvQNLV5Uge.jpg',
+        'https://image.tmdb.org/t/p/w185/A3ZbZsmsvNGdprRi2lKgGEeVLEH.jpg',
+        'https://image.tmdb.org/t/p/w185/49WJfeN0moxb9IPfGn8AIqMGskD.jpg',
+        'https://image.tmdb.org/t/p/w185/8Gxv8gSFCU0XGDykEGv7zR1n2ua.jpg',
+        'https://image.tmdb.org/t/p/w185/1g0dhYtq4irTY1GPXvft6k4YLjm.jpg',
+        'https://image.tmdb.org/t/p/w185/pB8BM7pdSp6B6Ih7QZ4DrQ3PmJK.jpg',
+        'https://image.tmdb.org/t/p/w185/q6y0Go1tsGEsmtFryDOJo3dEmqu.jpg',
+        'https://image.tmdb.org/t/p/w185/3bhkrj58Vtu7enYsLegHnDmni2.jpg',
+        'https://image.tmdb.org/t/p/w185/oYuLEt3zVCKq57qu2F8dT7NIa6f.jpg',
+        'https://image.tmdb.org/t/p/w185/39wmItIWsg5sZMyRUHLkWBcuVCM.jpg',
+        'https://image.tmdb.org/t/p/w185/hYZ4a0JvPETdfgJJ5oE0GqPSybG.jpg',
+        'https://image.tmdb.org/t/p/w185/pFlaoHTZeyNkG83vxsAJiGzfSsa.jpg',
+        'https://image.tmdb.org/t/p/w185/f89U3ADr1oiB1s9GkdPOEpXUk5H.jpg',
+        'https://image.tmdb.org/t/p/w185/r2J02Z2OpNTctfOSN1Ydgii51I3.jpg',
+        'https://image.tmdb.org/t/p/w185/7IiTTgloROVKOXbs1ICm7Z0UkEq.jpg',
+        'https://image.tmdb.org/t/p/w185/5YZbUmjbMa3ClvSW1Wj3D6XGkVA.jpg',
+        'https://image.tmdb.org/t/p/w185/uXDfjJbdP4ijW5hWSBrPl9KcertE.jpg',
+        'https://image.tmdb.org/t/p/w185/mDbwQ75Ap2uqQdFDTlNSFfRNLqp.jpg',
+    ];
+    const wall = document.getElementById('loginPosterWall');
+    if (!wall) return;
+    const leftW = window.innerWidth;
+    const COLS = Math.ceil(leftW / 96) + 2;
+    for (let c = 0; c < COLS; c++) {
+        const col = document.createElement('div');
+        col.className = 'login-poster-col' + (c % 2 === 0 ? '' : ' reverse');
+        col.style.left = (c * 96) + 'px';
+        col.style.animationDuration = (22 + c * 3) + 's';
+        const shuffled = [...posters].sort(() => Math.random() - .5);
+        const items = [...shuffled, ...shuffled];
+        items.forEach(src => {
+            const div = document.createElement('div');
+            div.className = 'login-poster-img';
+            const hue = Math.floor(Math.random() * 360);
+            div.style.background = `hsl(${hue},20%,10%)`;
+            div.style.backgroundSize = 'cover';
+            div.style.backgroundPosition = 'center';
+            const probe = new Image();
+            probe.onload = () => { div.style.backgroundImage = `url('${src}')`; };
+            probe.src = src;
+            col.appendChild(div);
+        });
+        wall.appendChild(col);
+    }
+})();
+</script>
 
-        .animate-fade-in {
-            animation: fadeIn 0.8s ease-out forwards;
-        }
-    </style>
 </div>
 
 <!-- ══ HOME ══ -->
@@ -1938,6 +2834,24 @@
             <button onclick="history.back()" class="flex items-center gap-2 text-gray-400 hover:text-white transition mb-6 text-sm font-bold mx-auto"><i class="fas fa-arrow-left"></i> Voltar</button>
             <h2 class="text-4xl md:text-5xl font-extrabold mb-4 tracking-tight">O que queres sentir hoje?</h2>
             <p class="text-gray-400 text-lg max-w-xl mx-auto">Escolhe um universo e começa a tua próxima grande aventura.</p>
+
+            <!-- Stats bar decorativa -->
+            <div class="flex justify-center gap-8 mt-8 flex-wrap">
+                <div class="flex flex-col items-center gap-1">
+                    <span class="text-2xl font-black text-white">12</span>
+                    <span class="text-[10px] font-bold uppercase tracking-widest text-gray-500">Gêneros</span>
+                </div>
+                <div class="w-px h-10 bg-white/10 self-center hidden sm:block"></div>
+                <div class="flex flex-col items-center gap-1">
+                    <span class="text-2xl font-black text-white">1000<span class="text-purple-400">+</span></span>
+                    <span class="text-[10px] font-bold uppercase tracking-widest text-gray-500">Títulos</span>
+                </div>
+                <div class="w-px h-10 bg-white/10 self-center hidden sm:block"></div>
+                <div class="flex flex-col items-center gap-1">
+                    <span class="text-2xl font-black text-white">4K</span>
+                    <span class="text-[10px] font-bold uppercase tracking-widest text-gray-500">Qualidade</span>
+                </div>
+            </div>
         </header>
 
         <!-- Genre Grid -->
@@ -1946,10 +2860,11 @@
         </div>
 
         <!-- Random Mode Button -->
-        <footer class="mt-12 md:mt-16 flex justify-center">
+        <footer class="mt-12 md:mt-16 flex flex-col items-center gap-4">
             <button onclick="loadRandomGenre()" class="genre-random-btn px-10 py-4 rounded-full font-bold text-white flex items-center gap-3">
                 <i class="fas fa-dice"></i> MODO ALEATÓRIO
             </button>
+            <p class="text-[11px] text-gray-600 uppercase tracking-widest">Deixa o destino escolher por ti</p>
         </footer>
     </div>
 </div>
@@ -2222,19 +3137,20 @@ let recoveryEmail = null;
 function openPasswordRecoveryModal() {
     const modal = document.getElementById('passwordRecoveryModal');
     modal.classList.remove('hidden');
-    modal.classList.add('flex');
-    
-    // Reset to step 1
-    document.getElementById('recoveryStep1').classList.remove('hidden');
-    document.getElementById('recoveryStep2').classList.add('hidden');
-    document.getElementById('recoveryStep3').classList.add('hidden');
+    modal.style.display = 'flex';
+    document.getElementById('recoveryStep1').style.display = '';
+    document.getElementById('recoveryStep2').style.display = 'none';
+    document.getElementById('recoveryStep3').style.display = 'none';
     document.getElementById('recoveryEmail').value = '';
+    // Gera posters se ainda não gerou
+    const wall = document.getElementById('recoveryPosterWall');
+    if (wall && !wall.childElementCount) buildRecoveryPosters(wall);
 }
 
 function closePasswordRecoveryModal() {
     const modal = document.getElementById('passwordRecoveryModal');
     modal.classList.add('hidden');
-    modal.classList.remove('flex');
+    modal.style.display = '';
     recoveryEmail = null;
 }
 
@@ -2257,8 +3173,8 @@ async function sendRecoveryCode() {
         if (data.success) {
             recoveryEmail = email;
             document.getElementById('recoveryEmailDisplay').textContent = email;
-            document.getElementById('recoveryStep1').classList.add('hidden');
-            document.getElementById('recoveryStep2').classList.remove('hidden');
+            document.getElementById('recoveryStep1').style.display='none';
+            document.getElementById('recoveryStep2').style.display='';
             showToast('success', 'Código enviado', 'Código de recuperação enviado para ' + email);
         } else {
             showToast('error', 'Erro ao enviar', data.error || 'Erro ao enviar código de recuperação.');
@@ -2287,8 +3203,8 @@ async function verifyRecoveryCode() {
 
         if (data.success) {
             document.getElementById('currentPasswordDisplay').textContent = data.current_password;
-            document.getElementById('recoveryStep2').classList.add('hidden');
-            document.getElementById('recoveryStep3').classList.remove('hidden');
+            document.getElementById('recoveryStep2').style.display='none';
+            document.getElementById('recoveryStep3').style.display='';
             showToast('success', 'Código verificado', 'Código verificado com sucesso.');
         } else {
             showToast('error', 'Erro na verificação', data.error || 'Erro ao verificar código.');
@@ -2638,6 +3554,154 @@ async function resendRegistrationCode() {
     }
 }
 
+// ── Inline register (troca no mesmo painel, sem modal) ──────────────────────
+function switchToRegister() {
+    document.getElementById('loginPanel').style.display = 'none';
+    document.getElementById('registerPanel').style.display = '';
+    document.getElementById('regInlineStep1').style.display = '';
+    document.getElementById('regInlineStep2').style.display = 'none';
+    document.getElementById('regInlineEmail').value = '';
+    document.getElementById('regInlinePassword').value = '';
+    document.getElementById('regInlineConfirm').value = '';
+}
+
+function switchToLogin() {
+    document.getElementById('registerPanel').style.display = 'none';
+    document.getElementById('loginPanel').style.display = '';
+}
+
+function validateInlineRegPassword() {
+    const password = document.getElementById('regInlinePassword').value;
+    const bars = [
+        document.getElementById('inlineStrength-1'),
+        document.getElementById('inlineStrength-2'),
+        document.getElementById('inlineStrength-3'),
+    ];
+    const txt = document.getElementById('inlineStrengthText');
+
+    // Mesmos critérios que o servidor usa
+    const checks = {
+        length:   password.length >= 8,
+        upper:    /[A-Z]/.test(password),
+        lower:    /[a-z]/.test(password),
+        number:   /[0-9]/.test(password),
+        special:  /[!@#$%^&*(),.?":{}|<>]/.test(password),
+    };
+
+    // Atualiza cada requisito visualmente
+    const ids = { length: 'inlineReq-length', upper: 'inlineReq-upper', lower: 'inlineReq-lower', number: 'inlineReq-number', special: 'inlineReq-special' };
+    for (const [key, ok] of Object.entries(checks)) {
+        const el = document.getElementById(ids[key]);
+        if (el) {
+            el.classList.toggle('ok', ok);
+            const icon = el.querySelector('i');
+            if (icon) icon.className = ok ? 'fas fa-check-circle' : 'fas fa-circle';
+        }
+    }
+
+    const score = Object.values(checks).filter(Boolean).length;
+    bars.forEach(b => b.style.background = 'rgba(255,255,255,.1)');
+    if (score <= 2) {
+        bars[0].style.background = '#ef4444';
+        txt.textContent = 'Fraca'; txt.style.color = '#ef4444';
+    } else if (score <= 4) {
+        bars[0].style.background = '#f59e0b';
+        bars[1].style.background = '#f59e0b';
+        txt.textContent = 'Média'; txt.style.color = '#f59e0b';
+    } else {
+        bars.forEach(b => b.style.background = '#4ade80');
+        txt.textContent = 'Forte'; txt.style.color = '#4ade80';
+    }
+}
+
+let _regVerificationToken = null;
+
+async function sendInlineRegistrationCode() {
+    const email = document.getElementById('regInlineEmail').value.trim();
+    const password = document.getElementById('regInlinePassword').value;
+    const confirm = document.getElementById('regInlineConfirm').value;
+
+    if (!email || !password || !confirm) {
+        showToast('warning', 'Campos obrigatórios', 'Por favor, preencha todos os campos.');
+        return;
+    }
+    if (password !== confirm) {
+        showToast('warning', 'Senhas não conferem', 'A senha e a confirmação devem ser iguais.');
+        return;
+    }
+    if (password.length < 8) {
+        showToast('warning', 'Senha muito curta', 'A senha deve ter pelo menos 8 caracteres.');
+        return;
+    }
+
+    regEmail = email;
+    regPassword = password;
+
+    try {
+        const r = await fetch(`${AUTH_API}/auth/email`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password })
+        });
+        const data = await r.json();
+        if (data.success) {
+            _regVerificationToken = data.verification_token;
+            document.getElementById('regInlineEmailDisplay').textContent = email;
+            document.getElementById('regInlineStep1').style.display = 'none';
+            document.getElementById('regInlineStep2').style.display = '';
+            showToast('success', 'Código enviado', 'Verifique seu email.');
+        } else {
+            showToast('error', 'Erro', data.error || 'Erro ao enviar código.');
+        }
+    } catch (e) {
+        showToast('error', 'Erro', 'Erro ao enviar código: ' + e.message);
+    }
+}
+
+async function verifyInlineRegistrationCode() {
+    const code = document.getElementById('regInlineCode').value.trim();
+    if (!code) {
+        showToast('warning', 'Código obrigatório', 'Digite o código de verificação.');
+        return;
+    }
+    try {
+        const r = await fetch(`${AUTH_API}/auth/verify-code`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: regEmail, code, verification_token: _regVerificationToken })
+        });
+        const data = await r.json();
+        if (data.success) {
+            _regVerificationToken = null;
+            showToast('success', 'Conta criada! 🎉', 'Agora faça o login para entrar.');
+            setTimeout(() => { switchToLogin(); }, 1500);
+        } else {
+            showToast('error', 'Erro', data.error || 'Código inválido.');
+        }
+    } catch (e) {
+        showToast('error', 'Erro', 'Erro ao verificar código: ' + e.message);
+    }
+}
+
+async function resendInlineCode() {
+    try {
+        const r = await fetch(`${AUTH_API}/auth/email`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: regEmail, password: regPassword })
+        });
+        const data = await r.json();
+        if (data.success) {
+            _regVerificationToken = data.verification_token;
+            showToast('success', 'Código reenviado', 'Verifique seu email.');
+        } else {
+            showToast('error', 'Erro', data.error || 'Erro ao reenviar.');
+        }
+    } catch (e) {
+        showToast('error', 'Erro', 'Erro ao reenviar: ' + e.message);
+    }
+}
+
 // ── Profile Functions ─────────────────────────────────────────────────────────
 let kidsModeEnabled = false;
 let newProfileKidsMode = false;
@@ -2917,6 +3981,39 @@ function loadProfiles() {
 
 function saveProfiles() {
     localStorage.setItem('profiles', JSON.stringify(profiles));
+    // Sincroniza com o servidor se autenticado
+    if (authToken) {
+        fetch(`${AUTH_API}/profiles`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${authToken}`
+            },
+            body: JSON.stringify({ profiles })
+        }).catch(() => {}); // fire-and-forget, sem bloquear UI
+    }
+}
+
+async function syncProfilesFromServer() {
+    if (!authToken) return;
+    try {
+        const r = await fetch(`${AUTH_API}/profiles`, {
+            headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        if (!r.ok) return;
+        const data = await r.json();
+        if (data.profiles && Array.isArray(data.profiles) && data.profiles.length > 0) {
+            profiles = data.profiles;
+            localStorage.setItem('profiles', JSON.stringify(profiles));
+            // Re-renderiza o picker se estiver visível
+            const pickerSection = document.getElementById('section-profile-picker');
+            if (pickerSection && !pickerSection.classList.contains('hidden')) {
+                renderProfilePicker();
+            }
+        }
+    } catch (e) {
+        console.warn('[profiles] Falha ao sincronizar com o servidor:', e);
+    }
 }
 
 function renderProfilePicker() {
@@ -3790,6 +4887,7 @@ async function checkAuth() {
                 }
 
                 updateUserUI(currentUser);
+                syncProfilesFromServer(); // puxa perfis da conta
                 return true;
             }
         }
@@ -3978,6 +5076,7 @@ async function verifyEmailCode() {
             currentUser = data.user;
             authToken = data.token;
             updateUserUI(currentUser);
+            syncProfilesFromServer();
             closeEmailVerificationModal();
             showSection('home');
             openSuccessModal(data.user);
@@ -4096,6 +5195,7 @@ async function handleCredentialResponse(response) {
             currentUser = data.user;
             authToken = data.token;
             updateUserUI(currentUser);
+            syncProfilesFromServer();
             showSection('home');
             openSuccessModal(data.user);
         } else {
@@ -4206,58 +5306,31 @@ document.getElementById('emailLoginForm').addEventListener('submit', async funct
     loginBtnText.textContent = 'Processando...';
     loginSpinner.classList.remove('hidden');
 
-    const url = `${AUTH_API}/auth/email`;
-    console.log('[DEBUG] URL do login:', url);
-    console.log('[DEBUG] AUTH_API:', AUTH_API);
-
     try {
-        const r = await fetch(url, {
+        const r = await fetch(`${AUTH_API}/auth/login`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ email, password })
         });
 
-        console.log('[DEBUG] Resposta status:', r.status);
-
         const data = await r.json();
 
         if (data.success && data.token) {
-            // Login direto com token (fluxo sem verificação)
             localStorage.setItem('authToken', data.token);
-            currentUser = { email: data.email };
+            localStorage.setItem('userData', JSON.stringify(data.user));
+            currentUser = data.user;
             authToken = data.token;
             updateUserUI(currentUser);
             loadProfiles();
-            renderProfilePicker();
+            syncProfilesFromServer().then(() => renderProfilePicker());
             showSection('profile-picker');
             showToast('success', 'Login realizado', 'Bem-vindo de volta!');
-        } else if (data.success) {
-            // Fluxo de verificação por código — abrir modal
-            pendingEmail = email;
-            pendingVerificationToken = data.verification_token || null;
-            const modal = document.getElementById('emailVerificationModal');
-            const loginSection = document.getElementById('section-login');
-            if (loginSection) loginSection.classList.add('hidden');
-            if (modal) {
-                modal.classList.remove('hidden');
-                modal.classList.add('flex');
-                const emailSpan = modal.querySelector('[data-email]') || modal.querySelector('strong') || null;
-                if (emailSpan) emailSpan.textContent = email;
-                const codeInput = document.getElementById('verificationCode');
-                if (codeInput) { codeInput.value = ''; codeInput.focus(); }
-            }
         } else {
-            if (data.password_errors && data.password_errors.length > 0) {
-                showToast('error', 'Erro de validação', data.password_errors.join(' '));
-            } else {
-                showToast('error', 'Erro no login', data.error || 'Erro desconhecido ao fazer login.');
-            }
+            showToast('error', 'Erro no login', data.error || 'E-mail ou senha incorretos.');
         }
     } catch (e) {
-        console.error('Erro ao fazer login:', e);
-        showToast('error', 'Erro no login', 'Erro ao fazer login: ' + e.message + '. Verifique se o servidor está rodando.');
+        showToast('error', 'Erro no login', 'Não foi possível conectar ao servidor.');
     } finally {
-        // Reset button state
         loginBtn.disabled = false;
         loginBtnText.textContent = 'Entrar';
         loginSpinner.classList.add('hidden');
@@ -4818,10 +5891,21 @@ async function renderGenreCards() {
     if (!container) return;
 
     // Mostrar skeleton inicial
-    container.innerHTML = GENRE_CONFIG.map(genre => `
-        <div class="genre-card-new bg-gradient-to-br from-zinc-800 to-zinc-900" onclick="loadGenre('${genre.nome}','${genre.tipo}')">
+    container.innerHTML = GENRE_CONFIG.map((genre, idx) => {
+        const typeLabel = genre.tipo === 'tv' ? 'Séries' : genre.tipo === 'movie' ? 'Filmes' : 'Conteúdos';
+        const typeIcon  = genre.tipo === 'tv' ? 'fa-tv' : genre.tipo === 'movie' ? 'fa-film' : 'fa-photo-video';
+        return `
+        <div class="genre-card-new bg-gradient-to-br from-zinc-800 to-zinc-900" onclick="loadGenre('${genre.nome}','${genre.tipo}')" style="animation-delay:${idx * 0.05}s">
             <div class="genre-card-overlay"></div>
+            <!-- Big decorative icon -->
+            <div style="position:absolute;top:18px;right:18px;z-index:2;font-size:3rem;opacity:.18;filter:drop-shadow(0 0 12px rgba(157,0,255,.5));pointer-events:none;">
+                <i class="fas ${genre.icon}"></i>
+            </div>
             <div class="genre-card-content">
+                <!-- type badge -->
+                <div style="display:inline-flex;align-items:center;gap:5px;background:rgba(0,0,0,.5);border:1px solid rgba(255,255,255,.12);border-radius:99px;padding:3px 10px;margin-bottom:10px;font-size:.6rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.55);">
+                    <i class="fas ${typeIcon}" style="font-size:.55rem;"></i>${typeLabel}
+                </div>
                 <h3 class="genre-title-new">${genre.nome}</h3>
                 <div class="genre-desc-new">
                     <i class="fas ${genre.icon}"></i>
@@ -4829,7 +5913,7 @@ async function renderGenreCards() {
                 </div>
             </div>
         </div>
-    `).join('');
+    `}).join('');
 
     // Carregar imagens em paralelo
     const imagePromises = GENRE_CONFIG.map(async (genre) => {
@@ -4859,6 +5943,9 @@ async function renderGenreCards() {
             imgDiv.className = 'genre-card-image';
             imgDiv.style.backgroundImage = `url('${imageUrl}')`;
             card.insertBefore(imgDiv, card.firstChild);
+            // darken overlay more when image present
+            const overlay = card.querySelector('.genre-card-overlay');
+            if (overlay) overlay.style.background = 'linear-gradient(to top, rgba(0,0,0,0.97) 0%, rgba(0,0,0,0.55) 50%, rgba(0,0,0,0.25) 100%)';
         }
     });
 }
@@ -5786,12 +6873,22 @@ window.addEventListener('scroll', () => {
 
 // ── Anti-Ad / Anti-Redirect Block ─────────────────────────────────────────────
 (function() {
-    // 1) Bloqueia window.open chamado de scripts da MESMA origem (injeções no DOM)
+    // Domínios permitidos pelo window.open (players legítimos + auth Google)
+    const ALLOWED_OPEN = [
+        'youtube-nocookie.com',
+        'youtube.com',
+        'accounts.google.com',  // Google OAuth popup
+        'google.com/o/',        // Google OAuth redirect
+    ];
+
+    // 1) Bloqueia window.open — exceto domínios legítimos (player + Google auth)
     const _origOpen = window.open;
     window.open = function(url, name, specs) {
         if (!url || url === 'about:blank') return null;
-        if (typeof url === 'string' && url.includes('youtube-nocookie.com')) {
-            return _origOpen.call(window, url, name, specs);
+        if (typeof url === 'string') {
+            if (ALLOWED_OPEN.some(d => url.includes(d))) {
+                return _origOpen.call(window, url, name, specs);
+            }
         }
         console.warn('[AdBlock] window.open bloqueado:', url);
         return null;
@@ -5802,7 +6899,7 @@ window.addEventListener('scroll', () => {
     Element.prototype.appendChild = function(node) {
         if (node && node.tagName === 'IFRAME' && !node.id) {
             const src = node.src || node.getAttribute('src') || '';
-            if (src && !src.includes('youtube') && !src.includes('googleapis')) {
+            if (src && !src.includes('youtube') && !src.includes('googleapis') && !src.includes('accounts.google.com') && !src.includes('google.com/o/')) {
                 console.warn('[AdBlock] iframe ad bloqueado:', src);
                 return node;
             }
@@ -5813,7 +6910,7 @@ window.addEventListener('scroll', () => {
     Element.prototype.insertBefore = function(node, ref) {
         if (node && node.tagName === 'IFRAME' && !node.id) {
             const src = node.src || node.getAttribute('src') || '';
-            if (src && !src.includes('youtube') && !src.includes('googleapis')) {
+            if (src && !src.includes('youtube') && !src.includes('googleapis') && !src.includes('accounts.google.com') && !src.includes('google.com/o/')) {
                 console.warn('[AdBlock] iframe ad bloqueado (insertBefore):', src);
                 return node;
             }
@@ -5857,8 +6954,368 @@ window.addEventListener('scroll', () => {
     }, true);
 })();
 
-// Skeleton enquanto carrega
+// ══════════════════════════════════════════════════════════════════
+// FALLBACK DEMO — ativa automaticamente quando o servidor está offline
+// ══════════════════════════════════════════════════════════════════
+const DEMO_CATALOG = (function() {
+  const I = 'https://image.tmdb.org/t/p/w300';
+  const P = {
+    299536:'/7WsyChQLEftFiDOVTGkv3hFpyyt.jpg',299534:'/or06FN3Dka5tukK1e9sl16pB3iy.jpg',
+    19995:'/jRXYjXNq0Cs2TcJjLkki24MLp7u.jpg',24428:'/cezWGskPY5x7GaglTTRN4Fugfb8.jpg',
+    157336:'/gEU2QniE6E77NI6lCU6MxlNBvIx.jpg',330457:'/xvx4Yhf0DVH8G4LzNISpMfFBBy9.jpg',
+    284054:'/uxzzxijgPIY7slzFvMotPv8wjKA.jpg',438631:'/8tNFCSMHgLBFCFwqwiJSBqSATD2.jpg',
+    634649:'/4q2hz2m7hubCH2espnWdqGcxXIL.jpg',505642:'/1BIoJGFbsFXFleAf2CT3QqyUqkh.jpg',
+    76600:'/t6HIqrRAclMCA60NsSmeqe9RmNV.jpg',436270:'/bQXAqRx2Fgc46uCVWgoPz5L5Dtr.jpg',
+    823464:'/z1p34vh7dEOnLDmyCrlUVLuoDzd.jpg',298618:'/3AzfTH6OEgdoeMpJhMK79UW3tFX.jpg',
+    447365:'/qNBAXBIQlnOThrVvA6mA2B5ggkT.jpg',315162:'/kDp1vUBnMpe8ak4rjgl3cLELqjU.jpg',
+    348350:'/btkE8zyPl5C1AAQ8wxn9tSbF8mq.jpg',68721:'/2JJyOt5E8KpzBFuBZAkUMQaFTHx.jpg',
+    27205:'/6MKr3KgBGEBEE6JT5XHMwx5BKMS.jpg',155:'/qJ2tW6WMUDux911r6m7haRef0WH.jpg',
+    680:'/d5iIlFn5s0ImszYzBPb8JPIfbXD.jpg',238:'/3bhkrj58Vtu7enYsLegHnDmni3.jpg',
+    429:'/bCNSG0VdBPJXGp4aXBwHbRBHvMi.jpg',597:'/c7T9b2dGCeO8NJ9OreYKQHBe5NR.jpg',
+    603:'/F4g6QZqnWenCs4KLCgv0YdmTgGL.jpg',769:'/vOZM7StbM4zH00r3sIJJnw5kbYe.jpg',
+    78:'/nMKdUFyrkXgqbQfjEvOTMXBDEfz.jpg',335977:'/n6bUvigpRFqSwmPp1ZOR9b22fAi.jpg',
+    551271:'/jNSCLCVkJq7WnaIBHzSLn7pHHlL.jpg',
+  };
+  function mv(id,title,year,vote,desc){
+    return{tmdb_id:id,title,year,vote,desc:desc||'',tipo:'movie',
+      img:I+(P[id]||'/cezWGskPY5x7GaglTTRN4Fugfb8.jpg'),released:true,
+      player:`https://vidsrc-embed.ru/embed/movie/${id}`,
+      sources:[
+        {label:'VidSrc',url:`https://vidsrc-embed.ru/embed/movie/${id}`},
+        {label:'MoviesAPI',url:`https://moviesapi.club/movie/${id}`},
+        {label:'MultiEmbed',url:`https://multiembed.mov/directstream.php?video_id=${id}&tmdb=1`},
+        {label:'Rivestream',url:`https://rivestream.org/embed?type=movie&id=${id}`},
+      ]};
+  }
+  function tv(id,title,year,vote,desc,seasons){
+    const TP={
+      1396:'/ggFHVNu6YYI5L9pCfOacjizRGt.jpg',1399:'/u3bZgnGQ9T01sWNhyveQz0wH0Hl.jpg',
+      66732:'/49WJfeN0moxb9IPfGn8AIqMGskD.jpg',63174:'/6tfT03sGp9k4c0J3dypjrI8TSAI.jpg',
+      60574:'/czt8hrligTLaPTpH8ocfover1h.jpg',46952:'/tumaRsZkFfLhUJFNYpzP5TSXLWY.jpg',
+      1402:'/rqeYMLryjcAwh81ywTgn5sos9Cz.jpg',60625:'/4oBGnmr8LlAGLnWUiqVjhKHXp06.jpg',
+      76479:'/bsNm9z2TJfe0WO3RedPGWQ8mG1X.jpg',71446:'/sQFMtU8MBvhJgDxMZgQaokiPHrN.jpg',
+      84958:'/e2Id7dRTAFMB4GhkNKREkAnWzlL.jpg',93405:'/2Af6z1Gc6LMmBo7fQOWqMeYiJkG.jpg',
+      85552:'/57okJMs3kQDeR1fTSVBPNJJDiXN.jpg',37854:'/shu6YJx49kWJEyRSZuNPFLmcLlv.jpg',
+      80:'/c1RlsBMBTZt7BUSL8mHTGTPvdtA.jpg',1418:'/5FfzDuFPQuRobwAiVlYXFLjCPXm.jpg',
+    };
+    return{tmdb_id:id,title,year,vote,desc:desc||'',tipo:'tv',seasons:seasons||1,
+      img:I+(TP[id]||'/ggFHVNu6YYI5L9pCfOacjizRGt.jpg'),released:true,
+      player:`https://vidsrc-embed.ru/embed/tv/${id}/1-1`,
+      sources:[
+        {label:'VidSrc',url:`https://vidsrc-embed.ru/embed/tv/${id}/1-1`},
+        {label:'MoviesAPI',url:`https://moviesapi.club/tv/${id}-1-1`},
+        {label:'MultiEmbed',url:`https://multiembed.mov/directstream.php?video_id=${id}&tmdb=1&s=1&e=1`},
+        {label:'Rivestream',url:`https://rivestream.org/embed?type=tv&id=${id}&season=1&episode=1`},
+      ]};
+  }
+  return{
+    trending_movies:[
+      mv(299536,'Vingadores: Guerra Infinita','2018',8.3,'Os Vingadores se unem para impedir Thanos de colecionar as Joias do Infinito.'),
+      mv(299534,'Vingadores: Ultimato','2019',8.4,'Os heróis sobreviventes reúnem forças para reverter os estragos causados por Thanos.'),
+      mv(634649,'Homem-Aranha: Sem Volta Para Casa','2021',8.2,'Peter Parker enfrenta vilões de multiversos em uma aventura impossível.'),
+      mv(436270,'Black Adam','2022',6.8,'Antigo escravo egípcio liberta-se e se torna o poderoso Black Adam.'),
+      mv(823464,'Godzilla e Kong: O Novo Império','2024',6.2,'Godzilla e Kong se unem para enfrentar uma ameaça monumental do interior da Terra.'),
+      mv(76600,'Avatar: O Caminho da Água','2022',7.6,'Jake Sully e Neytiri formam uma família e enfrentam novas ameaças em Pandora.'),
+    ],
+    trending_series:[
+      tv(1399,'Game of Thrones','2011',8.3,'Famílias nobres travam batalha pelo controle do Trono de Ferro de Westeros.',8),
+      tv(66732,'Stranger Things','2016',8.7,'Um grupo de crianças enfrenta forças sobrenaturais em Hawkins, Indiana.',4),
+      tv(93405,'Squid Game','2021',7.7,'Pessoas endividadas competem em jogos mortais por um prêmio milionário.',2),
+      tv(71446,'La Casa de Papel','2017',8.2,'Um grupo de ladrões executa o maior assalto da história à Casa da Moeda Espanhola.',5),
+      tv(84958,'Loki','2021',8.2,'O deus da trapaça é recrutado para resolver anomalias no fluxo do tempo.',2),
+    ],
+    lancamentos:[
+      mv(447365,'Guardiões da Galáxia Vol. 3','2023',8.0,'Peter Quill e sua equipe embarcam em nova missão que ameaça o grupo.'),
+      mv(315162,'Puss in Boots: O Último Desejo','2022',7.9,'O Gato de Botas descobre que desperdiçou 8 das 9 vidas e parte em busca da última.'),
+      mv(505642,'Pantera Negra: Wakanda para Sempre','2022',7.3,'O povo de Wakanda honra o legado do Rei T\'Challa enquanto enfrenta nova ameaça.'),
+      mv(438631,'Duna','2021',7.9,'Um jovem nobre assume o destino de seu povo em um planeta desértico extremamente valioso.'),
+      mv(298618,'The Flash','2023',6.7,'Barry Allen viaja no tempo e cria um universo alternativo perigoso.'),
+    ],
+    populares_movie:[
+      mv(24428,'Os Vingadores','2012',7.7,'Os super-heróis da Marvel se unem para deter Loki e seu exército alienígena.'),
+      mv(19995,'Avatar','2009',7.9,'Um marine paralítico é enviado à lua Pandora numa missão de exploração.'),
+      mv(157336,'Interestelar','2014',8.6,'Um grupo de astronautas viaja por um buraco de minhoca em busca de um novo lar.'),
+      mv(284054,'Pantera Negra','2018',7.3,'T\'Challa retorna a Wakanda para assumir o trono e enfrenta um desafiante inesperado.'),
+      mv(27205,'A Origem','2010',8.8,'Um ladrão especializado em roubar segredos através dos sonhos dos outros.'),
+      mv(155,'Batman: O Cavaleiro das Trevas','2008',9.0,'Batman enfrenta o Coringa, um criminoso caótico que deseja mergulhar Gotham no caos.'),
+      mv(680,'Pulp Fiction','1994',8.9,'Histórias entrelaçadas de criminosos e personagens excêntricos em Los Angeles.'),
+      mv(551271,'Morbius','2022',5.2,'Um cientista transforma-se em vampiro ao tentar criar uma cura para doença rara.'),
+    ],
+    populares_tv:[
+      tv(1396,'Breaking Bad','2008',9.5,'Um professor de química com câncer torna-se fabricante de metanfetamina.',5),
+      tv(63174,'Peaky Blinders','2013',8.8,'A família Shelby domina as ruas de Birmingham após a Primeira Guerra Mundial.',6),
+      tv(76479,'The Boys','2019',8.7,'Vigilantes combatem super-heróis corrompidos controlados por megacorporação.',4),
+      tv(85552,'Euphoria','2019',8.4,'Adolescentes navegam pelas complexidades de identidade, trauma e relações.',3),
+      tv(37854,'One Piece','1999',8.8,'Luffy e sua tripulação navegam os mares em busca do lendário tesouro One Piece.',1),
+      tv(1418,'The Big Bang Theory','2007',8.1,'Grupo de cientistas nerds navega relacionamentos e situações cotidianas.',12),
+    ],
+    top_movie:[
+      mv(238,'O Poderoso Chefão','1972',9.2,'Vito Corleone transmite seu império do crime organizado para o filho Michael.'),
+      mv(429,'O Senhor dos Anéis: A Sociedade do Anel','2001',8.9,'O hobbit Frodo herda um anel mágico e parte numa jornada para destruí-lo.'),
+      mv(597,'Titanic','1997',7.9,'Dois jovens de classes sociais opostas apaixonam-se a bordo do Titanic.'),
+      mv(603,'Matrix','1999',8.7,'Um hacker descobre que a realidade é uma simulação e junta-se à resistência.'),
+      mv(769,'GoodFellas','1990',8.7,'A ascensão e queda de Henry Hill no mundo do crime organizado de Nova York.'),
+    ],
+    top_tv:[
+      tv(46952,'The Wire','2002',9.3,'Análise profunda do tráfico de drogas, sistema policial e vida urbana em Baltimore.',5),
+      tv(1402,'The Walking Dead','2010',8.1,'Sobreviventes tentam manter a humanidade num mundo pós-apocalíptico.',11),
+      tv(60625,'Rick e Morty','2013',8.9,'Cientista excêntrico e seu neto viajam pelo espaço e universos alternativos.',7),
+      tv(80,'Breaking Bad','2008',9.5,'Walter White transforma-se de professor respeitável em produtor de drogas.',5),
+    ],
+    terror_movie:[mv(68721,'O Iluminado','1980',8.4,'Um escritor e sua família tornam-se guardiões de um hotel isolado no inverno.')],
+    acao:[mv(335977,'Rogue One: Uma História Star Wars','2016',7.8,'Um grupo de rebeldes rouba os planos secretos da Estrela da Morte.')],
+    sci_fi:[mv(438631,'Duna','2021',7.9,'Paul Atreides lidera tribos nativas de um planeta desértico numa guerra épica.')],
+    drama_tv:[tv(84958,'Loki','2021',8.2,'O deus da trapaça enfrenta o sagrado fluxo temporal e versões alternativas de si.',2)],
+    anime:[tv(37854,'One Piece','1999',8.8,'Monkey D. Luffy e sua tripulação exploram o Grande Mar em busca do tesouro final.',1)],
+    crime:[mv(238,'O Poderoso Chefão','1972',9.2,'A saga épica de uma família da máfia italiana nos Estados Unidos.')],
+  };
+})();
+
+const DEMO_KIDS_CATALOG = (function() {
+  const I = 'https://image.tmdb.org/t/p/w300';
+  const KP = {
+    10681:'/uXDfjJbdP4ijW5hWSBrPl9KsskY.jpg',862:'/rhIRbceoE9lR4veEXuwCC2wARtG.jpg',
+    9806:'/9wU6cHBNmNqHlAoalS4OHDL3CMy.jpg',109445:'/d9GVFTCt7PZv5SKEjO6bAbfIQEf.jpg',
+    585:'/o7UK1g9MxMpo2fDBHqIzJ1eDGMa.jpg',12:'/nBNZadXqJSdt05SHLqgT0HuC5Gm.jpg',
+    260514:'/hm58nYzv0GfCHBjFnEHRBVnVc4Z.jpg',77950:'/7ny0CjqA3gy1PQtnmWFnMBEOjRq.jpg',
+  };
+  function k(id,title,year,vote,desc,tipo){
+    return{tmdb_id:id,title,year,vote,desc:desc||'',tipo:tipo||'movie',
+      img:I+(KP[id]||'/uXDfjJbdP4ijW5hWSBrPl9KsskY.jpg'),released:true,
+      player:tipo==='tv'?`https://vidsrc-embed.ru/embed/tv/${id}/1-1`:`https://vidsrc-embed.ru/embed/movie/${id}`,
+      sources:tipo==='tv'?[
+        {label:'VidSrc',url:`https://vidsrc-embed.ru/embed/tv/${id}/1-1`},
+        {label:'Rivestream',url:`https://rivestream.org/embed?type=tv&id=${id}&season=1&episode=1`},
+      ]:[
+        {label:'VidSrc',url:`https://vidsrc-embed.ru/embed/movie/${id}`},
+        {label:'MoviesAPI',url:`https://moviesapi.club/movie/${id}`},
+        {label:'Rivestream',url:`https://rivestream.org/embed?type=movie&id=${id}`},
+      ]};
+  }
+  return{
+    desenhos_favoritos:[
+      k(862,'Toy Story','1995',8.3,'Os brinquedos de Andy ganham vida quando ele não está por perto.'),
+      k(9806,'Os Incríveis','2004',8.0,'Uma família de super-heróis tenta levar uma vida normal.'),
+      k(109445,'Frozen','2013',7.4,'Uma rainha com poderes de gelo lança seu reino num eterno inverno acidentalmente.'),
+      k(585,'Monstros S.A.','2001',8.1,'Monstros assustam crianças para coletar energia, mas tudo muda com a chegada de uma menina.'),
+    ],
+    familia:[
+      k(12,'Procurando Nemo','2003',8.2,'Um peixe-palhaço cruza o oceano para encontrar seu filho desaparecido.'),
+      k(10681,'WALL·E','2008',8.4,'Um robô solitário na Terra descobre amor e aventura intergaláctica.'),
+      k(260514,'Valente','2012',7.1,'Uma princesa escocesa desafia tradições e enfrenta um antigo feitiço.'),
+    ],
+    animacao_popular:[
+      k(77950,'Lorax: Em Busca da Trúfula Perdida','2012',6.4,'Um jovem procura uma árvore real para impressionar a garota de seus sonhos.'),
+      k(862,'Toy Story','1995',8.3,'Woody e Buzz Lightyear vivem aventuras inesquecíveis no mundo dos brinquedos.'),
+    ],
+    kids_movies:[
+      k(9806,'Os Incríveis','2004',8.0,'Bob Parr equilibra vida familiar e missões secretas como super-herói.'),
+      k(585,'Monstros S.A.','2001',8.1,'Sulley e Mike descobrem que risos têm mais energia do que sustos.'),
+    ],
+  };
+})();
+
+let _demoMode = false;
+
+// ── Função que ativa o modo demo (substitui dados e funções) ──────────────────
+function _activateDemoMode() {
+  if (_demoMode) return;
+  _demoMode = true;
+  catalogData = DEMO_CATALOG;
+  serverOnline = true; // permite que o resto da app funcione normalmente
+
+  // Mostra banner demo
+  const banner = document.getElementById('demoBanner');
+  if (banner) banner.style.display = 'flex';
+
+  // Substitui fetch de kids-catalog
+  window._kidsLoadOverride = true;
+
+  // Override busca para funcionar offline
+  window._searchOverride = true;
+}
+
+// ── Patchs de runtime que só ativam se _demoMode = true ──────────────────────
+const _origDoSearch = doSearch;
+async function doSearch(q) {
+  if (!_demoMode) return _origDoSearch(q);
+  const catalog = kidsModeEnabled ? DEMO_KIDS_CATALOG : DEMO_CATALOG;
+  const all = Object.values(catalog).flat();
+  const unique = [...new Map(all.filter(i=>i.title&&i.title.toLowerCase().includes(q.toLowerCase())).map(i=>[i.tmdb_id,i])).values()];
+  if (!unique.length) { searchDropdown.innerHTML = '<div class="p-3 text-xs text-gray-500">Nenhum resultado.</div>'; searchDropdown.classList.remove('hidden'); return; }
+  searchDropdown.innerHTML = unique.slice(0,6).map(item => `
+    <div class="s-item" onclick="openDetails(${item.tmdb_id},'${item.tipo}'); searchDropdown.classList.add('hidden'); searchInput.value=''">
+      <img src="${item.img}" onerror="this.src=''">
+      <div>
+        <div class="text-[11px] font-bold text-white leading-tight">${item.title}</div>
+        <div class="text-[9px] text-gray-500 mt-0.5">${item.tipo==='tv'?'📺 Série':'🎬 Filme'} • ${item.year}</div>
+      </div>
+    </div>`).join('');
+  searchDropdown.classList.remove('hidden');
+}
+
+const _origDoSearchPage = doSearchPage;
+async function doSearchPage(q) {
+  if (!_demoMode) return _origDoSearchPage(q);
+  const catalog = kidsModeEnabled ? DEMO_KIDS_CATALOG : DEMO_CATALOG;
+  const all = Object.values(catalog).flat();
+  const unique = [...new Map(all.filter(i=>i.title&&i.title.toLowerCase().includes(q.toLowerCase())).map(i=>[i.tmdb_id,i])).values()];
+  const grid = document.getElementById('grid-search');
+  showSection('search');
+  grid.innerHTML = '';
+  if (!unique.length) { grid.innerHTML = '<p class="text-gray-500 text-xs col-span-full py-8 text-center">Nenhum resultado.</p>'; return; }
+  unique.forEach(item => grid.appendChild(createCard(item, true)));
+}
+
+const _origLoadKidsCatalog = loadKidsCatalog;
+async function loadKidsCatalog() {
+  if (!_demoMode) return _origLoadKidsCatalog();
+  const kidsRows = document.getElementById('kidsRows');
+  kidsRows.innerHTML = '';
+  const allItems = Object.values(DEMO_KIDS_CATALOG).flat().filter(i=>i&&i.img);
+  if (allItems.length) buildKidsHeroCarousel(allItems);
+  for (const [key, items] of Object.entries(DEMO_KIDS_CATALOG)) {
+    if (!items||!items.length) continue;
+    const section = document.createElement('div');
+    section.className = 'section-row';
+    section.innerHTML = `<h3 class="text-sm font-bold text-yellow-400 uppercase tracking-widest mb-4">${
+      {desenhos_favoritos:'🎨 Desenhos Favoritos',familia:'👨‍👩‍👧 Para Ver em Família',animacao_popular:'⭐ Animações Populares',kids_movies:'🎬 Filmes Infantis'}[key]||key
+    }</h3>`;
+    const row = document.createElement('div');
+    row.className = 'flex gap-4 overflow-x-auto scroll-hide pb-4';
+    items.forEach(item => row.appendChild(createKidsCard(item)));
+    section.appendChild(row);
+    kidsRows.appendChild(section);
+  }
+}
+
+const _origLoadGenre = loadGenre;
+async function loadGenre(nome, tipo) {
+  if (!_demoMode) return _origLoadGenre(nome, tipo);
+  document.getElementById('genre-page-title').textContent = nome;
+  const grid = document.getElementById('grid-genre');
+  grid.innerHTML = '';
+  showSection('genre-page');
+  const all = Object.values(DEMO_CATALOG).flat();
+  const unique = [...new Map(all.filter(i=>i.tipo===tipo).map(i=>[i.tmdb_id,i])).values()];
+  if (!unique.length) { grid.innerHTML = '<p class="text-gray-500 text-xs col-span-full py-8 text-center">Nenhum conteúdo.</p>'; return; }
+  unique.forEach(item => grid.appendChild(createCard(item, true)));
+}
+
+// Mobile search demo override — injeta listener extra
+document.addEventListener('DOMContentLoaded', () => {
+  const inp = document.getElementById('mobileSearchInput');
+  if (!inp) return;
+  inp.addEventListener('input', async e => {
+    if (!_demoMode) return;
+    const q = e.target.value.trim();
+    const res = document.getElementById('mobileSearchResults');
+    if (!q) { res.innerHTML = '<div class="text-center py-12 text-gray-600 text-sm">Digite para buscar...</div>'; return; }
+    const catalog = kidsModeEnabled ? DEMO_KIDS_CATALOG : DEMO_CATALOG;
+    const all = Object.values(catalog).flat();
+    const unique = [...new Map(all.filter(i=>i.title&&i.title.toLowerCase().includes(q.toLowerCase())).map(i=>[i.tmdb_id,i])).values()];
+    if (!unique.length) { res.innerHTML = '<div class="text-center py-12 text-gray-600 text-sm">Nenhum resultado.</div>'; return; }
+    res.innerHTML = unique.slice(0,12).map(item =>
+      `<div class="s-item" onclick="openDetails(${item.tmdb_id},'${item.tipo}'); closeMobileSearch()">
+        <img src="${item.img}" onerror="this.src=''">
+        <div>
+          <div class="text-[12px] font-bold text-white leading-tight">${item.title}</div>
+          <div class="text-[10px] text-gray-500 mt-0.5">${item.tipo==='tv'?'📺 Série':'🎬 Filme'} • ${item.year||''}</div>
+        </div>
+      </div>`).join('');
+  }, true);
+}, true);
+
+// ── checkServer modificado: se falhar → ativa demo ────────────────────────────
+async function checkServer() {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 30000);
+  try {
+    const r = await fetch(`${API}/catalogo`, { method:'GET', signal:controller.signal, cache:'no-store' });
+    clearTimeout(timer);
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    catalogData = await r.json();
+    serverOnline = true;
+    renderHome();
+    renderMoviesPage();
+    renderSeriesPage();
+    if (kidsModeEnabled) {
+      const activeSection = document.querySelector('.page-section:not(.hidden)');
+      const activeId = activeSection ? activeSection.id.replace('section-', '') : '';
+      if (activeId === 'home' || activeId === 'kids') showSection('kids');
+    }
+  } catch(err) {
+    clearTimeout(timer);
+    // ► Servidor offline → ativa modo demo silenciosamente
+    _activateDemoMode();
+    const hero = document.getElementById('hero');
+    if (hero) hero.style.display = '';
+    document.body.style.overflow = '';
+    renderHome();
+    renderMoviesPage();
+    renderSeriesPage();
+  }
+}
+
+async function recarregarCatalogo() {
+  _demoMode = false;
+  serverOnline = false;
+  catalogData = {};
+  const banner = document.getElementById('demoBanner');
+  if (banner) banner.style.display = 'none';
+  document.getElementById('homeRows').innerHTML = skeletonRows(4);
+  await checkServer();
+}
+
+// ── Skeleton enquanto carrega
 document.getElementById('homeRows').innerHTML = skeletonRows(5);
+
+// Gera posters no fundo da tela de recuperação (reutiliza mesma lista do login)
+function buildRecoveryPosters(wall) {
+    const posters = [
+        'https://image.tmdb.org/t/p/w185/d5iIlFn5s0ImszYzBPb8JPIfbXD.jpg',
+        'https://image.tmdb.org/t/p/w185/rCzpDGLbOoPwLjy3OAm5NUPOTrC.jpg',
+        'https://image.tmdb.org/t/p/w185/9gk7adHYeDvHkCSEqAvQNLV5Uge.jpg',
+        'https://image.tmdb.org/t/p/w185/A3ZbZsmsvNGdprRi2lKgGEeVLEH.jpg',
+        'https://image.tmdb.org/t/p/w185/49WJfeN0moxb9IPfGn8AIqMGskD.jpg',
+        'https://image.tmdb.org/t/p/w185/8Gxv8gSFCU0XGDykEGv7zR1n2ua.jpg',
+        'https://image.tmdb.org/t/p/w185/1g0dhYtq4irTY1GPXvft6k4YLjm.jpg',
+        'https://image.tmdb.org/t/p/w185/pB8BM7pdSp6B6Ih7QZ4DrQ3PmJK.jpg',
+        'https://image.tmdb.org/t/p/w185/q6y0Go1tsGEsmtFryDOJo3dEmqu.jpg',
+        'https://image.tmdb.org/t/p/w185/3bhkrj58Vtu7enYsLegHnDmni2.jpg',
+        'https://image.tmdb.org/t/p/w185/oYuLEt3zVCKq57qu2F8dT7NIa6f.jpg',
+        'https://image.tmdb.org/t/p/w185/39wmItIWsg5sZMyRUHLkWBcuVCM.jpg',
+        'https://image.tmdb.org/t/p/w185/hYZ4a0JvPETdfgJJ5oE0GqPSybG.jpg',
+        'https://image.tmdb.org/t/p/w185/pFlaoHTZeyNkG83vxsAJiGzfSsa.jpg',
+        'https://image.tmdb.org/t/p/w185/f89U3ADr1oiB1s9GkdPOEpXUk5H.jpg',
+        'https://image.tmdb.org/t/p/w185/r2J02Z2OpNTctfOSN1Ydgii51I3.jpg',
+        'https://image.tmdb.org/t/p/w185/7IiTTgloROVKOXbs1ICm7Z0UkEq.jpg',
+        'https://image.tmdb.org/t/p/w185/5YZbUmjbMa3ClvSW1Wj3D6XGkVA.jpg',
+        'https://image.tmdb.org/t/p/w185/uXDfjJbdP4ijW5hWSBrPl9KcertE.jpg',
+        'https://image.tmdb.org/t/p/w185/mDbwQ75Ap2uqQdFDTlNSFfRNLqp.jpg',
+    ];
+    const COLS = Math.ceil(window.innerWidth / 96) + 2;
+    for (let c = 0; c < COLS; c++) {
+        const col = document.createElement('div');
+        col.className = 'login-poster-col' + (c % 2 === 0 ? '' : ' reverse');
+        col.style.left = (c * 96) + 'px';
+        col.style.animationDuration = (22 + c * 3) + 's';
+        const shuffled = [...posters].sort(() => Math.random() - .5);
+        const items = [...shuffled, ...shuffled];
+        items.forEach(src => {
+            const div = document.createElement('div');
+            div.className = 'login-poster-img';
+            div.style.background = '#111';
+            div.style.backgroundSize = 'cover';
+            div.style.backgroundPosition = 'center';
+            const probe = new Image();
+            probe.onload = () => { div.style.backgroundImage = `url('${src}')`; };
+            probe.src = src;
+            col.appendChild(div);
+        });
+        wall.appendChild(col);
+    }
+}
 checkAuth();
 checkServer();
 </script>

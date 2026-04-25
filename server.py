@@ -19,7 +19,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 app = Flask(__name__, static_folder=BASE_DIR, static_url_path='')
 
 # Database configuration
-DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql://hbo_admin:9f8IRMBEkyjDJHOvyJX0PtciKonDbrZZ@dpg-d7l61vugvqtc738br6a0-a/hbo_users")
+DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql://hbo_admin:9f8IRMBEkyjDJHOvyJX0PtciKonDbrZZ@dpg-d7l61vugvqtc738br6a0-a.oregon-postgres.render.com/hbo_users")
 
 def get_db_connection():
     try:
@@ -41,6 +41,9 @@ def init_db():
                         password VARCHAR(255) NOT NULL,
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                     )
+                """)
+                cur.execute("""
+                    ALTER TABLE users ADD COLUMN IF NOT EXISTS profiles TEXT DEFAULT NULL
                 """)
                 conn.commit()
                 print("[DEBUG] Tabela 'users' criada/verificada com sucesso")
@@ -452,6 +455,55 @@ def verify_auth():
         return jsonify({"authenticated": False}), 401
 
 
+@app.route("/api/auth/login", methods=["POST", "OPTIONS"])
+def auth_login():
+    """Login direto com email+senha — sem código de verificação."""
+    if request.method == "OPTIONS":
+        return "", 200
+    try:
+        data = request.get_json()
+        email = data.get("email", "").strip()
+        password = data.get("password", "")
+
+        if not email or not password:
+            return jsonify({"error": "Email e senha são obrigatórios"}), 400
+
+        conn = get_db_connection()
+        if not conn:
+            return jsonify({"error": "Erro interno ao conectar ao banco"}), 500
+
+        try:
+            with conn.cursor() as cur:
+                cur.execute("SELECT id, password FROM users WHERE email = %s", (email,))
+                user = cur.fetchone()
+        finally:
+            conn.close()
+
+        if not user:
+            return jsonify({"error": "E-mail não cadastrado"}), 401
+
+        if user["password"] != password:
+            return jsonify({"error": "Senha incorreta"}), 401
+
+        user_data = {
+            "sub": email.split("@")[0],
+            "email": email,
+            "name": email.split("@")[0].capitalize(),
+            "picture": "",
+            "exp": int(time.time()) + 3600 * 24 * 7
+        }
+        token = jwt.encode(user_data, JWT_SECRET, algorithm="HS256")
+        print(f"[DEBUG] Login direto: {email}")
+        return jsonify({
+            "success": True,
+            "token": token,
+            "user": {"name": user_data["name"], "email": email, "picture": ""}
+        })
+    except Exception as e:
+        import traceback; traceback.print_exc()
+        return jsonify({"error": str(e)}), 400
+
+
 @app.route("/api/auth/email", methods=["POST", "OPTIONS"])
 def auth_email():
     if request.method == "OPTIONS":
@@ -736,6 +788,73 @@ def reset_password():
         import traceback
         traceback.print_exc()
         return jsonify({"error": str(e)}), 400
+
+
+def _get_email_from_token():
+    """Extrai o email do Bearer token da requisição. Retorna None se inválido."""
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer "):
+        return None
+    token = auth_header.split(" ")[1]
+    try:
+        decoded = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
+        return decoded.get("email")
+    except Exception:
+        return None
+
+
+@app.route("/api/profiles", methods=["GET"])
+def get_profiles():
+    email = _get_email_from_token()
+    if not email:
+        return jsonify({"error": "Não autenticado"}), 401
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Erro ao conectar ao banco"}), 500
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT profiles FROM users WHERE email = %s", (email,))
+            row = cur.fetchone()
+        if row and row["profiles"]:
+            import json as _json
+            return jsonify({"profiles": _json.loads(row["profiles"])})
+        return jsonify({"profiles": None})
+    except Exception as e:
+        print(f"[DEBUG] Erro ao buscar perfis: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        conn.close()
+
+
+@app.route("/api/profiles", methods=["POST"])
+def save_profiles():
+    email = _get_email_from_token()
+    if not email:
+        return jsonify({"error": "Não autenticado"}), 401
+    data = request.get_json()
+    profiles_data = data.get("profiles")
+    if profiles_data is None:
+        return jsonify({"error": "Campo 'profiles' é obrigatório"}), 400
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Erro ao conectar ao banco"}), 500
+    try:
+        import json as _json
+        profiles_json = _json.dumps(profiles_data)
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE users SET profiles = %s WHERE email = %s",
+                (profiles_json, email)
+            )
+        conn.commit()
+        print(f"[DEBUG] Perfis salvos para: {email}")
+        return jsonify({"success": True})
+    except Exception as e:
+        print(f"[DEBUG] Erro ao salvar perfis: {e}")
+        conn.rollback()
+        return jsonify({"error": str(e)}), 500
+    finally:
+        conn.close()
 
 
 @app.route("/api/catalogo")
