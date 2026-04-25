@@ -3955,6 +3955,7 @@ function closeEmailVerificationModal() {
 }
 
 let pendingEmail = null;
+let pendingVerificationToken = null;
 
 async function verifyEmailCode() {
     const code = document.getElementById('verificationCode').value;
@@ -3967,7 +3968,7 @@ async function verifyEmailCode() {
         const r = await fetch(`${AUTH_API}/auth/verify-code`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email: pendingEmail, code })
+            body: JSON.stringify({ email: pendingEmail, code, verification_token: pendingVerificationToken })
         });
 
         const data = await r.json();
@@ -4233,6 +4234,7 @@ document.getElementById('emailLoginForm').addEventListener('submit', async funct
         } else if (data.success) {
             // Fluxo de verificação por código — abrir modal
             pendingEmail = email;
+            pendingVerificationToken = data.verification_token || null;
             const modal = document.getElementById('emailVerificationModal');
             const loginSection = document.getElementById('section-login');
             if (loginSection) loginSection.classList.add('hidden');

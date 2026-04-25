@@ -509,27 +509,25 @@ def auth_email():
         import random
         verification_code = str(random.randint(100000, 999999))
 
-        # Salvar código em memória (em produção, usar Redis/banco de dados)
-        # Para demonstração, vamos usar um dicionário global
-        if not hasattr(app, 'verification_codes'):
-            app.verification_codes = {}
-
-        app.verification_codes[email] = {
+        # Assinar código em JWT stateless (funciona com múltiplos workers)
+        code_payload = {
+            "email": email,
             "code": verification_code,
-            "expires": int(time.time()) + 300  # 5 minutos
+            "exp": int(time.time()) + 300  # 5 minutos
         }
+        verification_token = jwt.encode(code_payload, JWT_SECRET, algorithm="HS256")
 
         # Enviar email real
         email_sent = send_verification_email(email, verification_code)
 
         if not email_sent:
-            # Se falhar o envio, mostrar código no terminal como fallback
             print(f"[DEBUG] Código para {email}: {verification_code}")
 
         return jsonify({
             "success": True,
             "message": "Código de verificação enviado para seu email",
-            "email": email
+            "email": email,
+            "verification_token": verification_token
         })
     except Exception as e:
         print(f"[DEBUG] Erro no login por email: {str(e)}")
@@ -548,22 +546,23 @@ def verify_code():
         data = request.get_json()
         email = data.get("email")
         code = data.get("code")
+        verification_token = data.get("verification_token")
 
-        if not email or not code:
-            return jsonify({"error": "Email e código são obrigatórios"}), 400
+        if not email or not code or not verification_token:
+            return jsonify({"error": "Email, código e token são obrigatórios"}), 400
 
-        if not hasattr(app, 'verification_codes'):
-            return jsonify({"error": "Código expirado ou inválido"}), 400
+        # Validar o JWT do código (stateless — funciona com múltiplos workers)
+        try:
+            payload = jwt.decode(verification_token, JWT_SECRET, algorithms=["HS256"])
+        except jwt.ExpiredSignatureError:
+            return jsonify({"error": "Código expirado. Solicite um novo."}), 400
+        except Exception:
+            return jsonify({"error": "Token de verificação inválido"}), 400
 
-        stored = app.verification_codes.get(email)
-        if not stored:
-            return jsonify({"error": "Código expirado ou inválido"}), 400
+        if payload.get("email") != email:
+            return jsonify({"error": "Código inválido"}), 400
 
-        if int(time.time()) > stored["expires"]:
-            del app.verification_codes[email]
-            return jsonify({"error": "Código expirado"}), 400
-
-        if stored["code"] != code:
+        if payload.get("code") != str(code):
             return jsonify({"error": "Código inválido"}), 400
 
         # Código válido - criar sessão
@@ -576,8 +575,6 @@ def verify_code():
         }
 
         session_token = jwt.encode(user_data, JWT_SECRET, algorithm="HS256")
-        del app.verification_codes[email]  # Remover código usado
-
         print(f"[DEBUG] Login realizado com sucesso: {email}")
 
         return jsonify({
