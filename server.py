@@ -49,8 +49,11 @@ def init_db():
         finally:
             conn.close()
 
-# Initialize database on startup
-init_db()
+# Initialize database on startup (wrapped so gunicorn doesn't crash if DB is unreachable)
+try:
+    init_db()
+except Exception as _e:
+    print(f"[DEBUG] init_db falhou na inicialização: {_e}")
 
 @app.after_request
 def add_cors_headers(response):
