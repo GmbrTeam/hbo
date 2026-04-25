@@ -1720,10 +1720,19 @@
         </div>
     </div>
     <!-- Tela de seleção de servidor -->
-    <div id="serverPicker" class="flex-1 flex flex-col items-center justify-center gap-6 px-6">
-        <p class="text-gray-400 text-xs uppercase tracking-widest font-bold">Escolha o servidor</p>
-        <div id="serverPickerBtns" class="flex flex-wrap gap-4 justify-center"></div>
-        <p class="text-gray-600 text-[10px] italic">Se um servidor não funcionar, tente outro.</p>
+    <div id="serverPicker" class="flex-1 flex flex-col items-center justify-center gap-8 px-6 py-10">
+        <div class="flex flex-col items-center gap-2 text-center">
+            <div class="w-14 h-14 rounded-2xl bg-purple-600/20 border border-purple-500/30 flex items-center justify-center mb-1">
+                <i class="fas fa-play-circle text-2xl text-purple-400"></i>
+            </div>
+            <p class="text-white font-bold text-lg">Escolha um servidor</p>
+            <p class="text-gray-500 text-xs">Todos os servidores reproduzem o mesmo conteúdo</p>
+        </div>
+        <div id="serverPickerBtns" class="grid grid-cols-2 sm:grid-cols-3 gap-3 w-full max-w-lg"></div>
+        <p class="text-gray-600 text-[11px] flex items-center gap-2">
+            <i class="fas fa-info-circle text-purple-600"></i>
+            Se um servidor não funcionar, tente outro logo abaixo do player
+        </p>
     </div>
     <div class="flex-1 relative overflow-hidden">
         <!-- Intro video overlay -->
@@ -4005,6 +4014,7 @@ async function syncProfilesFromServer() {
         if (data.profiles && Array.isArray(data.profiles) && data.profiles.length > 0) {
             profiles = data.profiles;
             localStorage.setItem('profiles', JSON.stringify(profiles));
+            updateTopbarAvatar();
             // Re-renderiza o picker se estiver visível
             const pickerSection = document.getElementById('section-profile-picker');
             if (pickerSection && !pickerSection.classList.contains('hidden')) {
@@ -4059,7 +4069,7 @@ function renderProfilePicker() {
                 ` : ''}
             </div>
             <span class="text-sm font-bold text-gray-300 group-hover:text-white transition">${profile.name}</span>
-            ${isActive ? '<span class="text-[10px] text-green-400">Em uso</span>' : ''}
+            <span class="text-[10px] ${isActive ? 'text-green-400' : 'invisible'}">Em uso</span>
         `;
         
         if (!isDefault) {
@@ -4901,6 +4911,33 @@ async function checkAuth() {
     return false;
 }
 
+function updateTopbarAvatar() {
+    const userInitials = document.getElementById('userInitials');
+    const userAvatar = document.getElementById('userAvatar');
+    if (!userInitials || !userAvatar) return;
+
+    const profile = getCurrentProfile();
+    if (!profile) return;
+
+    if (profile.avatarEmoji) {
+        userInitials.textContent = profile.avatarEmoji;
+        userInitials.style.fontSize = '1.2rem';
+        userInitials.classList.remove('hidden');
+        userAvatar.classList.add('hidden');
+    } else if (profile.avatar) {
+        userAvatar.src = profile.avatar;
+        userAvatar.classList.remove('hidden');
+        userInitials.classList.add('hidden');
+    } else {
+        // fallback: iniciais do nome do perfil
+        userInitials.style.fontSize = '';
+        const initials = profile.name ? profile.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : 'US';
+        userInitials.textContent = initials;
+        userInitials.classList.remove('hidden');
+        userAvatar.classList.add('hidden');
+    }
+}
+
 function updateUserUI(user) {
     const userArea = document.getElementById('userArea');
     const userInitials = document.getElementById('userInitials');
@@ -4917,6 +4954,8 @@ function updateUserUI(user) {
             userInitials.classList.remove('hidden');
             userAvatar.classList.add('hidden');
         }
+        // Sobrescreve com o avatar do perfil ativo se houver
+        updateTopbarAvatar();
         
         // Atualizar perfil (só se os elementos existirem)
         const profileName = document.getElementById('profileName');
@@ -4942,7 +4981,8 @@ function updateUserUI(user) {
         }
     } else {
         if (userInitials) {
-            userInitials.textContent = 'JD';
+            userInitials.innerHTML = '<i class="fas fa-user text-xs"></i>';
+            userInitials.style.fontSize = '';
             userInitials.classList.remove('hidden');
         }
         if (userAvatar) userAvatar.classList.add('hidden');
@@ -6309,11 +6349,25 @@ function startWatchingUrl(url, title = '', sources = []) {
     document.getElementById('playerFrame').src = '';
 
     document.getElementById('serverPicker').classList.remove('hidden');
+
+    const serverIcons = ['fa-server', 'fa-film', 'fa-globe', 'fa-satellite-dish', 'fa-broadcast-tower'];
+    const serverColors = [
+        'from-purple-600/30 to-blue-600/20 border-purple-500/40 hover:border-purple-400',
+        'from-pink-600/30 to-rose-600/20 border-pink-500/40 hover:border-pink-400',
+        'from-blue-600/30 to-cyan-600/20 border-blue-500/40 hover:border-blue-400',
+        'from-violet-600/30 to-purple-600/20 border-violet-500/40 hover:border-violet-400',
+        'from-indigo-600/30 to-blue-600/20 border-indigo-500/40 hover:border-indigo-400',
+    ];
     document.getElementById('serverPickerBtns').innerHTML = _currentSources.map((s, i) => `
         <button onclick="loadSource('${s.url}', ${i})"
-            class="source-pick-btn flex flex-col items-center gap-2 bg-white/5 border border-white/10 hover:border-purple-500 hover:bg-purple-600/10 transition rounded-2xl px-8 py-5 min-w-[110px]">
-            <i class="fas fa-server text-2xl text-purple-400"></i>
-            <span class="text-xs font-bold uppercase tracking-widest text-white">${s.label}</span>
+            class="group flex flex-col items-center gap-3 bg-gradient-to-br ${serverColors[i % serverColors.length]} border backdrop-blur transition-all duration-300 rounded-2xl p-5 w-full hover:scale-[1.03] active:scale-95">
+            <div class="w-11 h-11 rounded-xl bg-white/10 group-hover:bg-white/20 flex items-center justify-center transition-all">
+                <i class="fas ${serverIcons[i % serverIcons.length]} text-lg text-white"></i>
+            </div>
+            <div class="text-center">
+                <span class="block text-xs font-bold text-white tracking-wide">${s.label}</span>
+                <span class="block text-[9px] text-gray-400 mt-0.5">Servidor ${i + 1}</span>
+            </div>
         </button>
     `).join('');
 
