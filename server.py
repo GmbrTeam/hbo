@@ -188,7 +188,7 @@ def normalizar(res, tipo_override=None):
     title   = res.get("title") or res.get("name", "Sem título")
     year    = (res.get("release_date") or res.get("first_air_date") or "----")[:4]
     img     = IMG + res["poster_path"] if res.get("poster_path") else ""
-    desc    = res.get("overview") or "Sem descrição disponível."
+    desc    = res.get("overview") or ""
     rating  = "18+" if res.get("adult") else "12+"
     seasons = res.get("number_of_seasons", 1) if tipo == "tv" else None
     from datetime import date as _date
@@ -224,11 +224,96 @@ def tmdb_get(path, params={}):
         pass
     return None
 
+def tmdb_get_en(path, params={}):
+    """Busca na API TMDb sem forçar pt-BR (retorna inglês como fallback)."""
+    p = {"api_key": API_KEY, **params}
+    try:
+        r = requests.get(f"{BASE}{path}", params=p, timeout=10)
+        if r.status_code == 200:
+            return r.json()
+    except Exception:
+        pass
+    return None
+
+def traduzir_para_pt(texto):
+    """
+    Traduz texto do inglês para pt-BR usando a API pública do Google Translate
+    (endpoint não-oficial, sem chave). Retorna o texto original se falhar.
+    """
+    if not texto:
+        return texto
+    try:
+        url = "https://translate.googleapis.com/translate_a/single"
+        params = {
+            "client": "gtx",
+            "sl": "en",
+            "tl": "pt-BR",
+            "dt": "t",
+            "q": texto,
+        }
+        r = requests.get(url, params=params, timeout=8)
+        if r.status_code == 200:
+            data = r.json()
+            # Resposta é lista de listas: [[["texto traduzido", "original", ...], ...], ...]
+            traduzido = "".join(
+                part[0] for part in data[0] if part and part[0]
+            )
+            if traduzido:
+                return traduzido
+    except Exception as e:
+        print(f"[TRANSLATE] Falha ao traduzir: {e}")
+    return texto  # retorna original se falhar
+
+def resolver_desc(tmdb_id, tipo):
+    """
+    Tenta obter sinopse para um item sem descrição em pt-BR:
+    1. Endpoint /translations do TMDb (sinopse humana em pt-BR)
+    2. Busca direta em inglês + tradução automática
+    3. Fallback: sinopse em inglês sem tradução
+    """
+    # 1. Tentar tradução humana pt-BR via TMDb /translations
+    trans_data = tmdb_get_en(f"/{tipo}/{tmdb_id}/translations")
+    if trans_data:
+        translations = trans_data.get("translations", [])
+        pt_trans = next(
+            (t for t in translations if t.get("iso_639_1") == "pt" and t.get("iso_3166_1") == "BR"),
+            None
+        ) or next(
+            (t for t in translations if t.get("iso_639_1") == "pt"),
+            None
+        )
+        if pt_trans:
+            overview = pt_trans.get("data", {}).get("overview", "")
+            if overview:
+                return overview
+
+    # 2. Buscar em inglês e traduzir automaticamente
+    en_data = tmdb_get_en(f"/{tipo}/{tmdb_id}")
+    if en_data and en_data.get("overview"):
+        return traduzir_para_pt(en_data["overview"])
+
+    return "Sem descrição disponível."
+
 def buscar_pagina(endpoint, tipo, pagina=1, extra={}):
     data = tmdb_get(endpoint, {"page": pagina, **extra})
     if not data:
         return []
-    return [x for x in (normalizar(r, tipo) for r in data.get("results", [])) if x and x["img"]]
+
+    items = [x for x in (normalizar(r, tipo) for r in data.get("results", [])) if x and x["img"]]
+
+    # Resolve sinopse para itens sem descrição em pt-BR
+    sem_desc = [item for item in items if not item["desc"]]
+    if sem_desc:
+        def fetch_desc(item):
+            item["desc"] = resolver_desc(item["tmdb_id"], item["tipo"])
+            return item
+
+        with ThreadPoolExecutor(max_workers=min(len(sem_desc), 8)) as ex:
+            futures = {ex.submit(fetch_desc, item): item for item in sem_desc}
+            for f in as_completed(futures):
+                f.result()
+
+    return items
 
 
 @app.route('/api/<path:path>', methods=['OPTIONS'])
@@ -661,6 +746,59 @@ def catalogo():
     return jsonify(resultado)
 
 
+@app.route("/api/kids-catalog")
+def kids_catalog():
+    cached = cache_get("kids_catalog")
+    if cached:
+        return jsonify(cached)
+
+    secoes = {
+        "animacoes":      ("/discover/movie", "movie", {"with_genres": 16}),
+        "animacoes_tv":   ("/discover/tv",    "tv",    {"with_genres": 16}),
+        "familia":        ("/discover/movie", "movie", {"with_genres": 10751}),
+        "familia_tv":     ("/discover/tv",    "tv",    {"with_genres": 10751}),
+        "anime":          ("/discover/tv",    "tv",    {"with_genres": 16, "with_origin_country": "JP"}),
+        "populares_kids": ("/movie/popular",  "movie", {"with_genres": 16}),
+    }
+
+    def fetch_secao(key):
+        endpoint, tipo, extra = secoes[key]
+        pagina = random.randint(1, 3)
+        items  = buscar_pagina(endpoint, tipo, pagina, extra)
+        random.shuffle(items)
+        return key, items[:15]
+
+    resultado = {}
+    with ThreadPoolExecutor(max_workers=6) as ex:
+        futures = {ex.submit(fetch_secao, k): k for k in secoes}
+        for f in as_completed(futures):
+            key, items = f.result()
+            resultado[key] = items
+
+    cache_set("kids_catalog", resultado)
+    return jsonify(resultado)
+
+
+@app.route("/api/kids-search")
+def kids_search():
+    q = request.args.get("q", "").strip()
+    if not q:
+        return jsonify([])
+    data = tmdb_get("/search/multi", {"query": q, "include_adult": "false"})
+    if not data:
+        return jsonify([])
+    # Filtrar apenas animação (16) e família (10751)
+    kids_genre_ids = {16, 10751}
+    results = []
+    for r in data.get("results", []):
+        genres = set(r.get("genre_ids", []))
+        if genres & kids_genre_ids:
+            item = normalizar(r)
+            if item and item["img"]:
+                results.append(item)
+    return jsonify(results[:12])
+
+
 @app.route("/api/buscar")
 def buscar():
     q = request.args.get("q", "").strip()
@@ -713,6 +851,9 @@ def detalhes(tipo, tmdb_id):
     item = normalizar(data, tipo)
     if not item:
         return jsonify({"error": "Erro ao normalizar"}), 500
+    # Se sinopse em pt-BR veio vazia, busca tradução
+    if not item["desc"]:
+        item["desc"] = resolver_desc(tmdb_id, tipo)
     return jsonify(item)
 
 

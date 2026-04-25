@@ -135,6 +135,122 @@
         .genre-card i { display:inline-block; transition:transform .25s ease; }
         .genre-card:active { border-color:var(--accent); background:rgba(157,0,255,.25); transform:scale(.97); }
 
+        /* ── Genre sections: animation handled by .page-section rule ── */
+        #section-genres .genre-card { will-change: transform; }
+        #genre-header {
+            position: sticky;
+            top: 96px;
+            z-index: 100;
+            display: flex;
+            min-height: 48px;
+            height: auto;
+            background: transparent;
+        }
+
+        /* ── New Genre Grid Styles ── */
+        .genre-grid-new {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 20px;
+            width: 100%;
+        }
+        @media (max-width: 640px) {
+            .genre-grid-new { grid-template-columns: 1fr; }
+        }
+
+        .genre-card-new {
+            position: relative;
+            height: 320px;
+            border-radius: 20px;
+            overflow: hidden;
+            cursor: pointer;
+            transition: all 0.5s cubic-bezier(0.23, 1, 0.32, 1);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            background: linear-gradient(135deg, rgba(39,39,42,0.8), rgba(63,63,70,0.6));
+        }
+
+        .genre-card-new:hover {
+            transform: translateY(-8px);
+            border-color: rgba(168, 85, 247, 0.4);
+            box-shadow: 0 20px 40px rgba(168, 85, 247, 0.2);
+        }
+
+        .genre-card-image {
+            position: absolute;
+            inset: 0;
+            background-size: cover;
+            background-position: center;
+            transform: scale(1.02);
+            transition: transform 0.8s ease;
+        }
+
+        .genre-card-new:hover .genre-card-image {
+            transform: scale(1.1);
+        }
+
+        .genre-card-overlay {
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.4) 50%, rgba(0,0,0,0.1) 100%);
+            z-index: 2;
+        }
+
+        .genre-card-content {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            padding: 24px;
+            z-index: 3;
+            transform: translateY(5px);
+            transition: transform 0.4s ease;
+        }
+
+        .genre-card-new:hover .genre-card-content {
+            transform: translateY(0);
+        }
+
+        .genre-title-new {
+            font-size: 1.5rem;
+            font-weight: 800;
+            letter-spacing: -0.01em;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            color: white;
+            text-shadow: 0 2px 10px rgba(0,0,0,0.5);
+        }
+
+        .genre-desc-new {
+            font-size: 0.85rem;
+            color: rgba(255,255,255,0.7);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .genre-glow {
+            position: absolute;
+            width: 400px;
+            height: 400px;
+            background: var(--accent);
+            filter: blur(120px);
+            opacity: 0.08;
+            z-index: 0;
+            border-radius: 50%;
+            pointer-events: none;
+        }
+
+        .genre-random-btn {
+            background: linear-gradient(135deg, rgba(255,255,255,0.1), rgba(255,255,255,0.05));
+            border: 1px solid rgba(255,255,255,0.15);
+            transition: all 0.3s ease;
+        }
+        .genre-random-btn:hover {
+            background: linear-gradient(135deg, rgba(255,255,255,0.15), rgba(255,255,255,0.08));
+            transform: scale(1.05);
+            border-color: rgba(168, 85, 247, 0.5);
+        }
+
         .episode-card:active { background:rgba(255,255,255,.08); }
         @media(hover:hover){ .episode-card:hover { background:rgba(255,255,255,.05); } }
 
@@ -143,9 +259,29 @@
         .skeleton{background:linear-gradient(90deg,#1a1a1a 25%,#2a2a2a 50%,#1a1a1a 75%);background-size:200% 100%;animation:shimmer 1.5s infinite;border-radius:8px;}
         @keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
 
+        /* ── Dot bounce loader ── */
+        .dot-bounce {
+            display: inline-block;
+            width: 8px; height: 8px; border-radius: 50%;
+            background: rgba(255,255,255,.35);
+            animation: dotBounce .9s ease-in-out infinite;
+        }
+        .dot-bounce-kids { background: rgba(255,230,109,.5); }
+        @keyframes dotBounce {
+            0%, 80%, 100% { transform: translateY(0); opacity: .4; }
+            40%            { transform: translateY(-10px); opacity: 1; }
+        }
+
         /* ── Section fade transition ── */
-        .page-section { animation: fade-in .2s ease-out; }
+        .page-section { animation: fade-in .2s ease-out both; }
+        .page-section.hidden { animation: none !important; opacity: 0 !important; }
         @media (prefers-reduced-motion: reduce) { .page-section { animation: none; } }
+
+        /* ── Fullscreen flex sections: controlled outside Tailwind to avoid hidden+flex conflict ── */
+        #section-profile-picker,
+        #section-login { display: flex; }
+        #section-profile-picker.hidden,
+        #section-login.hidden { display: none !important; }
 
         /* ── Search Dropdown ── */
         #searchDropdown{position:absolute;top:calc(100% + 6px);left:0;right:0;background:rgba(10,0,20,.98);border:1px solid rgba(157,0,255,.3);border-radius:12px;z-index:999;max-height:60vh;overflow-y:auto;}
@@ -157,19 +293,26 @@
         .section-row { margin-bottom: 2rem; }
 
         /* ── Top 10 Row ── */
-        .top10-wrap { flex:none; position:relative; cursor:pointer; display:inline-block; }
+        .top10-wrap { flex:none; position:relative; cursor:pointer; display:flex; align-items:flex-end; gap:0; }
         .top10-num {
-            position:absolute; bottom:-18px; left:-10px; z-index:2;
+            position:relative; z-index:1;
             font-size:100px; font-weight:900; font-style:italic; line-height:1;
-            color:transparent; -webkit-text-stroke:3px rgba(255,255,255,.55);
-            user-select:none; letter-spacing:-.05em; pointer-events:none;
-            text-shadow: 2px 4px 16px rgba(0,0,0,.7);
+            background: linear-gradient(135deg, #60a5fa 0%, #3b82f6 50%, #1d4ed8 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            user-select:none; letter-spacing:-.08em; pointer-events:none;
+            text-shadow: none;
+            filter: drop-shadow(0 4px 12px rgba(59, 130, 246, 0.5));
+            margin-right: 6px;
+            flex-shrink: 0;
         }
-        @media(min-width:768px){ .top10-num { font-size:130px; bottom:-22px; left:-14px; } }
+        @media(min-width:768px){ .top10-num { font-size:130px; margin-right: 8px; } }
         .top10-img-wrap {
-            position:relative; z-index:1; flex:none;
+            position:relative; z-index:2; flex:none;
             width:110px; overflow:hidden; border-radius:10px;
             aspect-ratio:2/3; background:#111; border:1px solid rgba(255,255,255,.08);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
         }
         @media(min-width:768px){ .top10-img-wrap { width:140px; } }
         .vote-badge { position:absolute; top:6px; right:6px; background:rgba(0,0,0,.85); border:1px solid rgba(255,200,0,.4); color:#ffd700; font-size:10px; font-weight:700; padding:3px 6px; border-radius:4px; }
@@ -210,7 +353,7 @@
             z-index: 1;
         }
         .detail-mute-btn {
-            position: absolute; right: 20px; z-index: 20;
+            position: absolute; right: 20px; z-index: 60;
             width: 42px; height: 42px; border-radius: 50%;
             background: rgba(30,30,30,.6); border: 2px solid rgba(255,255,255,.4);
             backdrop-filter: blur(10px); color: white;
@@ -1547,7 +1690,7 @@
 </div>
 
 <!-- ══ PROFILE PICKER ══ -->
-<div id="section-profile-picker" class="page-section hidden fixed inset-0 z-[400] bg-[radial-gradient(circle_at_top_right,#1e1e2e,#000000)] flex items-center justify-center text-white overflow-hidden">
+<div id="section-profile-picker" class="page-section hidden fixed inset-0 z-[400] bg-[radial-gradient(circle_at_top_right,#1e1e2e,#000000)] items-center justify-center text-white overflow-hidden">
     <div class="w-full max-w-4xl px-6 py-12 animate-fade-in">
         <div class="text-center mb-12">
             <h1 class="text-4xl md:text-5xl font-extrabold tracking-tighter italic mb-4">Quem está assistindo?</h1>
@@ -1570,7 +1713,7 @@
 </div>
 
 <!-- ══ LOGIN ══ -->
-<div id="section-login" class="page-section hidden fixed inset-0 z-[400] flex items-center justify-center text-white overflow-hidden" style="background:#000;">
+<div id="section-login" class="page-section hidden fixed inset-0 z-[400] items-center justify-center text-white overflow-hidden" style="background:#000;">
     <!-- Partículas de fundo -->
     <div class="login-particles" aria-hidden="true">
         <span></span><span></span><span></span><span></span><span></span>
@@ -1734,6 +1877,7 @@
 
 <!-- ══ FILMES ══ -->
 <div id="section-movies" class="page-section hidden pt-20 md:pt-24 px-3 md:px-12 min-h-screen">
+    <button onclick="history.back()" class="flex items-center gap-2 text-gray-400 hover:text-white transition mb-4 text-sm font-bold"><i class="fas fa-arrow-left"></i> Voltar</button>
     <h2 class="text-3xl md:text-4xl font-black mb-6 md:mb-8 uppercase italic tracking-tighter">Filmes</h2>
     <div id="grid-movies" class="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 md:gap-6">
         <div class="skeleton aspect-[2/3] w-full rounded-lg"></div>
@@ -1753,6 +1897,7 @@
 
 <!-- ══ SÉRIES ══ -->
 <div id="section-series" class="page-section hidden pt-20 md:pt-24 px-3 md:px-12 min-h-screen">
+    <button onclick="history.back()" class="flex items-center gap-2 text-gray-400 hover:text-white transition mb-4 text-sm font-bold"><i class="fas fa-arrow-left"></i> Voltar</button>
     <h2 class="text-3xl md:text-4xl font-black mb-6 md:mb-8 uppercase italic tracking-tighter">Séries</h2>
     <div id="grid-series" class="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 md:gap-6">
         <div class="skeleton aspect-[2/3] w-full rounded-lg"></div>
@@ -1771,33 +1916,45 @@
 </div>
 
 <!-- ══ GÉNEROS ══ -->
-<div id="section-genres" class="page-section hidden pt-24 px-6 md:px-12 min-h-screen" style="display: none;">
-    <h2 class="text-4xl font-black mb-8 uppercase italic tracking-tighter">Explorar Gêneros</h2>
-    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; margin-bottom: 3rem;">
-        <div onclick="loadGenre('Terror','movie')" style="background: #27272a; border: 1px solid #3f3f46; padding: 2rem; border-radius: 1rem; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; min-height: 140px;"><i class="fas fa-ghost" style="font-size: 1.875rem; margin-bottom: 0.75rem; color: #c084fc;"></i><span style="font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; font-size: 0.75rem;">Terror</span></div>
-        <div onclick="loadGenre('Ação','movie')" style="background: #27272a; border: 1px solid #3f3f46; padding: 2rem; border-radius: 1rem; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; min-height: 140px;"><i class="fas fa-fist-raised" style="font-size: 1.875rem; margin-bottom: 0.75rem; color: #ef4444;"></i><span style="font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; font-size: 0.75rem;">Ação</span></div>
-        <div onclick="loadGenre('Comédia','movie')" style="background: #27272a; border: 1px solid #3f3f46; padding: 2rem; border-radius: 1rem; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; min-height: 140px;"><i class="fas fa-laugh-squint" style="font-size: 1.875rem; margin-bottom: 0.75rem; color: #facc15;"></i><span style="font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; font-size: 0.75rem;">Comédia</span></div>
-        <div onclick="loadGenre('Documentário','movie')" style="background: #27272a; border: 1px solid #3f3f46; padding: 2rem; border-radius: 1rem; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; min-height: 140px;"><i class="fas fa-film" style="font-size: 1.875rem; margin-bottom: 0.75rem; color: #60a5fa;"></i><span style="font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; font-size: 0.75rem;">Documentários</span></div>
-        <div onclick="loadGenre('Drama','tv')" style="background: #27272a; border: 1px solid #3f3f46; padding: 2rem; border-radius: 1rem; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; min-height: 140px;"><i class="fas fa-theater-masks" style="font-size: 1.875rem; margin-bottom: 0.75rem; color: #f472b6;"></i><span style="font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; font-size: 0.75rem;">Drama</span></div>
-        <div onclick="loadGenre('Romance','movie')" style="background: #27272a; border: 1px solid #3f3f46; padding: 2rem; border-radius: 1rem; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; min-height: 140px;"><i class="fas fa-heart" style="font-size: 1.875rem; margin-bottom: 0.75rem; color: #f87171;"></i><span style="font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; font-size: 0.75rem;">Romance</span></div>
-        <div onclick="loadGenre('Animação','tv')" style="background: #27272a; border: 1px solid #3f3f46; padding: 2rem; border-radius: 1rem; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; min-height: 140px;"><i class="fas fa-dragon" style="font-size: 1.875rem; margin-bottom: 0.75rem; color: #fb923c;"></i><span style="font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; font-size: 0.75rem;">Animes</span></div>
-        <div onclick="loadGenre('Crime','movie')" style="background: #27272a; border: 1px solid #3f3f46; padding: 2rem; border-radius: 1rem; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; min-height: 140px;"><i class="fas fa-user-secret" style="font-size: 1.875rem; margin-bottom: 0.75rem; color: #4ade80;"></i><span style="font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; font-size: 0.75rem;">Crime</span></div>
-        <div onclick="loadGenre('Ficção','movie')" style="background: #27272a; border: 1px solid #3f3f46; padding: 2rem; border-radius: 1rem; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; min-height: 140px;"><i class="fas fa-rocket" style="font-size: 1.875rem; margin-bottom: 0.75rem; color: #22d3ee;"></i><span style="font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; font-size: 0.75rem;">Ficção</span></div>
-        <div onclick="loadGenre('Suspense','movie')" style="background: #27272a; border: 1px solid #3f3f46; padding: 2rem; border-radius: 1rem; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; min-height: 140px;"><i class="fas fa-eye" style="font-size: 1.875rem; margin-bottom: 0.75rem; color: #9ca3af;"></i><span style="font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; font-size: 0.75rem;">Suspense</span></div>
+<div id="section-genres" class="page-section hidden min-h-screen relative">
+    <!-- Glow effects -->
+    <div class="genre-glow" style="top: -100px; right: -100px;"></div>
+    <div class="genre-glow" style="bottom: -100px; left: -100px; background: #3b82f6;"></div>
+
+    <div class="pt-24 px-6 md:px-12 max-w-7xl mx-auto relative z-10">
+        <!-- Header -->
+        <header class="text-center mb-12 md:mb-16">
+            <button onclick="history.back()" class="flex items-center gap-2 text-gray-400 hover:text-white transition mb-6 text-sm font-bold mx-auto"><i class="fas fa-arrow-left"></i> Voltar</button>
+            <h2 class="text-4xl md:text-5xl font-extrabold mb-4 tracking-tight">O que queres sentir hoje?</h2>
+            <p class="text-gray-400 text-lg max-w-xl mx-auto">Escolhe um universo e começa a tua próxima grande aventura.</p>
+        </header>
+
+        <!-- Genre Grid -->
+        <div id="genre-grid-container" class="genre-grid-new">
+            <!-- Cards will be injected here -->
+        </div>
+
+        <!-- Random Mode Button -->
+        <footer class="mt-12 md:mt-16 flex justify-center">
+            <button onclick="loadRandomGenre()" class="genre-random-btn px-10 py-4 rounded-full font-bold text-white flex items-center gap-3">
+                <i class="fas fa-dice"></i> MODO ALEATÓRIO
+            </button>
+        </footer>
     </div>
 </div>
 
 <!-- ══ GÉNERO PAGE ══ -->
-<div id="section-genre-page" class="page-section hidden pt-24 px-6 md:px-12 min-h-screen">
-    <div class="flex items-center gap-4 mb-8">
+<div id="section-genre-page" class="page-section hidden pt-24 px-6 md:px-12 min-h-screen" style="position: relative;">
+    <div id="genre-header" class="flex items-center gap-4 mb-8" style="position: sticky; top: 96px; z-index: 100; background: #0a0a0a; padding: 16px 24px; border-radius: 12px;">
         <button onclick="showSection('genres')" class="text-gray-500 hover:text-white transition"><i class="fas fa-arrow-left text-2xl"></i></button>
         <h2 id="genre-page-title" class="text-4xl font-black uppercase italic tracking-tighter text-purple-400"></h2>
     </div>
-    <div id="grid-genre" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6"></div>
+    <div id="grid-genre" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6" style="margin-top: 80px;"></div>
 </div>
 
 <!-- ══ BUSCA ══ -->
 <div id="section-search" class="page-section hidden pt-24 px-6 md:px-12 min-h-screen">
+    <button onclick="history.back()" class="flex items-center gap-2 text-gray-400 hover:text-white transition mb-4 text-sm font-bold"><i class="fas fa-arrow-left"></i> Voltar</button>
     <h2 class="text-4xl font-black mb-8 uppercase italic tracking-tighter">Resultados</h2>
     <div id="grid-search" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6"></div>
 </div>
@@ -1810,6 +1967,7 @@
         <div id="kidsHeroSlides" class="absolute inset-0"></div>
         <div class="absolute inset-0 bg-gradient-to-r from-black via-black/20 to-transparent pointer-events-none"></div>
         <div class="absolute inset-0 hero-gradient pointer-events-none"></div>
+        <button onclick="history.back()" class="absolute top-4 left-4 md:left-12 z-20 flex items-center gap-2 bg-black/40 hover:bg-black/70 text-white text-xs font-bold px-4 py-2 rounded-full border border-white/15 backdrop-blur-sm transition" style="top: max(16px, env(safe-area-inset-top, 16px));"><i class="fas fa-arrow-left"></i> Voltar</button>
         <div class="absolute bottom-14 md:bottom-20 left-4 md:left-12 right-4 md:right-auto max-w-2xl" id="kidsHeroContent" style="display:none">
             <div class="flex items-center gap-2 mb-2 md:mb-3">
                 <span class="bg-yellow-400 text-black text-[9px] md:text-[10px] px-2 py-0.5 rounded font-bold uppercase tracking-tighter">⭐ Kids</span>
@@ -1844,6 +2002,7 @@
 
 <!-- ══ PERFIL ══ -->
 <div id="section-profile" class="page-section hidden pt-24 px-6 md:px-12 max-w-4xl mx-auto min-h-screen">
+    <button onclick="history.back()" class="flex items-center gap-2 text-gray-400 hover:text-white transition mb-6 text-sm font-bold"><i class="fas fa-arrow-left"></i> Voltar</button>
     <div class="flex flex-col md:flex-row items-center gap-10 mb-12">
         <div class="relative">
             <div id="profileAvatar" class="w-32 h-32 rounded-full bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center text-5xl font-black border border-white/10 shadow-2xl overflow-hidden cursor-pointer" onclick="document.getElementById('avatarInput').click()">
@@ -1924,7 +2083,7 @@
         <div class="detail-banner-grad-side hidden md:block" style="z-index:4;"></div>
 
         <!-- Botão voltar -->
-        <button onclick="closeDetail()" class="absolute z-20 flex items-center gap-2 bg-black/40 hover:bg-black/70 text-white text-xs font-bold px-4 py-2 rounded-full border border-white/15 backdrop-blur-sm transition"
+        <button onclick="closeDetail()" class="absolute z-[60] flex items-center gap-2 bg-black/40 hover:bg-black/70 text-white text-xs font-bold px-4 py-2 rounded-full border border-white/15 backdrop-blur-sm transition"
             style="top: max(20px, env(safe-area-inset-top, 20px)); left: 16px;">
             <i class="fas fa-arrow-left"></i> Voltar
         </button>
@@ -2562,6 +2721,19 @@ const KIDS_SECTION_NAMES = {
 };
 
 async function loadKidsCatalog() {
+    // Show kids skeleton while loading
+    const kidsRows = document.getElementById('kidsRows');
+    kidsRows.innerHTML = `
+        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:50vh;gap:16px">
+            <p style="font-size:13px;font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:rgba(255,230,109,.5)">Carregando</p>
+            <div style="display:flex;gap:10px;align-items:center">
+                <span class="dot-bounce dot-bounce-kids" style="animation-delay:0s"></span>
+                <span class="dot-bounce dot-bounce-kids" style="animation-delay:.2s"></span>
+                <span class="dot-bounce dot-bounce-kids" style="animation-delay:.4s"></span>
+            </div>
+        </div>
+    `;
+
     try {
         const r = await fetch(`${API}/kids-catalog`);
         if (!r.ok) {
@@ -2829,7 +3001,7 @@ function selectProfile(profileId) {
         
         // Update UI with profile name
         if (targetProfile.name) {
-            currentUser.name = targetProfile.name;
+            if (currentUser) currentUser.name = targetProfile.name;
             localStorage.setItem('userName', targetProfile.name);
         }
         
@@ -3288,12 +3460,23 @@ function handleManageProfiles() {
 function verifyKidsExitPin() {
     const pin = document.getElementById('kidsExitPin').value;
     const currentProfile = getCurrentProfile();
-    
-    // Use the last 4 digits of the account password as the PIN
-    const accountPassword = localStorage.getItem('accountPassword') || '';
-    const expectedPin = accountPassword.slice(-4);
-    
-    if (pin === expectedPin && pin.length === 4) {
+
+    // Usa o kidsPin salvo no perfil kids atual
+    // Fallback: procura PIN em perfil adulto, ou últimos 4 dígitos da senha da conta
+    let expectedPin = null;
+    if (currentProfile && currentProfile.kidsPin) {
+        expectedPin = currentProfile.kidsPin;
+    } else {
+        const adultWithPin = profiles.find(p => !p.kidsMode && p.kidsPin);
+        if (adultWithPin) {
+            expectedPin = adultWithPin.kidsPin;
+        } else {
+            const accountPassword = localStorage.getItem('accountPassword') || '';
+            expectedPin = accountPassword.slice(-4);
+        }
+    }
+
+    if (pin.length === 4 && pin === expectedPin) {
         // PIN correct, exit kids mode
         kidsModeEnabled = false;
         const icon = document.getElementById('kidsModeIcon');
@@ -3332,7 +3515,7 @@ function verifyKidsExitPin() {
                 
                 // Update UI with profile name
                 if (targetProfile.name) {
-                    currentUser.name = targetProfile.name;
+                    if (currentUser) currentUser.name = targetProfile.name;
                     localStorage.setItem('userName', targetProfile.name);
                 }
                 
@@ -4086,6 +4269,9 @@ async function checkServer() {
         serverOnline = false;
         document.getElementById('profileServerStatus').textContent = '🔴 Serviço indisponível';
         document.getElementById('homeRows').innerHTML = '<p class="text-gray-600 text-sm italic text-center py-12">Serviço indisponível. Tente novamente mais tarde.</p>';
+        const hero = document.getElementById('hero');
+        if (hero) hero.style.display = '';
+        document.body.style.overflow = '';
     }
 }
 
@@ -4103,23 +4289,32 @@ function skeletonCards(n) {
     ).join('');
 }
 function skeletonRows(n) {
-    return Array.from({length: n}, () =>
-        `<div class="section-row"><div class="skeleton h-4 w-48 mb-4 rounded"></div><div class="flex gap-4">${skeletonCards(6)}</div></div>`
-    ).join('');
+    // Esconder o hero e bloquear scroll enquanto carrega
+    const hero = document.getElementById('hero');
+    if (hero) hero.style.display = 'none';
+    document.body.style.overflow = 'hidden';
+    return `
+        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;gap:16px;margin-top:-24px">
+            <p style="font-size:13px;font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:rgba(255,255,255,.45)">Carregando</p>
+            <div style="display:flex;gap:10px;align-items:center">
+                <span class="dot-bounce" style="animation-delay:0s"></span>
+                <span class="dot-bounce" style="animation-delay:.2s"></span>
+                <span class="dot-bounce" style="animation-delay:.4s"></span>
+            </div>
+        </div>`;
 }
 
 function createCard(item, isGrid = false) {
     const div = document.createElement('div');
     const unreleased = item.released === false;
     div.className = isGrid
-        ? `card-zoom animate-fade ${unreleased ? '' : 'cursor-pointer'}`
+        ? `card-zoom ${unreleased ? '' : 'cursor-pointer'}`
         : `flex-none w-32 md:w-44 card-zoom animate-fade ${unreleased ? '' : 'cursor-pointer'}`;
     const vote = item.vote ? `<span class="vote-badge">⭐ ${item.vote.toFixed(1)}</span>` : '';
     const releaseLabel = unreleased && item.release_date
-        ? `<span class="text-[9px] text-yellow-300">${item.release_date}</span>` : '';
+        ? `<span class="text-[9px] text-yellow-300 leading-tight">O filme será lançado dia:<br><strong>${formatDateBR(item.release_date)}</strong></span>` : '';
     const overlay = unreleased
-        ? `<div class="absolute inset-0 bg-black/70 flex flex-col items-center justify-center p-4 text-center">
-               <span class="text-[10px] font-black uppercase tracking-widest text-yellow-400 bg-yellow-400/10 border border-yellow-400/40 px-2 py-1 rounded-full mb-1">Em Breve</span>
+        ? `<div class="absolute inset-0 bg-black/70 flex flex-col items-center justify-center p-4 text-center gap-1">
                ${releaseLabel}
            </div>`
         : `<div class="absolute inset-0 bg-black/60 opacity-0 hover:opacity-100 transition-all flex flex-col items-center justify-center p-4 text-center">
@@ -4136,7 +4331,7 @@ function createCard(item, isGrid = false) {
             ${overlay}
         </div>
         ${isGrid ? `<div class="mt-2">
-            <p class="text-[8px] font-bold uppercase tracking-widest ${unreleased ? 'text-yellow-500' : 'text-purple-400'}">${unreleased ? 'EM BREVE' : (item.tipo === 'tv' ? 'SÉRIE' : 'FILME')} • ${item.year || ''}</p>
+            <p class="text-[8px] font-bold uppercase tracking-widest ${unreleased ? 'text-yellow-500' : 'text-purple-400'}">${unreleased ? 'EM BREVE' : (item.tipo === 'tv' ? 'SÉRIE' : 'FILME')} • ${unreleased ? formatDateBR(item.release_date) : (item.year || '')}</p>
             <p class="text-[11px] font-bold truncate text-gray-100">${item.title}</p>
         </div>` : ''}
     `;
@@ -4231,13 +4426,21 @@ function renderTop10Row() {
     const items = pool.slice(0, 10);
     const section = document.createElement('div');
     section.className = 'section-row';
-    section.innerHTML = `<h3 class="text-sm font-bold text-white uppercase tracking-widest mb-4">🏅 Em Alta Agora</h3>`;
+
+    const header = document.createElement('div');
+    header.className = 'flex items-baseline gap-3 mb-4';
+    header.style.cssText = 'position:relative;z-index:20;';
+    header.innerHTML = `
+        <h3 class="text-sm font-bold text-white uppercase tracking-widest">🏅 Em Alta Agora</h3>
+        <span class="text-xs font-semibold text-blue-400 tracking-wide">Top 10 do HBO+</span>
+    `;
+    section.appendChild(header);
 
     const wrapper = document.createElement('div');
     wrapper.className = 'relative';
 
     const row = document.createElement('div');
-    row.className = 'flex gap-5 overflow-x-auto scroll-hide pb-10 pl-4';
+    row.className = 'flex gap-4 overflow-x-auto scroll-hide pb-10 pl-2';
     items.forEach((item, idx) => {
         const wrap = document.createElement('div');
         wrap.className = 'top10-wrap card-zoom cursor-pointer';
@@ -4354,7 +4557,7 @@ function _updateHeroContent(idx) {
         playBtn.classList.add('hidden');
         unrelBadge.classList.remove('hidden');
         unrelBadge.classList.add('flex');
-        document.getElementById('heroUnreleasedDate').textContent = item.release_date ? `Em breve • ${item.release_date}` : 'Em breve';
+        document.getElementById('heroUnreleasedDate').textContent = item.release_date ? `Em breve • ${formatDateBR(item.release_date)}` : 'Em breve';
     } else {
         playBtn.classList.remove('hidden');
         unrelBadge.classList.add('hidden');
@@ -4386,6 +4589,11 @@ function heroGoTo(idx) {
 function renderHome() {
     const container = document.getElementById('homeRows');
     container.innerHTML = '';
+
+    // Restaurar o hero e liberar o scroll após carregamento
+    const hero = document.getElementById('hero');
+    if (hero) hero.style.display = '';
+    document.body.style.overflow = '';
 
     // Hero carrossel com banners
     const pool = [...(catalogData.trending_movies || []), ...(catalogData.trending_series || [])];
@@ -4461,6 +4669,164 @@ async function loadGenre(nome, tipo) {
     } catch {
         document.getElementById('grid-genre').innerHTML = '<p class="text-red-500 text-xs col-span-full py-8 text-center">Erro ao carregar.</p>';
     }
+}
+
+// ── New Genre Grid Functions ─────────────────────────────────────────────────
+const GENRE_CONFIG = [
+    { nome: 'Terror', tipo: 'movie', desc: 'Pura adrenalina', icon: 'fa-ghost' },
+    { nome: 'Ação', tipo: 'movie', desc: 'Explosivo e intenso', icon: 'fa-fist-raised' },
+    { nome: 'Comédia', tipo: 'movie', desc: 'Risadas garantidas', icon: 'fa-laugh-squint' },
+    { nome: 'Documentário', tipo: 'movie', desc: 'Histórias reais', icon: 'fa-film' },
+    { nome: 'Drama', tipo: 'tv', desc: 'Emoção profunda', icon: 'fa-theater-masks' },
+    { nome: 'Romance', tipo: 'movie', desc: 'Amor e paixão', icon: 'fa-heart' },
+    { nome: 'Animação', tipo: 'tv', desc: 'Magia e fantasia', icon: 'fa-dragon' },
+    { nome: 'Crime', tipo: 'movie', desc: 'Mistério e suspense', icon: 'fa-user-secret' },
+    { nome: 'Ficção', tipo: 'movie', desc: 'Outros mundos', icon: 'fa-rocket' },
+    { nome: 'Suspense', tipo: 'movie', desc: 'Tensão constante', icon: 'fa-eye' }
+];
+
+// Cache para imagens de gêneros (evita recarregar toda vez)
+let genreImageCache = {};
+
+function getGenreImageFromCatalog(genreNome) {
+    // Procurar nos dados do catálogo por itens deste género
+    const allItems = Object.values(catalogData).flat();
+    const genreItems = allItems.filter(item => {
+        if (!item.genres) return false;
+        return item.genres.some(g => g.toLowerCase().includes(genreNome.toLowerCase()));
+    });
+
+    if (genreItems.length > 0) {
+        const randomItem = genreItems[Math.floor(Math.random() * genreItems.length)];
+        if (randomItem.backdrop) return `https://image.tmdb.org/t/p/w780${randomItem.backdrop}`;
+        if (randomItem.img) return randomItem.img.replace('w300', 'w780');
+    }
+
+    // Fallback: procurar em listas relacionadas
+    const fallbackKeys = {
+        'Terror': ['terror', 'terror_tv'],
+        'Ação': ['acao'],
+        'Comédia': ['comedia'],
+        'Drama': ['drama_tv'],
+        'Animação': ['anime'],
+        'Ficção': ['sci_fi'],
+        'Crime': ['crime'],
+        'Suspense': ['suspense'],
+        'Romance': ['romance'],
+        'Documentário': ['documentario']
+    };
+
+    const keys = fallbackKeys[genreNome] || [];
+    for (const key of keys) {
+        const items = catalogData[key];
+        if (items && items.length > 0) {
+            const randomItem = items[Math.floor(Math.random() * items.length)];
+            if (randomItem.backdrop) return `https://image.tmdb.org/t/p/w780${randomItem.backdrop}`;
+            if (randomItem.img) return randomItem.img.replace('w300', 'w780');
+        }
+    }
+
+    return null;
+}
+
+async function fetchGenreImageFromAPI(genreNome, tipo) {
+    // Se já tem no cache, retorna
+    if (genreImageCache[genreNome]) {
+        return genreImageCache[genreNome];
+    }
+
+    // Se não tem servidor online, retorna null
+    if (!serverOnline) return null;
+
+    try {
+        // Buscar um item aleatório do gênero na API
+        const r = await fetch(`${API}/genero?nome=${encodeURIComponent(genreNome)}&tipo=${tipo}`);
+        const items = await r.json();
+        
+        if (items && items.length > 0) {
+            const randomItem = items[Math.floor(Math.random() * items.length)];
+            let imageUrl = null;
+            
+            if (randomItem.backdrop) {
+                imageUrl = `https://image.tmdb.org/t/p/w780${randomItem.backdrop}`;
+            } else if (randomItem.img) {
+                imageUrl = randomItem.img.replace('w300', 'w780');
+            }
+            
+            if (imageUrl) {
+                genreImageCache[genreNome] = imageUrl;
+                return imageUrl;
+            }
+        }
+    } catch (e) {
+        console.log('Erro ao buscar imagem do gênero:', e);
+    }
+    
+    return null;
+}
+
+async function renderGenreCards() {
+    const container = document.getElementById('genre-grid-container');
+    if (!container) return;
+
+    // Mostrar skeleton inicial
+    container.innerHTML = GENRE_CONFIG.map(genre => `
+        <div class="genre-card-new bg-gradient-to-br from-zinc-800 to-zinc-900" onclick="loadGenre('${genre.nome}','${genre.tipo}')">
+            <div class="genre-card-overlay"></div>
+            <div class="genre-card-content">
+                <h3 class="genre-title-new">${genre.nome}</h3>
+                <div class="genre-desc-new">
+                    <i class="fas ${genre.icon}"></i>
+                    <span>${genre.desc}</span>
+                </div>
+            </div>
+        </div>
+    `).join('');
+
+    // Carregar imagens em paralelo
+    const imagePromises = GENRE_CONFIG.map(async (genre) => {
+        // Primeiro tenta do catálogo local
+        let imageUrl = getGenreImageFromCatalog(genre.nome);
+        
+        // Se não tem, busca da API
+        if (!imageUrl) {
+            imageUrl = await fetchGenreImageFromAPI(genre.nome, genre.tipo);
+        }
+        
+        return { genre, imageUrl };
+    });
+
+    const results = await Promise.all(imagePromises);
+
+    // Atualizar cards com imagens
+    results.forEach(({ genre, imageUrl }) => {
+        const cards = container.querySelectorAll('.genre-card-new');
+        const card = Array.from(cards).find(c => 
+            c.getAttribute('onclick')?.includes(`loadGenre('${genre.nome}'`)
+        );
+        
+        if (card && imageUrl) {
+            card.classList.remove('bg-gradient-to-br', 'from-zinc-800', 'to-zinc-900');
+            const imgDiv = document.createElement('div');
+            imgDiv.className = 'genre-card-image';
+            imgDiv.style.backgroundImage = `url('${imageUrl}')`;
+            card.insertBefore(imgDiv, card.firstChild);
+        }
+    });
+}
+
+function loadRandomGenre() {
+    const randomGenre = GENRE_CONFIG[Math.floor(Math.random() * GENRE_CONFIG.length)];
+    loadGenre(randomGenre.nome, randomGenre.tipo);
+}
+
+// ── Utility Functions ───────────────────────────────────────────────────────
+function formatDateBR(dateString) {
+    if (!dateString) return '';
+    const parts = dateString.split('-');
+    if (parts.length !== 3) return dateString;
+    // Converter aaaa-mm-dd -> dd/mm/aaaa
+    return `${parts[2]}/${parts[1]}/${parts[0]}`;
 }
 
 // ── Detail Page ──────────────────────────────────────────────────────────────
@@ -4663,7 +5029,7 @@ async function openDetails(tmdb_id, tipo) {
         unrelBadge.classList.remove('hidden');
         unrelBadge.classList.add('flex');
         document.getElementById('detailUnreleasedDate').textContent = item.release_date
-            ? `Estreia em ${item.release_date}` : 'Ainda não lançado';
+            ? `Estreia em ${formatDateBR(item.release_date)}` : 'Ainda não lançado';
     } else {
         playBtn.disabled = false;
         playBtn.className = 'bg-white text-black px-8 py-3 rounded-xl font-black flex items-center gap-3 text-sm hover:scale-105 transition shadow-xl shadow-white/10 cursor-pointer';
@@ -5081,7 +5447,7 @@ async function doSearchPage(q) {
 // Sections that are blocked in kids mode (redirect to kids)
 const ADULT_SECTIONS = ['home','movies','series','genres','genre-page','detail'];
 
-function showSection(id) {
+async function showSection(id) {
     // ── KIDS MODE GUARD ──────────────────────────────────────────────
     // If kids mode is on, any adult section is redirected to kids zone
     if (kidsModeEnabled && ADULT_SECTIONS.includes(id) && id !== 'detail') {
@@ -5094,6 +5460,7 @@ function showSection(id) {
     document.querySelectorAll('.page-section').forEach(s => s.classList.add('hidden'));
     const target = document.getElementById(`section-${id}`);
     if (target) target.classList.remove('hidden');
+    
     document.querySelectorAll('.nav-link-desk').forEach(l => l.classList.remove('active-nav-desktop'));
     document.querySelectorAll('.bottom-nav button').forEach(b => b.classList.remove('active-nav-mobile'));
     const mNav = document.getElementById(`m-nav-${id}`);
@@ -5117,6 +5484,10 @@ function showSection(id) {
             if (bottomNav) bottomNav.classList.add('hidden');
             document.body.style.overflow = 'hidden';
             renderProfilePicker();
+        } else if (id === 'detail') {
+            navbar.classList.add('hidden');
+            if (bottomNav) bottomNav.classList.remove('hidden');
+            document.body.style.overflow = '';
         } else {
             navbar.classList.remove('hidden');
             if (bottomNav) bottomNav.classList.remove('hidden');
@@ -5148,11 +5519,16 @@ function showSection(id) {
         loadKidsCatalog();
     }
 
+    // Render genre cards when showing genres section
+    if (id === 'genres') {
+        await renderGenreCards();
+    }
+
     window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 // Handle browser back/forward buttons
-window.addEventListener('popstate', (event) => {
+window.addEventListener('popstate', async (event) => {
     const path = window.location.pathname;
     const sectionMap = {
         '/home': 'home',
@@ -5188,11 +5564,16 @@ window.addEventListener('popstate', (event) => {
         document.body.style.overflow = '';
     }
 
+    // Render genre cards when navigating to genres via browser back/forward
+    if (section === 'genres') {
+        await renderGenreCards();
+    }
+
     window.scrollTo({ top: 0, behavior: 'smooth' });
 });
 
 // Handle initial route on page load
-window.addEventListener('DOMContentLoaded', () => {
+window.addEventListener('DOMContentLoaded', async () => {
     // Load profiles on startup
     loadProfiles();
     updateCurrentProfileName();
@@ -5235,6 +5616,11 @@ window.addEventListener('DOMContentLoaded', () => {
     if (section === 'kids') {
         const kNav = document.getElementById('m-nav-kids-home');
         if (kNav) kNav.classList.add('active-nav-mobile');
+    }
+
+    // Render genre cards on initial load if genres section
+    if (section === 'genres') {
+        await renderGenreCards();
     }
 
     const navbar = document.getElementById('navbar');
