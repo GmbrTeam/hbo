@@ -2968,13 +2968,17 @@ function renderProfilePicker() {
         if (!isDefault) {
             card.onclick = () => {
                 const currentProfile = getCurrentProfile();
-                // If current profile is kids and trying to switch, require PIN
+                // If current profile is kids and trying to switch, require PIN only if PIN exists
                 if (currentProfile && currentProfile.kidsMode && profile.id !== currentProfile.id) {
-                    openKidsExitPinModal();
-                    localStorage.setItem('pendingProfileSwitch', profile.id);
-                } else {
-                    selectProfile(profile.id);
+                    const hasPin = currentProfile.kidsPin ||
+                        profiles.find(p => !p.kidsMode && p.kidsPin);
+                    if (hasPin) {
+                        openKidsExitPinModal();
+                        localStorage.setItem('pendingProfileSwitch', profile.id);
+                        return;
+                    }
                 }
+                selectProfile(profile.id);
             };
         }
         
@@ -2997,12 +3001,15 @@ function renderProfilePicker() {
 function selectProfile(profileId) {
     const currentProfile = getCurrentProfile();
     
-    // If current profile is kids and trying to switch, require PIN
+    // If current profile is kids and trying to switch, require PIN only if PIN exists
     if (currentProfile && currentProfile.kidsMode && profileId !== currentProfile.id) {
-        openKidsExitPinModal();
-        // Store the target profile ID to switch after PIN verification
-        localStorage.setItem('pendingProfileSwitch', profileId);
-        return;
+        const hasPin = currentProfile.kidsPin ||
+            profiles.find(p => !p.kidsMode && p.kidsPin);
+        if (hasPin) {
+            openKidsExitPinModal();
+            localStorage.setItem('pendingProfileSwitch', profileId);
+            return;
+        }
     }
     
     const targetProfile = profiles.find(p => p.id === profileId);
@@ -3411,10 +3418,16 @@ function closeEditNicknameModal() {
 function toggleKidsMode() {
     const currentProfile = getCurrentProfile();
     
-    // If trying to exit kids mode and current profile is a kids profile, require PIN
+    // Se está tentando sair do modo kids, verificar se tem PIN definido
     if (kidsModeEnabled && currentProfile && currentProfile.kidsMode) {
-        openKidsExitPinModal();
-        return;
+        // Só pede PIN se o perfil realmente tem PIN definido
+        const hasPin = currentProfile.kidsPin ||
+            profiles.find(p => !p.kidsMode && p.kidsPin);
+        if (hasPin) {
+            openKidsExitPinModal();
+            return;
+        }
+        // Sem PIN → sai direto, sem modal
     }
     
     kidsModeEnabled = !kidsModeEnabled;
@@ -3465,13 +3478,17 @@ function closeKidsExitPinModal() {
 function handleManageProfiles() {
     const currentProfile = getCurrentProfile();
     
-    // If current profile is kids, require PIN to access profile management
+    // Se perfil é kids, só pede PIN se houver PIN definido
     if (currentProfile && currentProfile.kidsMode) {
-        openKidsExitPinModal();
-        localStorage.setItem('pendingAction', 'manageProfiles');
-    } else {
-        showSection('profile-picker');
+        const hasPin = currentProfile.kidsPin ||
+            profiles.find(p => !p.kidsMode && p.kidsPin);
+        if (hasPin) {
+            openKidsExitPinModal();
+            localStorage.setItem('pendingAction', 'manageProfiles');
+            return;
+        }
     }
+    showSection('profile-picker');
 }
 
 function verifyKidsExitPin() {
@@ -4204,18 +4221,30 @@ document.getElementById('emailLoginForm').addEventListener('submit', async funct
         const data = await r.json();
 
         if (data.success && data.token) {
-            // Direct login with token
+            // Login direto com token (fluxo sem verificação)
             localStorage.setItem('authToken', data.token);
             currentUser = { email: data.email };
             authToken = data.token;
-            
             updateUserUI(currentUser);
             loadProfiles();
             renderProfilePicker();
             showSection('profile-picker');
             showToast('success', 'Login realizado', 'Bem-vindo de volta!');
+        } else if (data.success) {
+            // Fluxo de verificação por código — abrir modal
+            pendingEmail = email;
+            const modal = document.getElementById('emailVerificationModal');
+            const loginSection = document.getElementById('section-login');
+            if (loginSection) loginSection.classList.add('hidden');
+            if (modal) {
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+                const emailSpan = modal.querySelector('[data-email]') || modal.querySelector('strong') || null;
+                if (emailSpan) emailSpan.textContent = email;
+                const codeInput = document.getElementById('verificationCode');
+                if (codeInput) { codeInput.value = ''; codeInput.focus(); }
+            }
         } else {
-            // Handle errors
             if (data.password_errors && data.password_errors.length > 0) {
                 showToast('error', 'Erro de validação', data.password_errors.join(' '));
             } else {
