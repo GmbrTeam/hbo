@@ -14,6 +14,66 @@ from google.auth.transport import requests as google_requests
 import re
 import psycopg2
 from psycopg2.extras import RealDictCursor
+import gzip
+import json as _json_mod
+import urllib.request
+
+# Scraper de canais de futebol (Playwright) — integrado
+try:
+    from playwright.sync_api import sync_playwright
+    FUTEBOL_OK = True
+except ImportError:
+    FUTEBOL_OK = False
+    print("[WARN] playwright não instalado — rotas de futebol desativadas")
+
+def scrape_canais_futebol():
+    """
+    Acessa la14hd.com, aguarda o JS renderizar, e extrai
+    nome + iframe_url de todos os canais da seção BRASIL.
+    """
+    return scrape_canais_por_pais().get("BRASIL", [])
+
+
+def scrape_canais_por_pais():
+    """
+    Acessa la14hd.com e extrai todos os canais de TODAS as seções,
+    retornando um dict { "PAIS": [{"nome": ..., "iframe_url": ...}] }
+    """
+    resultado = {}
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        page = browser.new_page()
+
+        print("[FOOTBALL] Acessando la14hd.com (todas as seções)...")
+        page.goto("https://la14hd.com/", wait_until="networkidle")
+
+        secoes = page.locator(".cardsection")
+        total_secoes = secoes.count()
+        print(f"[FOOTBALL] {total_secoes} seções encontradas")
+
+        for s in range(total_secoes):
+            secao = secoes.nth(s)
+            pais = secao.locator("h3.item-game").text_content() or ""
+            pais = pais.strip().upper()
+            if not pais:
+                continue
+
+            canais = secao.locator("div[data-canal]")
+            total = canais.count()
+            lista = []
+            for i in range(total):
+                card = canais.nth(i)
+                nome = card.get_attribute("data-canal") or ""
+                url  = card.locator("a").first.get_attribute("href") or ""
+                if url.startswith("https://la14hd.com"):
+                    lista.append({"nome": nome, "iframe_url": url})
+
+            if lista:
+                print(f"[FOOTBALL] {pais}: {len(lista)} canais")
+                resultado[pais] = lista
+
+        browser.close()
+    return resultado
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 app = Flask(__name__, static_folder=BASE_DIR, static_url_path='')
@@ -1066,6 +1126,8 @@ def detalhes(tipo, tmdb_id):
 @app.route('/profile')
 @app.route('/login')
 @app.route('/kids')
+@app.route('/futebol')
+@app.route('/aovivo')
 @app.route('/movie/hbo/<path:slug>')
 @app.route('/tv/hbo/<path:slug>')
 def serve_index(**kwargs):
@@ -1095,6 +1157,556 @@ def resolve_slug(tipo, slug):
     if not item['desc']:
         item['desc'] = resolver_desc(tmdb_id, tipo)
     return jsonify(item)
+
+
+# ─────────────────────────────────────────────
+#  FUTEBOL — canais via Playwright (integrado)
+# ─────────────────────────────────────────────
+
+# Cache em memória
+_football_cache    = None
+_football_cache_ts = 0
+FOOTBALL_CACHE_TTL = 300   # 5 minutos
+
+_football_all_cache    = None
+_football_all_cache_ts = 0
+
+@app.route("/api/football/channels")
+def football_channels():
+    """
+    Roda o scraper e devolve JSON com todos os canais da seção BRASIL.
+    Cache de 5 min pra não reabrir o browser a cada clique.
+    """
+    global _football_cache, _football_cache_ts
+
+    if not FUTEBOL_OK:
+        return jsonify({"error": "playwright nao instalado"}), 503
+
+    if _football_cache and (time.time() - _football_cache_ts) < FOOTBALL_CACHE_TTL:
+        return jsonify(_football_cache)
+
+    try:
+        canais = scrape_canais_futebol()
+        _football_cache    = canais
+        _football_cache_ts = time.time()
+        return jsonify(canais)
+    except Exception as e:
+        print(f"[FOOTBALL] Erro: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/football/channels/all")
+def football_channels_all():
+    """
+    Retorna todos os canais agrupados por país:
+    { "BRASIL": [...], "ARGENTINA": [...], ... }
+    Cache de 5 min compartilhado.
+    """
+    global _football_all_cache, _football_all_cache_ts
+
+    if not FUTEBOL_OK:
+        return jsonify({"error": "playwright nao instalado"}), 503
+
+    if _football_all_cache and (time.time() - _football_all_cache_ts) < FOOTBALL_CACHE_TTL:
+        return jsonify(_football_all_cache)
+
+    try:
+        data = scrape_canais_por_pais()
+        _football_all_cache    = data
+        _football_all_cache_ts = time.time()
+        # Atualiza também o cache de BRASIL (compatibilidade)
+        global _football_cache, _football_cache_ts
+        if "BRASIL" in data:
+            _football_cache    = data["BRASIL"]
+            _football_cache_ts = time.time()
+        return jsonify(data)
+    except Exception as e:
+        print(f"[FOOTBALL/ALL] Erro: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/football/watch")
+def football_watch():
+    """
+    Retorna iframe_url de um canal específico pelo nome.
+    Busca no cache primeiro; se não achar, roda o scraper completo.
+    """
+    if not FUTEBOL_OK:
+        return jsonify({"error": "playwright nao instalado"}), 503
+
+    nome = request.args.get("nome", "").strip()
+    if not nome:
+        return jsonify({"error": "Parametro 'nome' obrigatorio"}), 400
+
+    # Tenta achar no cache primeiro
+    if _football_cache:
+        for c in _football_cache:
+            if c["nome"].lower() == nome.lower() and c.get("iframe_url"):
+                return jsonify(c)
+
+    # Não achou — roda scraper completo e atualiza cache
+    try:
+        global _football_cache_ts
+        canais = scrape_canais_futebol()
+        _football_cache    = canais
+        _football_cache_ts = time.time()
+        for c in canais:
+            if c["nome"].lower() == nome.lower() and c.get("iframe_url"):
+                return jsonify(c)
+        return jsonify({"nome": nome, "iframe_url": "", "erro": "Canal nao encontrado"})
+    except Exception as e:
+        print(f"[FOOTBALL] watch erro: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+# ─────────────────────────────────────────────
+#  EVENTOS — scraping de /eventos/ via Playwright
+# ─────────────────────────────────────────────
+
+_events_cache     = {}
+_events_cache_ts  = {}
+EVENTS_CACHE_TTL  = 180  # 3 minutos
+
+def scrape_eventos(query: str):
+    """
+    Acessa la14hd.com/eventos/, digita no campo #search (input-search),
+    aguarda o filtro JS do site atualizar os display dos .event,
+    e extrai todos os eventos visíveis agrupando streams pelo mesmo nome.
+    """
+    resultados_map = {}   # nome → dict do evento
+    resultados_ordem = [] # mantém ordem de aparição
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        context = browser.new_context(
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        )
+        page = context.new_page()
+
+        print(f"[EVENTS] Acessando /eventos/ para: '{query}'")
+        page.goto("https://la14hd.com/eventos/", wait_until="networkidle", timeout=30000)
+
+        # Espera o campo de busca aparecer
+        try:
+            page.wait_for_selector("#search", timeout=10000)
+        except Exception:
+            print("[EVENTS] Campo #search não encontrado")
+            browser.close()
+            return []
+
+        # Limpa e digita a query
+        page.fill("#search", "")
+        page.type("#search", query, delay=60)
+
+        # Aguarda o JS do site filtrar (ele usa evento 'input' para mostrar/esconder)
+        page.wait_for_timeout(1500)
+
+        # Pega todos os .event e avalia quais estão visíveis via JS
+        # (style="display: flex;" = visível; style="display: none;" = escondido)
+        eventos_visiveis = page.evaluate("""
+            () => {
+                const cards = document.querySelectorAll('.event');
+                const resultado = [];
+                cards.forEach(card => {
+                    const style = card.getAttribute('style') || '';
+                    const isVisible = style.includes('display: flex') || style.includes('display:flex');
+                    if (!isVisible) return;
+
+                    const nome = (card.querySelector('.event-name') || {}).innerText || '';
+                    const categoria = card.getAttribute('data-category') || '';
+
+                    // Determina status
+                    const statusBtn = card.querySelector('.status-button');
+                    let status = 'upcoming';
+                    if (statusBtn) {
+                        const cls = statusBtn.className || '';
+                        if (cls.includes('status-live')) status = 'live';
+                        else if (cls.includes('status-finished')) status = 'finished';
+                        else if (cls.includes('status-next')) status = 'upcoming';
+                    }
+
+                    // Pega streams
+                    const containers = card.querySelectorAll('.iframe-container');
+                    const streams = [];
+                    containers.forEach(c => {
+                        const input = c.querySelector('.iframe-link');
+                        const langEl = c.querySelector('.language_text');
+                        const url = input ? input.value : '';
+                        const lang = langEl ? langEl.innerText.trim() : '';
+                        if (url) streams.push({ url, lang });
+                    });
+
+                    resultado.push({ nome: nome.trim(), categoria, status, streams });
+                });
+                return resultado;
+            }
+        """)
+
+        browser.close()
+
+    # Agrupa eventos com mesmo nome (diferentes streams do mesmo jogo)
+    for ev in eventos_visiveis:
+        nome = ev['nome']
+        if nome not in resultados_map:
+            resultados_map[nome] = {
+                'nome':      nome,
+                'categoria': ev['categoria'],
+                'status':    ev['status'],
+                'streams':   [],
+            }
+            resultados_ordem.append(nome)
+        # Adiciona streams sem duplicar URLs
+        urls_existentes = {s['url'] for s in resultados_map[nome]['streams']}
+        for s in ev['streams']:
+            if s['url'] not in urls_existentes:
+                resultados_map[nome]['streams'].append(s)
+                urls_existentes.add(s['url'])
+
+    resultado_final = [resultados_map[n] for n in resultados_ordem]
+    print(f"[EVENTS] {len(resultado_final)} eventos únicos para '{query}'")
+    return resultado_final
+
+
+@app.route("/api/football/events")
+def football_events():
+    """
+    GET /api/football/events?q=Championship
+    Busca eventos em la14hd.com/eventos/ filtrando pela query.
+    """
+    if not FUTEBOL_OK:
+        return jsonify({"error": "playwright nao instalado"}), 503
+
+    q = request.args.get("q", "").strip()
+    if not q:
+        return jsonify({"error": "Parametro 'q' obrigatorio"}), 400
+
+    now = time.time()
+    if q in _events_cache and (now - _events_cache_ts.get(q, 0)) < EVENTS_CACHE_TTL:
+        print(f"[EVENTS] Cache hit para '{q}'")
+        return jsonify(_events_cache[q])
+
+    try:
+        eventos = scrape_eventos(q)
+        _events_cache[q]    = eventos
+        _events_cache_ts[q] = now
+        return jsonify(eventos)
+    except Exception as e:
+        print(f"[EVENTS] Erro: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+
+# ─────────────────────────────────────────────
+#  TheSportsDB — proxy de logos de times
+# ─────────────────────────────────────────────
+
+_logo_cache = {}
+LOGO_CACHE_TTL = 3600  # 1 hora
+
+def _fix_logo_url(url):
+    """TheSportsDB às vezes retorna URL sem extensão — garante .png"""
+    if not url:
+        return url
+    if not url.lower().endswith((".png", ".jpg", ".jpeg", ".svg", ".webp")):
+        return url + ".png"
+    return url
+
+
+@app.route("/api/football/team-logo")
+def team_logo():
+    """
+    GET /api/football/team-logo?name=Flamengo
+    Busca logo do time na TheSportsDB (API pública, sem chave).
+    Retorna { name, logo_url } ou { error }.
+    Faz cache em memória por 1 hora.
+    """
+    name = request.args.get("name", "").strip()
+    if not name:
+        return jsonify({"error": "Parametro 'name' obrigatorio"}), 400
+
+    key = name.lower()
+    now = time.time()
+    if key in _logo_cache and (now - _logo_cache[key]["ts"]) < LOGO_CACHE_TTL:
+        return jsonify(_logo_cache[key]["data"])
+
+    # Endpoints a tentar em ordem
+    TSDB_ENDPOINTS = [
+        f"https://www.thesportsdb.com/api/v2/json/searchteams/{requests.utils.quote(name)}",
+        f"https://www.thesportsdb.com/api/v1/json/3/searchteams.php?t={requests.utils.quote(name)}",
+        f"https://www.thesportsdb.com/api/v1/json/1/searchteams.php?t={requests.utils.quote(name)}",
+    ]
+    headers = {"User-Agent": "Mozilla/5.0", "Accept": "application/json"}
+
+    for endpoint in TSDB_ENDPOINTS:
+        try:
+            res = requests.get(endpoint, timeout=6, headers=headers)
+            if res.status_code == 404:
+                continue
+            res.raise_for_status()
+            data = res.json()
+            # v2 retorna {teams:[...]} ou {team:{...}}
+            teams = data.get("teams") or []
+            if not teams and data.get("team"):
+                teams = [data["team"]]
+            if teams:
+                t = teams[0]
+                logo = _fix_logo_url(t.get("strTeamBadge") or t.get("strBadge") or t.get("strTeamLogo") or "")
+                result = {"name": name, "logo_url": logo, "team_id": t.get("idTeam")}
+                _logo_cache[key] = {"data": result, "ts": now}
+                print(f"[LOGO] OK {name} via {endpoint}: {logo[:60] if logo else 'sem logo'}")
+                return jsonify(result)
+        except Exception as e:
+            print(f"[LOGO] {endpoint} falhou: {e}")
+            continue
+
+    result = {"name": name, "logo_url": ""}
+    _logo_cache[key] = {"data": result, "ts": now}
+    return jsonify(result)
+
+
+@app.route("/api/football/event-logos")
+def event_logos():
+    """
+    GET /api/football/event-logos?event=Flamengo+vs+Palmeiras
+    Extrai os dois times do nome do evento e retorna logos de ambos.
+    """
+    event_name = request.args.get("event", "").strip()
+    if not event_name:
+        return jsonify({"error": "Parametro 'event' obrigatorio"}), 400
+
+    import re
+    sep = re.search(r'\s(?:vs\.?|x|X|-)\s', event_name, re.IGNORECASE)
+    if sep:
+        team_a = event_name[:sep.start()].strip()
+        team_b = event_name[sep.end():].strip()
+    else:
+        team_a = event_name
+        team_b = None
+
+    def get_logo(tname):
+        if not tname:
+            return None
+        key = tname.lower()
+        now = time.time()
+        if key in _logo_cache and (now - _logo_cache[key]["ts"]) < LOGO_CACHE_TTL:
+            return _logo_cache[key]["data"].get("logo_url")
+        try:
+            url = f"https://www.thesportsdb.com/api/v1/json/3/searchteams.php?t={requests.utils.quote(tname)}"
+            res = requests.get(url, timeout=5)
+            res.raise_for_status()
+            data = res.json()
+            teams = data.get("teams") or []
+            if teams:
+                t = teams[0]
+                logo = _fix_logo_url(t.get("strTeamBadge") or t.get("strTeamLogo") or "")
+                result = {"name": tname, "logo_url": logo}
+            else:
+                result = {"name": tname, "logo_url": ""}
+            _logo_cache[key] = {"data": result, "ts": now}
+            return logo if teams else ""
+        except Exception:
+            return None
+
+    logo_a = get_logo(team_a)
+    logo_b = get_logo(team_b) if team_b else None
+
+    return jsonify({
+        "event": event_name,
+        "team_a": {"name": team_a, "logo_url": logo_a or ""},
+        "team_b": {"name": team_b, "logo_url": logo_b or ""} if team_b else None
+    })
+
+
+# ─────────────────────────────────────────────
+#  AO VIVO — canais BR via globetv.app (GitHub)
+# ─────────────────────────────────────────────
+
+_GLOBETV_CHANNELS_URL = "https://raw.githubusercontent.com/globetvapp/globetv.app/main/channels.json.gz"
+_GLOBETV_CACHE        = None
+_GLOBETV_CACHE_TS     = 0
+_GLOBETV_CACHE_TTL    = 86400   # 24 horas
+
+
+def _fetch_gz(url: str):
+    """Baixa e descomprime um .json.gz retornando list ou dict."""
+    headers = {"User-Agent": "Mozilla/5.0"}
+    req = urllib.request.Request(url, headers=headers)
+    with urllib.request.urlopen(req, timeout=15) as resp:
+        data = gzip.decompress(resp.read())
+    return _json_mod.loads(data)
+
+
+_TV_LOGO_BASE    = "https://raw.githubusercontent.com/tv-logo/tv-logos/main/countries/brazil"
+_GLOBETV_LOGOS_JSON = "https://raw.githubusercontent.com/globetvapp/globetv.app/refs/heads/main/logos.json"
+
+# Mapeamento manual para canais cujo nome/id não bate com o slug automático
+_LOGO_OVERRIDE = {
+    "Globo.br":        "globo-br.png",
+    "GloboNews.br":    "globonews-br.png",
+    "SBT.br":          "sbt-br.png",
+    "Record.br":       "record-tv-br.png",
+    "Band.br":         "band-br.png",
+    "RedeTV.br":       "redetv-br.png",
+    "TVCultura.br":    "tv-cultura-br.png",
+    "CNNBrasil.br":    "cnn-brasil-br.png",
+    "Multishow.br":    "multishow-br.png",
+    "GNT.br":          "gnt-br.png",
+    "Viva.br":         "viva-br.png",
+    "TVGlobo.br":      "globo-br.png",
+    "SporTV.br":       "sportv-br.png",
+    "SporTV2.br":      "sportv-2-br.png",
+    "SporTV3.br":      "sportv-3-br.png",
+    "Discovery.br":    "discovery-channel-br.png",
+    "Animal.br":       "animal-planet-br.png",
+    "History.br":      "history-channel-br.png",
+    "NatGeo.br":       "national-geographic-br.png",
+    "FoxSports.br":    "fox-sports-br.png",
+    "ESPN.br":         "espn-br.png",
+    "ESPN2.br":        "espn-2-br.png",
+    "ESPN3.br":        "espn-3-br.png",
+    "Cartoon.br":      "cartoon-network-br.png",
+}
+
+def _canal_logo_slug(name: str) -> str:
+    """
+    Converte nome do canal para slug do tv-logo/tv-logos.
+    Ex: 'TV Cultura' -> 'tv-cultura-br.png'
+        'CNN Brasil' -> 'cnn-brasil-br.png'
+    """
+    import unicodedata
+    nfkd = unicodedata.normalize("NFKD", name)
+    ascii_name = nfkd.encode("ASCII", "ignore").decode("ASCII")
+    slug = re.sub(r"[^a-z0-9]+", "-", ascii_name.lower()).strip("-")
+    return f"{slug}-br.png"
+
+
+def _fetch_globetv_logos() -> dict:
+    """
+    Baixa logos.json do globetv (JSON puro, sem gzip).
+    Retorna dict {channel_id: url} com URLs públicas (imgur, wikimedia etc).
+    """
+    try:
+        req = urllib.request.Request(
+            _GLOBETV_LOGOS_JSON,
+            headers={"User-Agent": "Mozilla/5.0"}
+        )
+        with urllib.request.urlopen(req, timeout=15) as r:
+            data = _json_mod.loads(r.read())
+        # Pega a primeira URL de cada channel (pode ter duplicatas)
+        logo_map = {}
+        for entry in data:
+            cid = entry.get("channel", "")
+            url = entry.get("url", "")
+            if cid and url and cid not in logo_map:
+                logo_map[cid] = url
+        # logo_map carregado silenciosamente
+        return logo_map
+    except Exception as e:
+        print(f"[AOVIVO] Falha ao carregar logos.json: {e}")
+        return {}
+
+
+def _build_canais_br():
+    """
+    Baixa channels + logos do globetv/GitHub, filtra BR e monta lista.
+    Prioridade de logo:
+      1. Override manual (_LOGO_OVERRIDE) -> tv-logo/tv-logos
+      2. logos.json do globetv (imgur/wikimedia, sempre acessível)
+      3. Slug automático -> tv-logo/tv-logos (fallback final)
+    """
+    channels  = _fetch_gz(_GLOBETV_CHANNELS_URL)
+    logo_map  = _fetch_globetv_logos()   # {channel_id: url}
+
+    br_channels = []
+    for ch in channels:
+        country = (
+            ch.get("country") or ch.get("country_code") or
+            ch.get("countryCode") or ch.get("cc") or ""
+        ).upper()
+        if country != "BR":
+            continue
+
+        cid  = ch.get("id") or ch.get("channel_id") or ch.get("channelId") or ""
+        name = ch.get("name") or ch.get("title") or cid
+        cats = ch.get("categories") or ch.get("category") or []
+
+        # 1. Override manual -> tv-logo/tv-logos (raw GitHub, sem CORS)
+        if cid in _LOGO_OVERRIDE:
+            logo = f"{_TV_LOGO_BASE}/{_LOGO_OVERRIDE[cid]}"
+        # 2. logos.json do globetv (imgur/wikimedia) — proxiado para evitar CORS/hotlink
+        elif cid in logo_map and logo_map[cid]:
+            import urllib.parse
+            logo = f"/api/logo-proxy?url={urllib.parse.quote(logo_map[cid], safe='')}"
+        # 3. Slug automático -> tv-logo/tv-logos (raw GitHub, sem CORS)
+        else:
+            logo = f"{_TV_LOGO_BASE}/{_canal_logo_slug(name)}"
+
+        br_channels.append({
+            "id":         cid,
+            "name":       name,
+            "logo":       logo,
+            "categories": cats if isinstance(cats, list) else [cats],
+            "embed_url":  f"https://globetv.app/embed/?cc=BR&cid={cid}&lang=por",
+        })
+
+    print(f"[AOVIVO] {len(br_channels)} canais BR carregados")
+    return br_channels
+
+
+@app.route("/api/logo-proxy")
+def logo_proxy():
+    """
+    GET /api/logo-proxy?url=<encoded_url>
+    Proxy de imagens para evitar CORS/hotlink block do imgur e outros.
+    """
+    from flask import Response as FlaskResponse
+    import urllib.parse
+
+    raw_url = request.args.get("url", "")
+    if not raw_url:
+        return "", 400
+
+    try:
+        url = urllib.parse.unquote(raw_url)
+        req = urllib.request.Request(url, headers={
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            "Referer": "https://globetv.app/",
+        })
+        with urllib.request.urlopen(req, timeout=8) as r:
+            data        = r.read()
+            content_type = r.headers.get("Content-Type", "image/png")
+        resp = FlaskResponse(data, status=200, mimetype=content_type)
+        resp.headers["Cache-Control"] = "public, max-age=86400"
+        resp.headers["Access-Control-Allow-Origin"] = "*"
+        return resp
+    except Exception as e:
+        return "", 404
+
+
+@app.route("/api/canais")
+def canais_aovivo():
+    """
+    GET /api/canais
+    Retorna lista de canais ao vivo BR com embed_url e logo.
+    Cache em memória de 24h — os dados mudam raramente.
+    """
+    global _GLOBETV_CACHE, _GLOBETV_CACHE_TS
+
+    now = time.time()
+    if _GLOBETV_CACHE and (now - _GLOBETV_CACHE_TS) < _GLOBETV_CACHE_TTL:
+        return jsonify(_GLOBETV_CACHE)
+
+    try:
+        canais = _build_canais_br()
+        _GLOBETV_CACHE    = canais
+        _GLOBETV_CACHE_TS = now
+        return jsonify(canais)
+    except Exception as e:
+        print(f"[AOVIVO] Erro ao buscar canais: {e}")
+        # Se tiver cache antigo, devolve mesmo expirado
+        if _GLOBETV_CACHE:
+            return jsonify(_GLOBETV_CACHE)
+        return jsonify({"error": str(e)}), 500
 
 
 @app.errorhandler(404)
