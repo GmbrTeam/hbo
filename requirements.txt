@@ -6,3 +6,4 @@ PyJWT
 google-auth
 google-auth-oauthlib
 psycopg2-binary
+playwright
