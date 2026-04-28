@@ -1,6 +1,11 @@
 from flask import Flask, jsonify, request, make_response, send_from_directory
 from flask_cors import CORS
 import requests
+try:
+    import cloudscraper as _cloudscraper_mod
+    _CLOUDSCRAPER_AVAILABLE = True
+except ImportError:
+    _CLOUDSCRAPER_AVAILABLE = False
 import os
 import random
 import time
@@ -20,61 +25,264 @@ import gzip
 import json as _json_mod
 import urllib.request
 
-# Scraper de canais de futebol (Playwright) — integrado
-try:
-    from playwright.sync_api import sync_playwright
-    FUTEBOL_OK = True
-except ImportError:
-    FUTEBOL_OK = False
-    print("[WARN] playwright não instalado — rotas de futebol desativadas")
+# ─────────────────────────────────────────────────────────────────────────────
+#  FUTEBOL — API pública streamed.pk (sem Playwright, funciona no Render)
+#
+#  Fluxo real:
+#    1. GET /api/matches/football  → lista de partidas com sources:[{source,id}]
+#    2. GET /api/stream/{source}/{id} → lista de streams com embedUrl real
+#    3. GET /api/matches/all-today → usado para tab "canais" (partidas do dia)
+# ─────────────────────────────────────────────────────────────────────────────
 
-def scrape_canais_futebol():
-    """
-    Acessa la14hd.com, aguarda o JS renderizar, e extrai
-    nome + iframe_url de todos os canais da seção BRASIL.
-    """
-    return scrape_canais_por_pais().get("BRASIL", [])
+FUTEBOL_OK = True  # Sempre True — usa só requests
+
+_STREAMED_BASE = "https://streamed.pk"
+_STREAMED_IMG  = "https://streamed.pk"   # badges: /api/images/badge/{name}
+
+_FUT_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Accept": "application/json, */*",
+    "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8",
+    "Origin":  _STREAMED_BASE,
+    "Referer": _STREAMED_BASE + "/",
+}
+
+# Sessão com bypass de Cloudflare JS-challenge (necessário no Render)
+if _CLOUDSCRAPER_AVAILABLE:
+    _cf_session = _cloudscraper_mod.create_scraper(
+        browser={"browser": "chrome", "platform": "windows", "mobile": False}
+    )
+    print("[STREAMED] cloudscraper ativo — bypass CF habilitado")
+else:
+    _cf_session = requests.Session()
+    print("[STREAMED] AVISO: cloudscraper nao instalado, usando requests puro")
 
 
-def scrape_canais_por_pais():
+def _streamed_get(path: str, timeout: int = 15):
+    """GET na API do streamed.pk com bypass Cloudflare (cloudscraper)."""
+    url = f"{_STREAMED_BASE}{path}"
+    try:
+        r = _cf_session.get(url, headers=_FUT_HEADERS, timeout=timeout)
+        ct = r.headers.get("Content-Type", "")
+        if r.status_code in (403, 503) or ("text/html" in ct and r.status_code != 200):
+            print(f"[STREAMED] {path} -> bloqueado CF ({r.status_code})")
+            return None
+        r.raise_for_status()
+        return r.json()
+    except Exception as e:
+        print(f"[STREAMED] {path} -> erro: {e}")
+        return None
+
+
+def _get_embed_urls(sources: list) -> list:
     """
-    Acessa la14hd.com e extrai todos os canais de TODAS as seções,
-    retornando um dict { "PAIS": [{"nome": ..., "iframe_url": ...}] }
+    Dado sources = [{source, id}, ...] de uma partida,
+    busca os streams reais e retorna lista [{url: embedUrl, lang: language}].
+    Faz requests paralelas para não bloquear muito.
     """
+    streams = []
+    seen_urls = set()
+
+    def fetch_source(src):
+        source_name = src.get("source", "")
+        source_id   = src.get("id", "")
+        if not source_name or not source_id:
+            return []
+        data = _streamed_get(f"/api/stream/{source_name}/{source_id}", timeout=8)
+        if not data or not isinstance(data, list):
+            return []
+        result = []
+        for s in data:
+            url  = s.get("embedUrl", "")
+            lang = s.get("language", "PT") or "PT"
+            if url and url not in seen_urls:
+                seen_urls.add(url)
+                result.append({"url": url, "lang": lang})
+        return result
+
+    with ThreadPoolExecutor(max_workers=min(len(sources), 4)) as ex:
+        futures = [ex.submit(fetch_source, src) for src in sources[:4]]  # max 4 sources
+        for f in as_completed(futures):
+            try:
+                streams.extend(f.result())
+            except Exception:
+                pass
+
+    return streams
+
+
+def _normalize_match(match: dict, q_lower: str = "") -> dict | None:
+    """
+    Converte um objeto APIMatch do streamed.pk para o formato do frontend:
+    {nome, categoria, status, streams:[{url, lang}]}
+    Retorna None se não passar no filtro de query.
+    """
+    try:
+        title     = match.get("title", "")
+        categoria = match.get("category", "")
+        teams     = match.get("teams") or {}
+        home_name = (teams.get("home") or {}).get("name", "")
+        away_name = (teams.get("away") or {}).get("name", "")
+
+        # Nome preferencial: title do match (já vem "Time A vs Time B")
+        nome = title or (f"{home_name} vs {away_name}" if away_name else home_name) or "Sem nome"
+
+        # Filtro por query
+        if q_lower and q_lower not in nome.lower() and q_lower not in categoria.lower():
+            return None
+
+        # Data → status simplificado (streamed.pk não retorna status diretamente)
+        date_ms  = match.get("date", 0) or 0
+        agora_ms = time.time() * 1000
+        diff_min = (agora_ms - date_ms) / 60000  # positivo = já começou
+        if 0 <= diff_min < 120:
+            status = "live"
+        elif diff_min >= 120:
+            status = "finished"
+        else:
+            status = "upcoming"
+
+        # Busca embedUrls reais para cada source
+        sources = match.get("sources") or []
+        streams = _get_embed_urls(sources)
+
+        # Fallback: link direto da página do match no streamed.pk
+        if not streams:
+            mid = match.get("id", "")
+            if mid:
+                streams = [{"url": f"{_STREAMED_BASE}/watch/{mid}", "lang": "PT"}]
+
+        return {
+            "nome":      nome,
+            "categoria": categoria,
+            "status":    status,
+            "streams":   streams,
+        }
+    except Exception as e:
+        print(f"[STREAMED] _normalize_match erro: {e}")
+        return None
+
+
+def _fetch_matches(endpoint: str, q_lower: str = "") -> list:
+    """Busca partidas de um endpoint e normaliza para o formato do frontend."""
+    data = _streamed_get(endpoint)
+    if not data or not isinstance(data, list):
+        return []
+
+    resultado = []
+    # Filtra primeiro sem buscar streams (evita N requests desnecessárias)
+    candidatos = []
+    for match in data:
+        title     = match.get("title", "")
+        categoria = match.get("category", "")
+        if q_lower and q_lower not in title.lower() and q_lower not in categoria.lower():
+            continue
+        candidatos.append(match)
+
+    # Normaliza (busca streams) em paralelo
+    with ThreadPoolExecutor(max_workers=min(len(candidatos), 6)) as ex:
+        futures = {ex.submit(_normalize_match, m, q_lower): m for m in candidatos}
+        for f in as_completed(futures):
+            try:
+                item = f.result()
+                if item:
+                    resultado.append(item)
+            except Exception:
+                pass
+
+    # Ordena: live primeiro, depois upcoming, depois finished
+    ordem = {"live": 0, "upcoming": 1, "finished": 2}
+    resultado.sort(key=lambda x: ordem.get(x["status"], 9))
+    return resultado
+
+
+def scrape_eventos(query: str) -> list:
+    """
+    Busca partidas de futebol filtrando por query.
+    Usa /api/matches/football para partidas do dia e /api/matches/live para ao vivo.
+    """
+    q = query.strip().lower()
+    # Tenta live primeiro (mais relevante), depois todas as de hoje
+    vivo   = _fetch_matches("/api/matches/live",    q)
+    hoje   = _fetch_matches("/api/matches/football", q)
+
+    # Junta sem duplicar (pelo nome)
+    seen = {e["nome"] for e in vivo}
+    for e in hoje:
+        if e["nome"] not in seen:
+            vivo.append(e)
+            seen.add(e["nome"])
+
+    print(f"[STREAMED] {len(vivo)} eventos para query='{query}'")
+    return vivo
+
+
+def _partidas_hoje_como_canais() -> list:
+    """
+    Converte partidas de futebol de hoje em cards de "canais" para a tab principal.
+    Cada partida vira um card com nome e iframe_url do primeiro stream disponível.
+    """
+    data = _streamed_get("/api/matches/all-today")
+    if not data or not isinstance(data, list):
+        # Fallback: partidas de futebol
+        data = _streamed_get("/api/matches/football") or []
+
+    canais = []
+    for match in data:
+        if match.get("category", "").lower() not in ("football", "futebol", "soccer", ""):
+            continue
+        title   = match.get("title", "") or ""
+        sources = match.get("sources") or []
+        if not title or not sources:
+            continue
+
+        streams = _get_embed_urls(sources[:2])  # só 2 sources pra ser rápido
+        iframe_url = streams[0]["url"] if streams else f"{_STREAMED_BASE}/watch/{match.get('id','')}"
+
+        canais.append({"nome": title, "iframe_url": iframe_url})
+
+    print(f"[STREAMED] {len(canais)} partidas como canais")
+    return canais
+
+
+def scrape_canais_futebol() -> list:
+    """
+    Retorna partidas de futebol do dia formatadas como canais para o frontend BR.
+    """
+    return _partidas_hoje_como_canais()
+
+
+def scrape_canais_por_pais() -> dict:
+    """
+    Agrupa partidas por categoria/competição simulando seções por país.
+    Retorna dict { "BRASIL": [...], "INTERNACIONAL": [...], ... }
+    """
+    data = _streamed_get("/api/matches/all-today")
+    if not data or not isinstance(data, list):
+        data = _streamed_get("/api/matches/football") or []
+
+    por_pais: dict = {}
+    for match in data:
+        categoria = (match.get("category") or "GERAL").upper()
+        title     = match.get("title", "")
+        sources   = match.get("sources") or []
+        if not title or not sources:
+            continue
+
+        streams    = _get_embed_urls(sources[:2])
+        iframe_url = streams[0]["url"] if streams else f"{_STREAMED_BASE}/watch/{match.get('id','')}"
+
+        por_pais.setdefault(categoria, []).append({"nome": title, "iframe_url": iframe_url})
+
+    # Garante que BRASIL aparece primeiro se existir
     resultado = {}
-    with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
-        page = browser.new_page()
+    for k in ("FOOTBALL", "SOCCER", "FUTEBOL"):
+        if k in por_pais:
+            resultado["BRASIL"] = por_pais.pop(k)
+            break
+    resultado.update(por_pais)
 
-        print("[FOOTBALL] Acessando la14hd.com (todas as seções)...")
-        page.goto("https://la14hd.com/", wait_until="networkidle")
-
-        secoes = page.locator(".cardsection")
-        total_secoes = secoes.count()
-        print(f"[FOOTBALL] {total_secoes} seções encontradas")
-
-        for s in range(total_secoes):
-            secao = secoes.nth(s)
-            pais = secao.locator("h3.item-game").text_content() or ""
-            pais = pais.strip().upper()
-            if not pais:
-                continue
-
-            canais = secao.locator("div[data-canal]")
-            total = canais.count()
-            lista = []
-            for i in range(total):
-                card = canais.nth(i)
-                nome = card.get_attribute("data-canal") or ""
-                url  = card.locator("a").first.get_attribute("href") or ""
-                if url.startswith("https://la14hd.com"):
-                    lista.append({"nome": nome, "iframe_url": url})
-
-            if lista:
-                print(f"[FOOTBALL] {pais}: {len(lista)} canais")
-                resultado[pais] = lista
-
-        browser.close()
+    print(f"[STREAMED] {sum(len(v) for v in resultado.values())} partidas em {len(resultado)} categorias")
     return resultado
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -894,7 +1102,7 @@ def verify_email_and_login():
         return jsonify({
             "success": True,
             "token": token,
-            "user": {"name": user_data["name"], "email": user_data["email"], "picture": ""}
+            "user": {"name": user_data["name"], "email": user_data["email"], "picture": user_data.get("picture") or ""}
         })
     except Exception as e:
         print(f"[DEBUG] Erro ao verificar email: {e}")
@@ -1125,8 +1333,10 @@ def user_me():
     # Regras simples para evitar lixo
     if new_name and len(new_name) > 80:
         return jsonify({"error": "Nome muito longo"}), 400
-    if new_picture is not None and isinstance(new_picture, str) and len(new_picture) > 2000:
-        return jsonify({"error": "Foto inválida"}), 400
+    # Observação: foto pode vir como dataURL (base64) e ficar grande.
+    # Aceita até ~2MB para suportar sincronização entre dispositivos.
+    if new_picture is not None and isinstance(new_picture, str) and len(new_picture) > 2_000_000:
+        return jsonify({"error": "Foto muito grande"}), 400
 
     if not new_name and new_picture is None:
         return jsonify({"error": "Nada para atualizar"}), 400
@@ -1235,6 +1445,8 @@ def catalogo():
         "top_movie":       ("/movie/top_rated",      "movie", {}),
         "top_tv":          ("/tv/top_rated",         "tv",    {}),
         "lancamentos":     ("/movie/now_playing",    "movie", {}),
+        # Filmes que AINDA vão lançar (upcoming) — seção separada no home
+        "em_breve":        ("/movie/upcoming",      "movie", {}),
         "terror_movie":    ("/discover/movie",       "movie", {"with_genres": 27}),
         "terror_tv":       ("/discover/tv",          "tv",    {"with_genres": 27}),
         "acao":            ("/discover/movie",       "movie", {"with_genres": 28}),
@@ -1484,7 +1696,7 @@ def football_channels():
     global _football_cache, _football_cache_ts
 
     if not FUTEBOL_OK:
-        return jsonify({"error": "playwright nao instalado"}), 503
+        return jsonify({"error": "servico temporariamente indisponivel"}), 503
 
     if _football_cache and (time.time() - _football_cache_ts) < FOOTBALL_CACHE_TTL:
         return jsonify(_football_cache)
@@ -1509,7 +1721,7 @@ def football_channels_all():
     global _football_all_cache, _football_all_cache_ts
 
     if not FUTEBOL_OK:
-        return jsonify({"error": "playwright nao instalado"}), 503
+        return jsonify({"error": "servico temporariamente indisponivel"}), 503
 
     if _football_all_cache and (time.time() - _football_all_cache_ts) < FOOTBALL_CACHE_TTL:
         return jsonify(_football_all_cache)
@@ -1536,7 +1748,7 @@ def football_watch():
     Busca no cache primeiro; se não achar, roda o scraper completo.
     """
     if not FUTEBOL_OK:
-        return jsonify({"error": "playwright nao instalado"}), 503
+        return jsonify({"error": "servico temporariamente indisponivel"}), 503
 
     nome = request.args.get("nome", "").strip()
     if not nome:
@@ -1564,111 +1776,12 @@ def football_watch():
 
 
 # ─────────────────────────────────────────────
-#  EVENTOS — scraping de /eventos/ via Playwright
+#  EVENTOS — cache de resultados da streamed.su API
 # ─────────────────────────────────────────────
 
 _events_cache     = {}
 _events_cache_ts  = {}
 EVENTS_CACHE_TTL  = 180  # 3 minutos
-
-def scrape_eventos(query: str):
-    """
-    Acessa la14hd.com/eventos/, digita no campo #search (input-search),
-    aguarda o filtro JS do site atualizar os display dos .event,
-    e extrai todos os eventos visíveis agrupando streams pelo mesmo nome.
-    """
-    resultados_map = {}   # nome → dict do evento
-    resultados_ordem = [] # mantém ordem de aparição
-
-    with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
-        context = browser.new_context(
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-        )
-        page = context.new_page()
-
-        print(f"[EVENTS] Acessando /eventos/ para: '{query}'")
-        page.goto("https://la14hd.com/eventos/", wait_until="networkidle", timeout=30000)
-
-        # Espera o campo de busca aparecer
-        try:
-            page.wait_for_selector("#search", timeout=10000)
-        except Exception:
-            print("[EVENTS] Campo #search não encontrado")
-            browser.close()
-            return []
-
-        # Limpa e digita a query
-        page.fill("#search", "")
-        page.type("#search", query, delay=60)
-
-        # Aguarda o JS do site filtrar (ele usa evento 'input' para mostrar/esconder)
-        page.wait_for_timeout(1500)
-
-        # Pega todos os .event e avalia quais estão visíveis via JS
-        # (style="display: flex;" = visível; style="display: none;" = escondido)
-        eventos_visiveis = page.evaluate("""
-            () => {
-                const cards = document.querySelectorAll('.event');
-                const resultado = [];
-                cards.forEach(card => {
-                    const style = card.getAttribute('style') || '';
-                    const isVisible = style.includes('display: flex') || style.includes('display:flex');
-                    if (!isVisible) return;
-
-                    const nome = (card.querySelector('.event-name') || {}).innerText || '';
-                    const categoria = card.getAttribute('data-category') || '';
-
-                    // Determina status
-                    const statusBtn = card.querySelector('.status-button');
-                    let status = 'upcoming';
-                    if (statusBtn) {
-                        const cls = statusBtn.className || '';
-                        if (cls.includes('status-live')) status = 'live';
-                        else if (cls.includes('status-finished')) status = 'finished';
-                        else if (cls.includes('status-next')) status = 'upcoming';
-                    }
-
-                    // Pega streams
-                    const containers = card.querySelectorAll('.iframe-container');
-                    const streams = [];
-                    containers.forEach(c => {
-                        const input = c.querySelector('.iframe-link');
-                        const langEl = c.querySelector('.language_text');
-                        const url = input ? input.value : '';
-                        const lang = langEl ? langEl.innerText.trim() : '';
-                        if (url) streams.push({ url, lang });
-                    });
-
-                    resultado.push({ nome: nome.trim(), categoria, status, streams });
-                });
-                return resultado;
-            }
-        """)
-
-        browser.close()
-
-    # Agrupa eventos com mesmo nome (diferentes streams do mesmo jogo)
-    for ev in eventos_visiveis:
-        nome = ev['nome']
-        if nome not in resultados_map:
-            resultados_map[nome] = {
-                'nome':      nome,
-                'categoria': ev['categoria'],
-                'status':    ev['status'],
-                'streams':   [],
-            }
-            resultados_ordem.append(nome)
-        # Adiciona streams sem duplicar URLs
-        urls_existentes = {s['url'] for s in resultados_map[nome]['streams']}
-        for s in ev['streams']:
-            if s['url'] not in urls_existentes:
-                resultados_map[nome]['streams'].append(s)
-                urls_existentes.add(s['url'])
-
-    resultado_final = [resultados_map[n] for n in resultados_ordem]
-    print(f"[EVENTS] {len(resultado_final)} eventos únicos para '{query}'")
-    return resultado_final
 
 
 @app.route("/api/football/events")
@@ -1678,7 +1791,7 @@ def football_events():
     Busca eventos em la14hd.com/eventos/ filtrando pela query.
     """
     if not FUTEBOL_OK:
-        return jsonify({"error": "playwright nao instalado"}), 503
+        return jsonify({"error": "servico temporariamente indisponivel"}), 503
 
     q = request.args.get("q", "").strip()
     if not q:

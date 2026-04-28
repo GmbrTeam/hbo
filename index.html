@@ -5411,13 +5411,40 @@ function showToast(type, title, message, duration = 5000) {
     container.appendChild(toast);
 
     // Auto remove after duration
-    setTimeout(() => {
+    toast._timeoutId = setTimeout(() => {
+        removeToast(toast);
+    }, duration);
+
+    return toast;
+}
+
+function updateToast(toast, type, title, message, duration = 5000) {
+    if (!toast || !toast.parentElement) return;
+    if (toast._timeoutId) clearTimeout(toast._timeoutId);
+
+    const icons = {
+        success: 'fa-check-circle',
+        error: 'fa-exclamation-circle',
+        warning: 'fa-exclamation-triangle',
+        info: 'fa-info-circle'
+    };
+
+    toast.className = `toast ${type}`;
+    const icon = toast.querySelector('.toast-icon');
+    const titleEl = toast.querySelector('.toast-title');
+    const msgEl = toast.querySelector('.toast-message');
+    if (icon) icon.className = `fas ${icons[type] || icons.info} toast-icon`;
+    if (titleEl) titleEl.textContent = title;
+    if (msgEl) msgEl.textContent = message;
+
+    toast._timeoutId = setTimeout(() => {
         removeToast(toast);
     }, duration);
 }
 
 function removeToast(toast) {
     if (!toast || toast.classList.contains('removing')) return;
+    if (toast._timeoutId) clearTimeout(toast._timeoutId);
     toast.classList.add('removing');
     toast.addEventListener('animationend', () => {
         if (toast.parentElement) {
@@ -6952,6 +6979,7 @@ function handleAvatarUpload(event) {
             
             // Salva na nuvem (conta) quando possível
             (async () => {
+                const pending = showToast('info', 'Salvando...', 'Enviando sua foto para a nuvem…', 12000);
                 try {
                     const token = localStorage.getItem('authToken');
                     if (!token) throw new Error('Sem token');
@@ -6966,13 +6994,13 @@ function handleAvatarUpload(event) {
                     const data = await r.json().catch(() => ({}));
                     if (r.ok && data && data.success) {
                         if (currentUser) currentUser.picture = data.user?.picture || e.target.result;
-                        showToast('success', 'Avatar atualizado', 'Sua foto de perfil foi salva na nuvem!');
+                        updateToast(pending, 'success', 'Avatar atualizado', 'Sua foto de perfil foi salva na nuvem!', 5000);
                     } else {
-                        showToast('warning', 'Avatar atualizado', 'Foto atualizada no aparelho, mas não foi possível salvar na nuvem.');
+                        updateToast(pending, 'warning', 'Avatar atualizado', data.error || 'Foto atualizada no aparelho, mas não foi possível salvar na nuvem.', 7000);
                     }
                 } catch (err) {
                     console.warn('Falha ao salvar avatar na nuvem:', err);
-                    showToast('warning', 'Avatar atualizado', 'Foto atualizada no aparelho, mas o servidor não respondeu.');
+                    updateToast(pending, 'warning', 'Avatar atualizado', 'Foto atualizada no aparelho, mas o servidor não respondeu.', 7000);
                 }
             })();
         };
@@ -7028,6 +7056,7 @@ function saveNickname() {
     }
 
     (async () => {
+        const pending = showToast('info', 'Salvando...', 'Salvando seu nome na nuvem…', 12000);
         try {
             const token = localStorage.getItem('authToken');
             if (!token) throw new Error('Sem token');
@@ -7045,13 +7074,13 @@ function saveNickname() {
                 document.getElementById('profileName').textContent = currentUser.name;
                 updateUserUI(currentUser);
                 closeEditNicknameModal();
-                showToast('success', 'Nome salvo', 'Seu nome foi salvo na nuvem!');
+                updateToast(pending, 'success', 'Nome salvo', 'Seu nome foi salvo na nuvem!', 5000);
             } else {
-                showToast('error', 'Falha ao salvar', data.error || 'Não foi possível salvar seu nome.');
+                updateToast(pending, 'error', 'Falha ao salvar', data.error || 'Não foi possível salvar seu nome.', 7000);
             }
         } catch (e) {
             console.error('Erro ao salvar nickname:', e);
-            showToast('error', 'Falha ao salvar', 'Erro ao salvar. Verifique se o servidor está rodando.');
+            updateToast(pending, 'error', 'Falha ao salvar', 'Erro ao salvar. Verifique se o servidor está rodando.', 7000);
         }
     })();
 }
@@ -7434,6 +7463,7 @@ function saveProfileSettings() {
 
     if (currentUser) {
         (async () => {
+            const pending = showToast('info', 'Salvando...', 'Salvando suas configurações na nuvem…', 12000);
             try {
                 const token = localStorage.getItem('authToken');
                 if (!token) throw new Error('Sem token');
@@ -7454,14 +7484,14 @@ function saveProfileSettings() {
                     updateUserUI(currentUser);
                     // Atualizar também no modal de sucesso
                     document.getElementById('successUserName').textContent = currentUser.name;
-                    showToast('success', 'Configurações salvas', 'Seu nome foi salvo na nuvem com sucesso.');
+                    updateToast(pending, 'success', 'Configurações salvas', 'Seu nome foi salvo na nuvem com sucesso.', 5000);
                     closeSettingsModal();
                 } else {
-                    showToast('error', 'Falha ao salvar', data.error || 'Não foi possível salvar suas configurações.');
+                    updateToast(pending, 'error', 'Falha ao salvar', data.error || 'Não foi possível salvar suas configurações.', 7000);
                 }
             } catch (e) {
                 console.error('Erro ao salvar configurações:', e);
-                showToast('error', 'Falha ao salvar', 'Erro ao salvar configurações. Verifique se o servidor está rodando.');
+                updateToast(pending, 'error', 'Falha ao salvar', 'Erro ao salvar configurações. Verifique se o servidor está rodando.', 7000);
             }
         })();
     }
@@ -7691,6 +7721,19 @@ document.getElementById('emailLoginForm').addEventListener('submit', function(e)
                 currentUser = data.user;
                 authToken = data.token;
                 updateUserUI(currentUser);
+                // Fonte de verdade: puxa nome/foto do servidor
+                try {
+                    const me = await fetch(`${API}/user/me`, {
+                        headers: { 'Authorization': `Bearer ${authToken}` }
+                    });
+                    if (me.ok) {
+                        const meData = await me.json().catch(() => ({}));
+                        if (meData && meData.success && meData.user) {
+                            currentUser = meData.user;
+                            updateUserUI(currentUser);
+                        }
+                    }
+                } catch {}
                 syncProfilesFromServer();
                 showSection('home');
                 openSuccessModal(data.user);
@@ -7725,6 +7768,7 @@ function logout() {
 const HOME_SECTIONS = [
     { key: 'trending_movies', label: '🔥 Em Tendência — Filmes',  color: 'text-orange-400', nav: () => showSection('movies') },
     { key: 'trending_series', label: '📺 Em Tendência — Séries',  color: 'text-blue-400',   nav: () => showSection('series') },
+    { key: 'em_breve',        label: '🗓️ Em Breve — Filmes',      color: 'text-emerald-300', nav: () => showSection('movies') },
     { key: '__aovivo__',      label: '📡 Canais Ao Vivo',         color: 'text-red-400',    nav: () => showSection('aovivo') },
     { key: 'lancamentos',     label: '🎬 Lançamentos',            color: 'text-green-400',  nav: () => showSection('movies') },
     { key: 'populares_movie', label: '⭐ Filmes Populares',       color: 'text-yellow-400', nav: () => showSection('movies') },
@@ -8221,13 +8265,36 @@ async function renderHome() {
     const continueRow = renderContinueWatching();
     if (continueRow) container.insertBefore(continueRow, container.firstChild);
 
+    const isUpcomingMovie = (item) => {
+        if (!item || item.tipo !== 'movie') return false;
+        if (!item.release_date) return false;
+        // Inclui filmes marcados como não lançados OU com data de lançamento futura
+        const d = new Date(item.release_date);
+        if (Number.isNaN(d.getTime())) return false;
+        const isFuture = d.getTime() > Date.now();
+        return isFuture || item.released === false;
+    };
+
+    // Junta TODOS os filmes "em breve" existentes no catálogo e manda para uma só faixa
+    const upcomingPool = [];
+    try {
+        const flat = Object.values(catalogData).flat();
+        for (const it of flat) if (isUpcomingMovie(it)) upcomingPool.push(it);
+    } catch {}
+    const upcomingUnique = [...new Map(upcomingPool.map(i => [i.tmdb_id, i])).values()]
+        .sort((a, b) => new Date(a.release_date) - new Date(b.release_date));
+
     for (const { key, label, color, nav } of HOME_SECTIONS) {
         if (key === '__aovivo__') {
             const row = await renderAoVivoRow(label, color);
             if (row) container.appendChild(row);
             continue;
         }
-        const items = catalogData[key];
+        let items = key === 'em_breve' ? upcomingUnique : (catalogData[key] || []);
+        // Remove "em breve" das outras faixas para não misturar lançado e não-lançado
+        if (key !== 'em_breve' && Array.isArray(items) && items.length) {
+            items = items.filter(i => !isUpcomingMovie(i));
+        }
         const row = renderRow(label, color, items);
         if (row) container.appendChild(row);
     }
