@@ -107,6 +107,12 @@ def init_db():
                 cur.execute("""
                     ALTER TABLE users ADD COLUMN IF NOT EXISTS profiles TEXT DEFAULT NULL
                 """)
+                cur.execute("""
+                    ALTER TABLE users ADD COLUMN IF NOT EXISTS name VARCHAR(255) DEFAULT NULL
+                """)
+                cur.execute("""
+                    ALTER TABLE users ADD COLUMN IF NOT EXISTS picture TEXT DEFAULT NULL
+                """)
                 # Códigos temporários de verificação por e-mail (não retorna para o cliente)
                 cur.execute("""
                     CREATE TABLE IF NOT EXISTS email_verification_codes (
@@ -251,6 +257,40 @@ def _issue_login_token(email: str):
         "name": email.split("@")[0].capitalize(),
         "picture": "",
         "exp": int(time.time()) + 3600 * 24 * 7  # 7 dias
+    }
+    return jwt.encode(user_data, JWT_SECRET, algorithm="HS256"), user_data
+
+def _default_name_from_email(email: str) -> str:
+    base = (email.split("@")[0] if "@" in email else email).strip()
+    if not base:
+        return "Usuário"
+    return base[:1].upper() + base[1:]
+
+def _get_user_from_db(email: str):
+    conn = get_db_connection()
+    if not conn:
+        return None
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT email, name, picture FROM users WHERE email = %s", (email,))
+            row = cur.fetchone()
+        return row
+    except Exception as e:
+        print(f"[DEBUG] Erro ao buscar usuário no banco: {e}")
+        return None
+    finally:
+        conn.close()
+
+def _issue_login_token_for_user(user_row: dict):
+    email = user_row.get("email")
+    name = user_row.get("name") or _default_name_from_email(email or "")
+    picture = user_row.get("picture") or ""
+    user_data = {
+        "sub": (email.split("@")[0] if email and "@" in email else email or "user"),
+        "email": email,
+        "name": name,
+        "picture": picture,
+        "exp": int(time.time()) + 3600 * 24 * 7
     }
     return jwt.encode(user_data, JWT_SECRET, algorithm="HS256"), user_data
 
@@ -564,16 +604,41 @@ def auth_google():
             print("[DEBUG] Issuer inválido")
             return jsonify({"error": "Token inválido"}), 400
 
-        # Criar token JWT de sessão
-        user_data = {
-            "sub": idinfo["sub"],
-            "email": idinfo["email"],
-            "name": idinfo.get("name", ""),
-            "picture": idinfo.get("picture", ""),
-            "exp": int(time.time()) + 3600 * 24 * 7  # 7 dias
-        }
+        # Persistir/atualizar dados do usuário no banco (nome/foto)
+        email = (idinfo.get("email") or "").strip().lower()
+        name = idinfo.get("name") or _default_name_from_email(email)
+        picture = idinfo.get("picture") or ""
 
-        session_token = jwt.encode(user_data, JWT_SECRET, algorithm="HS256")
+        conn = get_db_connection()
+        if conn:
+            try:
+                with conn.cursor() as cur:
+                    cur.execute("SELECT id FROM users WHERE email = %s", (email,))
+                    existing_user = cur.fetchone()
+                    if existing_user:
+                        cur.execute(
+                            "UPDATE users SET name = %s, picture = %s WHERE email = %s",
+                            (name, picture, email)
+                        )
+                    else:
+                        # Usuário Google não precisa de senha local; usa placeholder não-vazio
+                        cur.execute(
+                            "INSERT INTO users (email, password, name, picture) VALUES (%s, %s, %s, %s)",
+                            (email, "__google_oauth__", name, picture)
+                        )
+                conn.commit()
+            except Exception as e:
+                print(f"[DEBUG] Erro ao salvar usuário Google: {e}")
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
+            finally:
+                conn.close()
+
+        # Criar token JWT de sessão (com nome/foto atuais)
+        user_row = _get_user_from_db(email) or {"email": email, "name": name, "picture": picture}
+        session_token, user_data = _issue_login_token_for_user(user_row)
         print(f"[DEBUG] Token JWT criado com sucesso")
 
         return jsonify({
@@ -601,12 +666,16 @@ def verify_auth():
     token = auth_header.split(" ")[1]
     try:
         decoded = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
+        email = (decoded.get("email") or "").strip().lower()
+        user_row = _get_user_from_db(email) or {}
+        name = user_row.get("name") or decoded.get("name")
+        picture = user_row.get("picture") or decoded.get("picture")
         return jsonify({
             "authenticated": True,
             "user": {
-                "name": decoded.get("name"),
-                "email": decoded.get("email"),
-                "picture": decoded.get("picture")
+                "name": name,
+                "email": email or decoded.get("email"),
+                "picture": picture
             }
         })
     except jwt.ExpiredSignatureError:
@@ -634,7 +703,7 @@ def auth_login():
 
         try:
             with conn.cursor() as cur:
-                cur.execute("SELECT id, password FROM users WHERE email = %s", (email,))
+                cur.execute("SELECT id, password, name, picture FROM users WHERE email = %s", (email,))
                 user = cur.fetchone()
         finally:
             conn.close()
@@ -645,19 +714,31 @@ def auth_login():
         if user["password"] != password:
             return jsonify({"error": "Senha incorreta"}), 401
 
-        user_data = {
-            "sub": email.split("@")[0],
-            "email": email,
-            "name": email.split("@")[0].capitalize(),
-            "picture": "",
-            "exp": int(time.time()) + 3600 * 24 * 7
-        }
-        token = jwt.encode(user_data, JWT_SECRET, algorithm="HS256")
+        # Garante nome persistido
+        name = user.get("name") or _default_name_from_email(email)
+        picture = user.get("picture") or ""
+        # Atualiza o nome padrão no banco se ainda não existir
+        if not user.get("name"):
+            conn2 = get_db_connection()
+            if conn2:
+                try:
+                    with conn2.cursor() as cur:
+                        cur.execute("UPDATE users SET name = %s WHERE email = %s", (name, email))
+                    conn2.commit()
+                except Exception:
+                    try:
+                        conn2.rollback()
+                    except Exception:
+                        pass
+                finally:
+                    conn2.close()
+
+        token, user_data = _issue_login_token_for_user({"email": email, "name": name, "picture": picture})
         print(f"[DEBUG] Login direto: {email}")
         return jsonify({
             "success": True,
             "token": token,
-            "user": {"name": user_data["name"], "email": email, "picture": ""}
+            "user": {"name": user_data["name"], "email": email, "picture": user_data["picture"]}
         })
     except Exception as e:
         import traceback; traceback.print_exc()
@@ -770,10 +851,11 @@ def auth_register():
             with conn.cursor() as cur:
                 cur.execute("SELECT id FROM users WHERE email = %s", (email,))
                 existing_user = cur.fetchone()
+                name = _default_name_from_email(email)
                 if existing_user:
-                    cur.execute("UPDATE users SET password = %s WHERE email = %s", (password, email))
+                    cur.execute("UPDATE users SET password = %s, name = COALESCE(name, %s) WHERE email = %s", (password, name, email))
                 else:
-                    cur.execute("INSERT INTO users (email, password) VALUES (%s, %s)", (email, password))
+                    cur.execute("INSERT INTO users (email, password, name) VALUES (%s, %s, %s)", (email, password, name))
             conn.commit()
         except Exception as e:
             print(f"[DEBUG] Erro ao salvar usuário após verificação: {e}")
@@ -807,7 +889,8 @@ def verify_email_and_login():
         if not ok:
             return jsonify({"error": err or "Código inválido"}), 400
 
-        token, user_data = _issue_login_token(email)
+        user_row = _get_user_from_db(email) or {"email": email, "name": _default_name_from_email(email), "picture": ""}
+        token, user_data = _issue_login_token_for_user(user_row)
         return jsonify({
             "success": True,
             "token": token,
@@ -839,13 +922,14 @@ def verify_code():
         if not ok:
             return jsonify({"error": err or "Código inválido"}), 400
 
-        session_token, user_data = _issue_login_token(email)
+        user_row = _get_user_from_db(email) or {"email": email, "name": _default_name_from_email(email), "picture": ""}
+        session_token, user_data = _issue_login_token_for_user(user_row)
         print(f"[DEBUG] Login realizado com sucesso: {email}")
 
         return jsonify({
             "success": True,
             "token": session_token,
-            "user": {"name": user_data["name"], "email": user_data["email"], "picture": ""}
+            "user": {"name": user_data["name"], "email": user_data["email"], "picture": user_data.get("picture") or ""}
         })
     except Exception as e:
         print(f"[DEBUG] Erro na verificação: {str(e)}")
@@ -1011,6 +1095,76 @@ def _get_email_from_token():
         return decoded.get("email")
     except Exception:
         return None
+
+
+@app.route("/api/user/me", methods=["GET", "PUT"])
+def user_me():
+    email = _get_email_from_token()
+    if not email:
+        return jsonify({"error": "Não autenticado"}), 401
+    email = (email or "").strip().lower()
+
+    if request.method == "GET":
+        user_row = _get_user_from_db(email)
+        if not user_row:
+            return jsonify({"error": "Usuário não encontrado"}), 404
+        return jsonify({
+            "success": True,
+            "user": {
+                "email": user_row.get("email") or email,
+                "name": user_row.get("name") or _default_name_from_email(email),
+                "picture": user_row.get("picture") or ""
+            }
+        })
+
+    # PUT
+    data = request.get_json() or {}
+    new_name = (data.get("name") or "").strip()
+    new_picture = data.get("picture")
+
+    # Regras simples para evitar lixo
+    if new_name and len(new_name) > 80:
+        return jsonify({"error": "Nome muito longo"}), 400
+    if new_picture is not None and isinstance(new_picture, str) and len(new_picture) > 2000:
+        return jsonify({"error": "Foto inválida"}), 400
+
+    if not new_name and new_picture is None:
+        return jsonify({"error": "Nada para atualizar"}), 400
+
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Erro interno ao conectar ao banco"}), 500
+
+    try:
+        fields = []
+        params = []
+        if new_name:
+            fields.append("name = %s")
+            params.append(new_name)
+        if new_picture is not None:
+            fields.append("picture = %s")
+            params.append(new_picture.strip() if isinstance(new_picture, str) else "")
+
+        params.append(email)
+        with conn.cursor() as cur:
+            cur.execute(f"UPDATE users SET {', '.join(fields)} WHERE email = %s", tuple(params))
+        conn.commit()
+    except Exception as e:
+        print(f"[DEBUG] Erro ao atualizar user/me: {e}")
+        conn.rollback()
+        return jsonify({"error": "Erro ao atualizar dados"}), 500
+    finally:
+        conn.close()
+
+    user_row = _get_user_from_db(email) or {"email": email, "name": new_name, "picture": new_picture or ""}
+    return jsonify({
+        "success": True,
+        "user": {
+            "email": user_row.get("email") or email,
+            "name": user_row.get("name") or _default_name_from_email(email),
+            "picture": user_row.get("picture") or ""
+        }
+    })
 
 
 @app.route("/api/profiles", methods=["GET"])

@@ -6380,10 +6380,9 @@ function selectProfile(profileId) {
             toggleKidsMode();
         }
         
-        // Update UI with profile name
+        // Update UI with profile name (nome do perfil, não da conta)
         if (targetProfile.name) {
             if (currentUser) currentUser.name = targetProfile.name;
-            localStorage.setItem('userName', targetProfile.name);
         }
         
         updateCurrentProfileName();
@@ -6907,7 +6906,6 @@ function verifyKidsExitPin() {
                 // Update UI with profile name
                 if (targetProfile.name) {
                     if (currentUser) currentUser.name = targetProfile.name;
-                    localStorage.setItem('userName', targetProfile.name);
                 }
                 
                 updateCurrentProfileName();
@@ -6952,8 +6950,31 @@ function handleAvatarUpload(event) {
             userAvatar.classList.remove('hidden');
             userInitials.classList.add('hidden');
             
-            localStorage.setItem('userAvatar', e.target.result);
-            showToast('success', 'Avatar atualizado', 'Sua foto de perfil foi atualizada!');
+            // Salva na nuvem (conta) quando possível
+            (async () => {
+                try {
+                    const token = localStorage.getItem('authToken');
+                    if (!token) throw new Error('Sem token');
+                    const r = await fetch(`${API}/user/me`, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${token}`
+                        },
+                        body: JSON.stringify({ picture: e.target.result })
+                    });
+                    const data = await r.json().catch(() => ({}));
+                    if (r.ok && data && data.success) {
+                        if (currentUser) currentUser.picture = data.user?.picture || e.target.result;
+                        showToast('success', 'Avatar atualizado', 'Sua foto de perfil foi salva na nuvem!');
+                    } else {
+                        showToast('warning', 'Avatar atualizado', 'Foto atualizada no aparelho, mas não foi possível salvar na nuvem.');
+                    }
+                } catch (err) {
+                    console.warn('Falha ao salvar avatar na nuvem:', err);
+                    showToast('warning', 'Avatar atualizado', 'Foto atualizada no aparelho, mas o servidor não respondeu.');
+                }
+            })();
         };
         reader.readAsDataURL(file);
     }
@@ -7006,14 +7027,33 @@ function saveNickname() {
         return;
     }
 
-    currentUser.name = nickname;
-    localStorage.setItem('userName', nickname);
-    
-    document.getElementById('profileName').textContent = nickname;
-    updateUserUI(currentUser);
-    
-    closeEditNicknameModal();
-    showToast('success', 'Nome salvo', 'Seu nome foi atualizado!');
+    (async () => {
+        try {
+            const token = localStorage.getItem('authToken');
+            if (!token) throw new Error('Sem token');
+            const r = await fetch(`${API}/user/me`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ name: nickname.trim() })
+            });
+            const data = await r.json().catch(() => ({}));
+            if (r.ok && data && data.success) {
+                currentUser.name = data.user?.name || nickname.trim();
+                document.getElementById('profileName').textContent = currentUser.name;
+                updateUserUI(currentUser);
+                closeEditNicknameModal();
+                showToast('success', 'Nome salvo', 'Seu nome foi salvo na nuvem!');
+            } else {
+                showToast('error', 'Falha ao salvar', data.error || 'Não foi possível salvar seu nome.');
+            }
+        } catch (e) {
+            console.error('Erro ao salvar nickname:', e);
+            showToast('error', 'Falha ao salvar', 'Erro ao salvar. Verifique se o servidor está rodando.');
+        }
+    })();
 }
 
 // addProfile replaced by pwFinish in new wizard
@@ -7108,7 +7148,6 @@ function editProfile(profileId) {
 function logout() {
     localStorage.removeItem('authToken');
     localStorage.removeItem('userName');
-    localStorage.removeItem('userAvatar');
     currentUser = null;
     authToken = null;
     kidsModeEnabled = false;
@@ -7123,27 +7162,7 @@ async function checkAuth() {
     const token = localStorage.getItem('authToken');
     if (!token) { updateUserUI(null); return false; }
 
-    // Verifica token local
-    const localEmail = localStorage.getItem('hbo_local_email');
-    if (localEmail) {
-        const users = _localUsers();
-        const user  = users.find(u => u.email === localEmail);
-        if (user) {
-            const savedName = localStorage.getItem('userName');
-            currentUser = { name: savedName || user.name, email: user.email, picture: user.picture || null };
-            authToken = token;
-            updateUserUI(currentUser);
-            return true;
-        }
-        // Token local inválido — limpa
-        localStorage.removeItem('authToken');
-        localStorage.removeItem('hbo_local_token');
-        localStorage.removeItem('hbo_local_email');
-        updateUserUI(null);
-        return false;
-    }
-
-    // Tenta verificar com servidor remoto (fallback)
+    // Verifica com servidor (fonte de verdade do usuário)
     try {
         const r = await fetch(`${AUTH_API}/auth/verify`, {
             headers: { 'Authorization': `Bearer ${token}` }
@@ -7153,8 +7172,6 @@ async function checkAuth() {
             if (data.authenticated) {
                 currentUser = data.user;
                 authToken = token;
-                const savedName = localStorage.getItem('userName');
-                if (savedName) currentUser.name = savedName;
                 updateUserUI(currentUser);
                 syncProfilesFromServer();
                 return true;
@@ -7163,6 +7180,8 @@ async function checkAuth() {
     } catch {}
 
     localStorage.removeItem('authToken');
+    localStorage.removeItem('hbo_local_token');
+    localStorage.removeItem('hbo_local_email');
     updateUserUI(null);
     return false;
 }
@@ -7414,16 +7433,37 @@ function saveProfileSettings() {
     }
 
     if (currentUser) {
-        currentUser.name = newName;
-        updateUserUI(currentUser);
+        (async () => {
+            try {
+                const token = localStorage.getItem('authToken');
+                if (!token) throw new Error('Sem token');
 
-        // Atualizar também no modal de sucesso
-        document.getElementById('successUserName').textContent = newName;
+                const r = await fetch(`${API}/user/me`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ name: newName })
+                });
 
-        // Salvar no localStorage (opcional - apenas para persistência local)
-        localStorage.setItem('userName', newName);
-        showToast('success', 'Configurações salvas', 'Suas configurações foram salvas com sucesso.');
-        closeSettingsModal();
+                const data = await r.json().catch(() => ({}));
+                if (r.ok && data && data.success) {
+                    currentUser.name = data.user?.name || newName;
+                    if (data.user?.picture !== undefined) currentUser.picture = data.user.picture;
+                    updateUserUI(currentUser);
+                    // Atualizar também no modal de sucesso
+                    document.getElementById('successUserName').textContent = currentUser.name;
+                    showToast('success', 'Configurações salvas', 'Seu nome foi salvo na nuvem com sucesso.');
+                    closeSettingsModal();
+                } else {
+                    showToast('error', 'Falha ao salvar', data.error || 'Não foi possível salvar suas configurações.');
+                }
+            } catch (e) {
+                console.error('Erro ao salvar configurações:', e);
+                showToast('error', 'Falha ao salvar', 'Erro ao salvar configurações. Verifique se o servidor está rodando.');
+            }
+        })();
     }
 }
 
@@ -9920,9 +9960,10 @@ function _activateDemoMode() {
   window._searchOverride = true;
 }
 
-const _origLoadKidsCatalog = loadKidsCatalog;
-async function loadKidsCatalog() {
-  if (!_demoMode) return _origLoadKidsCatalog();
+// IMPORTANT: não use function declaration aqui (hoisting causava recursão infinita)
+window._origLoadKidsCatalog = window._origLoadKidsCatalog || window.loadKidsCatalog;
+window.loadKidsCatalog = async function() {
+  if (!_demoMode) return window._origLoadKidsCatalog();
   const kidsRows = document.getElementById('kidsRows');
   kidsRows.innerHTML = '';
   const allItems = Object.values(DEMO_KIDS_CATALOG).flat().filter(i=>i&&i.img);
@@ -9940,11 +9981,11 @@ async function loadKidsCatalog() {
     section.appendChild(row);
     kidsRows.appendChild(section);
   }
-}
+};
 
-const _origLoadGenre = loadGenre;
-async function loadGenre(nome, tipo) {
-  if (!_demoMode) return _origLoadGenre(nome, tipo);
+window._origLoadGenre = window._origLoadGenre || window.loadGenre;
+window.loadGenre = async function(nome, tipo) {
+  if (!_demoMode) return window._origLoadGenre(nome, tipo);
   document.getElementById('genre-page-title').textContent = nome;
   const grid = document.getElementById('grid-genre');
   grid.innerHTML = '';
@@ -9953,7 +9994,7 @@ async function loadGenre(nome, tipo) {
   const unique = [...new Map(all.filter(i=>i.tipo===tipo).map(i=>[i.tmdb_id,i])).values()];
   if (!unique.length) { grid.innerHTML = '<p class="text-gray-500 text-xs col-span-full py-8 text-center">Nenhum conteúdo.</p>'; return; }
   unique.forEach(item => grid.appendChild(createCard(item, true)));
-}
+};
 
 
 // ── checkServer modificado: se falhar → ativa demo ────────────────────────────
