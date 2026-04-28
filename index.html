@@ -6181,61 +6181,6 @@ async function searchKids(query) {
     }
 }
 
-// Override search in kids zone to always use kids search
-const originalDoSearch = doSearch;
-const originalDoSearchPage = doSearchPage;
-
-function isInKidsZone() {
-    const kidsSection = document.getElementById('section-kids');
-    return kidsSection && !kidsSection.classList.contains('hidden');
-}
-
-async function doSearch(q) {
-    console.log('[DEBUG] doSearch chamado, isInKidsZone:', isInKidsZone(), 'kidsModeEnabled:', kidsModeEnabled);
-    if (isInKidsZone() || kidsModeEnabled) {
-        // Always use kids search when in kids zone or kids mode is active
-        if (!serverOnline) { searchDropdown.innerHTML = '<div class="p-3 text-xs text-gray-500">Serviço indisponível.</div>'; searchDropdown.classList.remove('hidden'); return; }
-        searchDropdown.innerHTML = '<div class="p-3 text-xs text-yellow-400">🔍 A procurar...</div>';
-        searchDropdown.classList.remove('hidden');
-        try {
-            const r = await fetch(`${API}/kids-search?q=${encodeURIComponent(q)}`);
-            const results = await r.json();
-            if (!results.length) { searchDropdown.innerHTML = '<div class="p-3 text-xs text-gray-500">Nenhum resultado.</div>'; return; }
-            searchDropdown.innerHTML = results.slice(0,6).map(item => `
-                <div class="s-item" onclick="openDetails(${item.tmdb_id},'${item.tipo}'); searchDropdown.classList.add('hidden'); searchInput.value=''">
-                    <img src="${item.img}" onerror="this.src=''">
-                    <div>
-                        <div class="text-[11px] font-bold text-white leading-tight">${item.title}</div>
-                        <div class="text-[9px] text-gray-500 mt-0.5">${item.tipo==='tv'?'📺 Série':'🎬 Filme'} • ${item.year}</div>
-                    </div>
-                </div>
-            `).join('');
-        } catch { searchDropdown.innerHTML = '<div class="p-3 text-xs text-red-500">Erro ao buscar.</div>'; }
-    } else {
-        return originalDoSearch(q);
-    }
-}
-
-async function doSearchPage(q) {
-    console.log('[DEBUG] doSearchPage chamado, isInKidsZone:', isInKidsZone(), 'kidsModeEnabled:', kidsModeEnabled);
-    if (isInKidsZone() || kidsModeEnabled) {
-        // Always use kids search when in kids zone or kids mode is active
-        const grid = document.getElementById('grid-search');
-        showSection('search');
-        grid.innerHTML = '<p class="text-gray-500 text-xs col-span-full py-8 text-center">🔍 A procurar...</p>';
-        if (!serverOnline) { grid.innerHTML = '<p class="text-gray-500 text-xs col-span-full py-8 text-center">Serviço indisponível.</p>'; return; }
-        try {
-            const r = await fetch(`${API}/kids-search?q=${encodeURIComponent(q)}`);
-            const results = await r.json();
-            grid.innerHTML = '';
-            if (!results.length) { grid.innerHTML = '<p class="text-gray-500 text-xs col-span-full py-8 text-center">Nenhum resultado.</p>'; return; }
-            results.forEach(item => grid.appendChild(createCard(item, true)));
-        } catch { grid.innerHTML = '<p class="text-red-500 text-xs col-span-full py-8 text-center">Erro ao buscar.</p>'; }
-    } else {
-        return originalDoSearchPage(q);
-    }
-}
-
 // Kids search input listener
 document.addEventListener('DOMContentLoaded', () => {
     const kidsSearchInput = document.getElementById('kidsSearchInput');
@@ -6247,6 +6192,11 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 });
+
+function isInKidsZone() {
+    const kidsSection = document.getElementById('section-kids');
+    return kidsSection && !kidsSection.classList.contains('hidden');
+}
 
 function loadProfiles() {
     const stored = localStorage.getItem('profiles');
@@ -9232,24 +9182,50 @@ function closePlayer() {
 
 // ── Search ────────────────────────────────────────────────────────────────────
 let searchTimeout;
-const searchInput    = document.getElementById('searchInput');
-const searchDropdown = document.getElementById('searchDropdown');
+let searchInput, searchDropdown;
 
-searchInput.addEventListener('input', () => {
-    clearTimeout(searchTimeout);
-    const q = searchInput.value.trim();
-    if (q.length < 2) { searchDropdown.classList.add('hidden'); return; }
-    searchTimeout = setTimeout(() => doSearch(q), 400);
-});
-searchInput.addEventListener('keydown', e => {
-    if (e.key === 'Enter') { const q = searchInput.value.trim(); if(q){ searchDropdown.classList.add('hidden'); doSearchPage(q); } }
-    if (e.key === 'Escape') searchDropdown.classList.add('hidden');
-});
-document.addEventListener('click', e => {
-    if (!e.target.closest('#searchInput') && !e.target.closest('#searchDropdown')) searchDropdown.classList.add('hidden');
+document.addEventListener('DOMContentLoaded', () => {
+    searchInput = document.getElementById('searchInput');
+    searchDropdown = document.getElementById('searchDropdown');
+
+    if (searchInput) {
+        searchInput.addEventListener('input', () => {
+            clearTimeout(searchTimeout);
+            const q = searchInput.value.trim();
+            if (q.length < 2) { searchDropdown.classList.add('hidden'); return; }
+            searchTimeout = setTimeout(() => doSearch(q), 400);
+        });
+        searchInput.addEventListener('keydown', e => {
+            if (e.key === 'Enter') { const q = searchInput.value.trim(); if(q){ searchDropdown.classList.add('hidden'); doSearchPage(q); } }
+            if (e.key === 'Escape') searchDropdown.classList.add('hidden');
+        });
+    }
+    document.addEventListener('click', e => {
+        if (searchDropdown && !e.target.closest('#searchInput') && !e.target.closest('#searchDropdown')) searchDropdown.classList.add('hidden');
+    });
 });
 
 async function doSearch(q) {
+    // Se estiver em modo demo, usar busca local
+    if (_demoMode) {
+        const catalog = kidsModeEnabled ? DEMO_KIDS_CATALOG : DEMO_CATALOG;
+        const all = Object.values(catalog).flat();
+        const unique = [...new Map(all.filter(i => i.title && i.title.toLowerCase().includes(q.toLowerCase())).map(i => [i.tmdb_id, i])).values()];
+        searchDropdown.innerHTML = '<div class="p-3 text-xs text-purple-400">🔍 A procurar...</div>';
+        searchDropdown.classList.remove('hidden');
+        if (!unique.length) { searchDropdown.innerHTML = '<div class="p-3 text-xs text-gray-500">Nenhum resultado.</div>'; return; }
+        searchDropdown.innerHTML = unique.slice(0,6).map(item => `
+            <div class="s-item" onclick="openDetails(${item.tmdb_id},'${item.tipo}'); searchDropdown.classList.add('hidden'); searchInput.value=''">
+                <img src="${item.img}" onerror="this.src=''">
+                <div>
+                    <div class="text-[11px] font-bold text-white leading-tight">${item.title}</div>
+                    <div class="text-[9px] text-gray-500 mt-0.5">${item.tipo==='tv'?'📺 Série':'🎬 Filme'} • ${item.year}</div>
+                </div>
+            </div>
+        `).join('');
+        return;
+    }
+
     if (!serverOnline) { searchDropdown.innerHTML = '<div class="p-3 text-xs text-gray-500">Serviço indisponível.</div>'; searchDropdown.classList.remove('hidden'); return; }
     searchDropdown.innerHTML = '<div class="p-3 text-xs text-purple-400">🔍 A procurar...</div>';
     searchDropdown.classList.remove('hidden');
@@ -9271,10 +9247,124 @@ async function doSearch(q) {
     } catch { searchDropdown.innerHTML = '<div class="p-3 text-xs text-red-500">Erro ao buscar.</div>'; }
 }
 
+// ── Mobile Search Functions ───────────────────────────────────────────────────
+function openMobileSearch() {
+    const overlay = document.getElementById('mobileSearchOverlay');
+    const input = document.getElementById('mobileSearchInput');
+    if (overlay) {
+        overlay.classList.add('open');
+        document.body.style.overflow = 'hidden';
+        if (input) {
+            setTimeout(() => input.focus(), 100);
+        }
+    }
+}
+
+function closeMobileSearch() {
+    const overlay = document.getElementById('mobileSearchOverlay');
+    const input = document.getElementById('mobileSearchInput');
+    const results = document.getElementById('mobileSearchResults');
+    if (overlay) {
+        overlay.classList.remove('open');
+        document.body.style.overflow = '';
+    }
+    if (input) input.value = '';
+    if (results) results.innerHTML = '<div class="text-center py-12 text-gray-600 text-sm">Digite para buscar...</div>';
+}
+
+// ── Mobile Search Input Listener ──────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+    const mobileInput = document.getElementById('mobileSearchInput');
+    const mobileResults = document.getElementById('mobileSearchResults');
+    if (mobileInput) {
+        let mobileSearchTimeout;
+        mobileInput.addEventListener('input', (e) => {
+            clearTimeout(mobileSearchTimeout);
+            const q = e.target.value.trim();
+            if (!q) {
+                mobileResults.innerHTML = '<div class="text-center py-12 text-gray-600 text-sm">Digite para buscar...</div>';
+                return;
+            }
+            if (q.length < 2) return;
+            mobileSearchTimeout = setTimeout(() => doMobileSearch(q), 400);
+        });
+        mobileInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                const q = mobileInput.value.trim();
+                if (q) {
+                    closeMobileSearch();
+                    doSearchPage(q);
+                }
+            }
+            if (e.key === 'Escape') closeMobileSearch();
+        });
+    }
+});
+
+async function doMobileSearch(q) {
+    const mobileResults = document.getElementById('mobileSearchResults');
+    mobileResults.innerHTML = '<div class="text-center py-12 text-purple-400 text-sm">🔍 A procurar...</div>';
+
+    // Se estiver em modo demo, usar busca local
+    if (_demoMode || !serverOnline) {
+        const catalog = kidsModeEnabled ? DEMO_KIDS_CATALOG : DEMO_CATALOG;
+        const all = Object.values(catalog).flat();
+        const unique = [...new Map(all.filter(i => i.title && i.title.toLowerCase().includes(q.toLowerCase())).map(i => [i.tmdb_id, i])).values()];
+        if (!unique.length) {
+            mobileResults.innerHTML = '<div class="text-center py-12 text-gray-600 text-sm">Nenhum resultado.</div>';
+            return;
+        }
+        mobileResults.innerHTML = unique.slice(0, 12).map(item => `
+            <div class="s-item" onclick="openDetails(${item.tmdb_id},'${item.tipo}'); closeMobileSearch()">
+                <img src="${item.img}" onerror="this.src=''">
+                <div>
+                    <div class="text-[12px] font-bold text-white leading-tight">${item.title}</div>
+                    <div class="text-[10px] text-gray-500 mt-0.5">${item.tipo==='tv'?'📺 Série':'🎬 Filme'} • ${item.year||''}</div>
+                </div>
+            </div>
+        `).join('');
+        return;
+    }
+
+    // Busca no servidor
+    try {
+        const endpoint = kidsModeEnabled ? `${API}/kids-search` : `${API}/buscar`;
+        const r = await fetch(`${endpoint}?q=${encodeURIComponent(q)}`);
+        const results = await r.json();
+        if (!results.length) {
+            mobileResults.innerHTML = '<div class="text-center py-12 text-gray-600 text-sm">Nenhum resultado.</div>';
+            return;
+        }
+        mobileResults.innerHTML = results.slice(0, 12).map(item => `
+            <div class="s-item" onclick="openDetails(${item.tmdb_id},'${item.tipo}'); closeMobileSearch()">
+                <img src="${item.img}" onerror="this.src=''">
+                <div>
+                    <div class="text-[12px] font-bold text-white leading-tight">${item.title}</div>
+                    <div class="text-[10px] text-gray-500 mt-0.5">${item.tipo==='tv'?'📺 Série':'🎬 Filme'} • ${item.year}</div>
+                </div>
+            </div>
+        `).join('');
+    } catch {
+        mobileResults.innerHTML = '<div class="text-center py-12 text-red-500 text-sm">Erro ao buscar.</div>';
+    }
+}
+
 async function doSearchPage(q) {
     const grid = document.getElementById('grid-search');
     showSection('search');
     grid.innerHTML = '<p class="text-gray-500 text-xs col-span-full py-8 text-center">🔍 A procurar...</p>';
+
+    // Se estiver em modo demo, usar busca local
+    if (_demoMode) {
+        const catalog = kidsModeEnabled ? DEMO_KIDS_CATALOG : DEMO_CATALOG;
+        const all = Object.values(catalog).flat();
+        const unique = [...new Map(all.filter(i => i.title && i.title.toLowerCase().includes(q.toLowerCase())).map(i => [i.tmdb_id, i])).values()];
+        grid.innerHTML = '';
+        if (!unique.length) { grid.innerHTML = '<p class="text-gray-500 text-xs col-span-full py-8 text-center">Nenhum resultado.</p>'; return; }
+        unique.forEach(item => grid.appendChild(createCard(item, true)));
+        return;
+    }
+
     if (!serverOnline) { grid.innerHTML = '<p class="text-gray-500 text-xs col-span-full py-8 text-center">Serviço indisponível.</p>'; return; }
     try {
         // Use kids search if kids mode is active
@@ -9795,38 +9885,6 @@ function _activateDemoMode() {
   window._searchOverride = true;
 }
 
-// ── Patchs de runtime que só ativam se _demoMode = true ──────────────────────
-const _origDoSearch = doSearch;
-async function doSearch(q) {
-  if (!_demoMode) return _origDoSearch(q);
-  const catalog = kidsModeEnabled ? DEMO_KIDS_CATALOG : DEMO_CATALOG;
-  const all = Object.values(catalog).flat();
-  const unique = [...new Map(all.filter(i=>i.title&&i.title.toLowerCase().includes(q.toLowerCase())).map(i=>[i.tmdb_id,i])).values()];
-  if (!unique.length) { searchDropdown.innerHTML = '<div class="p-3 text-xs text-gray-500">Nenhum resultado.</div>'; searchDropdown.classList.remove('hidden'); return; }
-  searchDropdown.innerHTML = unique.slice(0,6).map(item => `
-    <div class="s-item" onclick="openDetails(${item.tmdb_id},'${item.tipo}'); searchDropdown.classList.add('hidden'); searchInput.value=''">
-      <img src="${item.img}" onerror="this.src=''">
-      <div>
-        <div class="text-[11px] font-bold text-white leading-tight">${item.title}</div>
-        <div class="text-[9px] text-gray-500 mt-0.5">${item.tipo==='tv'?'📺 Série':'🎬 Filme'} • ${item.year}</div>
-      </div>
-    </div>`).join('');
-  searchDropdown.classList.remove('hidden');
-}
-
-const _origDoSearchPage = doSearchPage;
-async function doSearchPage(q) {
-  if (!_demoMode) return _origDoSearchPage(q);
-  const catalog = kidsModeEnabled ? DEMO_KIDS_CATALOG : DEMO_CATALOG;
-  const all = Object.values(catalog).flat();
-  const unique = [...new Map(all.filter(i=>i.title&&i.title.toLowerCase().includes(q.toLowerCase())).map(i=>[i.tmdb_id,i])).values()];
-  const grid = document.getElementById('grid-search');
-  showSection('search');
-  grid.innerHTML = '';
-  if (!unique.length) { grid.innerHTML = '<p class="text-gray-500 text-xs col-span-full py-8 text-center">Nenhum resultado.</p>'; return; }
-  unique.forEach(item => grid.appendChild(createCard(item, true)));
-}
-
 const _origLoadKidsCatalog = loadKidsCatalog;
 async function loadKidsCatalog() {
   if (!_demoMode) return _origLoadKidsCatalog();
@@ -9862,29 +9920,6 @@ async function loadGenre(nome, tipo) {
   unique.forEach(item => grid.appendChild(createCard(item, true)));
 }
 
-// Mobile search demo override — injeta listener extra
-document.addEventListener('DOMContentLoaded', () => {
-  const inp = document.getElementById('mobileSearchInput');
-  if (!inp) return;
-  inp.addEventListener('input', async e => {
-    if (!_demoMode) return;
-    const q = e.target.value.trim();
-    const res = document.getElementById('mobileSearchResults');
-    if (!q) { res.innerHTML = '<div class="text-center py-12 text-gray-600 text-sm">Digite para buscar...</div>'; return; }
-    const catalog = kidsModeEnabled ? DEMO_KIDS_CATALOG : DEMO_CATALOG;
-    const all = Object.values(catalog).flat();
-    const unique = [...new Map(all.filter(i=>i.title&&i.title.toLowerCase().includes(q.toLowerCase())).map(i=>[i.tmdb_id,i])).values()];
-    if (!unique.length) { res.innerHTML = '<div class="text-center py-12 text-gray-600 text-sm">Nenhum resultado.</div>'; return; }
-    res.innerHTML = unique.slice(0,12).map(item =>
-      `<div class="s-item" onclick="openDetails(${item.tmdb_id},'${item.tipo}'); closeMobileSearch()">
-        <img src="${item.img}" onerror="this.src=''">
-        <div>
-          <div class="text-[12px] font-bold text-white leading-tight">${item.title}</div>
-          <div class="text-[10px] text-gray-500 mt-0.5">${item.tipo==='tv'?'📺 Série':'🎬 Filme'} • ${item.year||''}</div>
-        </div>
-      </div>`).join('');
-  }, true);
-}, true);
 
 // ── checkServer modificado: se falhar → ativa demo ────────────────────────────
 async function checkServer() {
