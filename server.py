@@ -9,6 +9,8 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import jwt
+import hashlib
+import hmac
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
 import re
@@ -105,6 +107,17 @@ def init_db():
                 cur.execute("""
                     ALTER TABLE users ADD COLUMN IF NOT EXISTS profiles TEXT DEFAULT NULL
                 """)
+                # Códigos temporários de verificação por e-mail (não retorna para o cliente)
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS email_verification_codes (
+                        email VARCHAR(255) PRIMARY KEY,
+                        code_hash VARCHAR(128) NOT NULL,
+                        expires_at BIGINT NOT NULL,
+                        attempts INT NOT NULL DEFAULT 0,
+                        last_sent_at BIGINT NOT NULL DEFAULT 0,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                """)
                 conn.commit()
                 print("[DEBUG] Tabela 'users' criada/verificada com sucesso")
         except Exception as e:
@@ -182,7 +195,8 @@ def validate_password(password):
 def send_verification_email(email, code):
     """Envia email de verificação usando SMTP"""
     if not SMTP_EMAIL or not SMTP_PASSWORD:
-        print(f"[DEBUG] SMTP não configurado - Código para {email}: {code}")
+        # Nunca exibe o código em logs para evitar vazamento
+        print(f"[DEBUG] SMTP não configurado - tentativa de envio para {email}")
         return False
 
     try:
@@ -220,6 +234,92 @@ def send_verification_email(email, code):
     except Exception as e:
         print(f"[DEBUG] Erro ao enviar email: {str(e)}")
         return False
+
+def _hash_email_code(email: str, code: str) -> str:
+    """
+    Hash do código por e-mail com HMAC para evitar armazenamento em claro.
+    O segredo vem de JWT_SECRET para manter a implantação simples.
+    """
+    secret = (JWT_SECRET or "secret").encode("utf-8")
+    msg = f"{email.strip().lower()}:{str(code).strip()}".encode("utf-8")
+    return hmac.new(secret, msg, hashlib.sha256).hexdigest()
+
+def _issue_login_token(email: str):
+    user_data = {
+        "sub": email.split("@")[0],
+        "email": email,
+        "name": email.split("@")[0].capitalize(),
+        "picture": "",
+        "exp": int(time.time()) + 3600 * 24 * 7  # 7 dias
+    }
+    return jwt.encode(user_data, JWT_SECRET, algorithm="HS256"), user_data
+
+def _upsert_verification_code(email: str, code: str, ttl_seconds: int = 300):
+    conn = get_db_connection()
+    if not conn:
+        return False, "Erro interno ao conectar ao banco"
+    now = int(time.time())
+    try:
+        code_hash = _hash_email_code(email, code)
+        expires_at = now + ttl_seconds
+        with conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO email_verification_codes (email, code_hash, expires_at, attempts, last_sent_at)
+                VALUES (%s, %s, %s, 0, %s)
+                ON CONFLICT (email) DO UPDATE
+                SET code_hash = EXCLUDED.code_hash,
+                    expires_at = EXCLUDED.expires_at,
+                    attempts = 0,
+                    last_sent_at = EXCLUDED.last_sent_at
+            """, (email, code_hash, expires_at, now))
+        conn.commit()
+        return True, None
+    except Exception as e:
+        print(f"[DEBUG] Erro ao salvar código de verificação: {e}")
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        return False, "Erro ao salvar código de verificação"
+    finally:
+        conn.close()
+
+def _verify_code_from_db(email: str, code: str):
+    conn = get_db_connection()
+    if not conn:
+        return False, "Erro interno ao conectar ao banco"
+    now = int(time.time())
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT code_hash, expires_at, attempts FROM email_verification_codes WHERE email = %s", (email,))
+            row = cur.fetchone()
+            if not row:
+                return False, "Código expirado ou inválido"
+            if now > int(row["expires_at"]):
+                cur.execute("DELETE FROM email_verification_codes WHERE email = %s", (email,))
+                conn.commit()
+                return False, "Código expirado. Solicite um novo."
+            if int(row.get("attempts") or 0) >= 10:
+                return False, "Muitas tentativas. Solicite um novo código."
+
+            expected = row["code_hash"]
+            got = _hash_email_code(email, code)
+            if not hmac.compare_digest(expected, got):
+                cur.execute(
+                    "UPDATE email_verification_codes SET attempts = attempts + 1 WHERE email = %s",
+                    (email,)
+                )
+                conn.commit()
+                return False, "Código inválido"
+
+            cur.execute("DELETE FROM email_verification_codes WHERE email = %s", (email,))
+            conn.commit()
+            return True, None
+    except Exception as e:
+        print(f"[DEBUG] Erro ao validar código no banco: {e}")
+        return False, "Erro ao validar código"
+    finally:
+        conn.close()
 
 def cache_get(key):
     e = _cache.get(key)
@@ -566,6 +666,11 @@ def auth_login():
 
 @app.route("/api/auth/email", methods=["POST", "OPTIONS"])
 def auth_email():
+    """
+    Endpoint legado (compatibilidade).
+    Envia código de verificação por e-mail para cadastro/login por e-mail.
+    NÃO retorna código nem token equivalente.
+    """
     if request.method == "OPTIONS":
         return "", 200
 
@@ -588,58 +693,19 @@ def auth_email():
                 "password_errors": password_errors
             }), 400
 
-        # Salvar ou atualizar usuário no banco de dados
-        conn = get_db_connection()
-        if conn:
-            try:
-                with conn.cursor() as cur:
-                    # Check if user exists
-                    cur.execute("SELECT id FROM users WHERE email = %s", (email,))
-                    existing_user = cur.fetchone()
-                    
-                    if existing_user:
-                        # Update existing user's password
-                        cur.execute(
-                            "UPDATE users SET password = %s WHERE email = %s",
-                            (password, email)
-                        )
-                    else:
-                        # Insert new user
-                        cur.execute(
-                            "INSERT INTO users (email, password) VALUES (%s, %s)",
-                            (email, password)
-                        )
-                    conn.commit()
-                    print(f"[DEBUG] Usuário salvo no banco: {email}")
-            except Exception as e:
-                print(f"[DEBUG] Erro ao salvar usuário: {e}")
-                conn.rollback()
-            finally:
-                conn.close()
-
-        # Gerar código de verificação (6 dígitos)
-        import random
+        # Gerar código e persistir no servidor (nunca retorna ao cliente)
         verification_code = str(random.randint(100000, 999999))
+        ok, err = _upsert_verification_code(email, verification_code, ttl_seconds=300)
+        if not ok:
+            return jsonify({"error": err or "Erro ao gerar código"}), 500
 
-        # Assinar código em JWT stateless (funciona com múltiplos workers)
-        code_payload = {
-            "email": email,
-            "code": verification_code,
-            "exp": int(time.time()) + 300  # 5 minutos
-        }
-        verification_token = jwt.encode(code_payload, JWT_SECRET, algorithm="HS256")
-
-        # Enviar email real
-        email_sent = send_verification_email(email, verification_code)
-
-        if not email_sent:
-            print(f"[DEBUG] Código para {email}: {verification_code}")
+        # Enviar email
+        send_verification_email(email, verification_code)
 
         return jsonify({
             "success": True,
             "message": "Código de verificação enviado para seu email",
-            "email": email,
-            "verification_token": verification_token
+            "email": email
         })
     except Exception as e:
         print(f"[DEBUG] Erro no login por email: {str(e)}")
@@ -648,8 +714,113 @@ def auth_email():
         return jsonify({"error": str(e)}), 400
 
 
+@app.route("/api/auth/send-reg-code", methods=["POST", "OPTIONS"])
+def send_reg_code():
+    """Envia código de verificação para cadastro (somente por e-mail)."""
+    if request.method == "OPTIONS":
+        return "", 200
+    try:
+        data = request.get_json() or {}
+        email = (data.get("email") or "").strip().lower()
+        if not email:
+            return jsonify({"error": "Email é obrigatório"}), 400
+
+        verification_code = str(random.randint(100000, 999999))
+        ok, err = _upsert_verification_code(email, verification_code, ttl_seconds=300)
+        if not ok:
+            return jsonify({"error": err or "Erro ao gerar código"}), 500
+
+        send_verification_email(email, verification_code)
+
+        return jsonify({"success": True, "message": "Código enviado para seu email"})
+    except Exception as e:
+        print(f"[DEBUG] Erro ao enviar código de registro: {e}")
+        return jsonify({"error": "Erro ao enviar código"}), 400
+
+
+@app.route("/api/auth/register", methods=["POST", "OPTIONS"])
+def auth_register():
+    """Verifica código e cria/atualiza usuário (não retorna código)."""
+    if request.method == "OPTIONS":
+        return "", 200
+    try:
+        data = request.get_json() or {}
+        email = (data.get("email") or "").strip().lower()
+        password = data.get("password") or ""
+        code = (data.get("code") or "").strip()
+
+        if not email or not password or not code:
+            return jsonify({"error": "Email, senha e código são obrigatórios"}), 400
+
+        password_errors = validate_password(password)
+        if password_errors:
+            return jsonify({
+                "error": "Senha não atende aos requisitos de segurança",
+                "password_errors": password_errors
+            }), 400
+
+        ok, err = _verify_code_from_db(email, code)
+        if not ok:
+            return jsonify({"error": err or "Código inválido"}), 400
+
+        conn = get_db_connection()
+        if not conn:
+            return jsonify({"error": "Erro interno ao conectar ao banco"}), 500
+        try:
+            with conn.cursor() as cur:
+                cur.execute("SELECT id FROM users WHERE email = %s", (email,))
+                existing_user = cur.fetchone()
+                if existing_user:
+                    cur.execute("UPDATE users SET password = %s WHERE email = %s", (password, email))
+                else:
+                    cur.execute("INSERT INTO users (email, password) VALUES (%s, %s)", (email, password))
+            conn.commit()
+        except Exception as e:
+            print(f"[DEBUG] Erro ao salvar usuário após verificação: {e}")
+            conn.rollback()
+            return jsonify({"error": "Erro ao criar conta"}), 500
+        finally:
+            conn.close()
+
+        return jsonify({"success": True, "message": "Conta criada com sucesso"})
+    except Exception as e:
+        print(f"[DEBUG] Erro no registro: {e}")
+        return jsonify({"error": "Erro ao criar conta"}), 400
+
+
+@app.route("/api/auth/verify-email", methods=["POST", "OPTIONS"])
+def verify_email_and_login():
+    """
+    Verifica código e retorna sessão (token JWT).
+    Útil para fluxo de login/2-step onde a conta já existe.
+    """
+    if request.method == "OPTIONS":
+        return "", 200
+    try:
+        data = request.get_json() or {}
+        email = (data.get("email") or "").strip().lower()
+        code = (data.get("code") or "").strip()
+        if not email or not code:
+            return jsonify({"error": "Email e código são obrigatórios"}), 400
+
+        ok, err = _verify_code_from_db(email, code)
+        if not ok:
+            return jsonify({"error": err or "Código inválido"}), 400
+
+        token, user_data = _issue_login_token(email)
+        return jsonify({
+            "success": True,
+            "token": token,
+            "user": {"name": user_data["name"], "email": user_data["email"], "picture": ""}
+        })
+    except Exception as e:
+        print(f"[DEBUG] Erro ao verificar email: {e}")
+        return jsonify({"error": "Erro ao verificar o código"}), 400
+
+
 @app.route("/api/auth/verify-code", methods=["POST", "OPTIONS"])
 def verify_code():
+    """Compatibilidade: antigo /verify-code agora só verifica via DB (sem token)."""
     if request.method == "OPTIONS":
         return "", 200
 
@@ -658,45 +829,23 @@ def verify_code():
         data = request.get_json()
         email = data.get("email")
         code = data.get("code")
-        verification_token = data.get("verification_token")
+        email = (email or "").strip().lower()
+        code = (code or "").strip()
 
-        if not email or not code or not verification_token:
-            return jsonify({"error": "Email, código e token são obrigatórios"}), 400
+        if not email or not code:
+            return jsonify({"error": "Email e código são obrigatórios"}), 400
 
-        # Validar o JWT do código (stateless — funciona com múltiplos workers)
-        try:
-            payload = jwt.decode(verification_token, JWT_SECRET, algorithms=["HS256"])
-        except jwt.ExpiredSignatureError:
-            return jsonify({"error": "Código expirado. Solicite um novo."}), 400
-        except Exception:
-            return jsonify({"error": "Token de verificação inválido"}), 400
+        ok, err = _verify_code_from_db(email, code)
+        if not ok:
+            return jsonify({"error": err or "Código inválido"}), 400
 
-        if payload.get("email") != email:
-            return jsonify({"error": "Código inválido"}), 400
-
-        if payload.get("code") != str(code):
-            return jsonify({"error": "Código inválido"}), 400
-
-        # Código válido - criar sessão
-        user_data = {
-            "sub": email.split("@")[0],
-            "email": email,
-            "name": email.split("@")[0].capitalize(),
-            "picture": "",
-            "exp": int(time.time()) + 3600 * 24 * 7  # 7 dias
-        }
-
-        session_token = jwt.encode(user_data, JWT_SECRET, algorithm="HS256")
+        session_token, user_data = _issue_login_token(email)
         print(f"[DEBUG] Login realizado com sucesso: {email}")
 
         return jsonify({
             "success": True,
             "token": session_token,
-            "user": {
-                "name": user_data["name"],
-                "email": user_data["email"],
-                "picture": user_data["picture"]
-            }
+            "user": {"name": user_data["name"], "email": user_data["email"], "picture": ""}
         })
     except Exception as e:
         print(f"[DEBUG] Erro na verificação: {str(e)}")
@@ -731,7 +880,8 @@ def password_recovery():
         email_sent = send_verification_email(email, verification_code)
 
         if not email_sent:
-            print(f"[DEBUG] Código de recuperação para {email}: {verification_code}")
+            # Nunca exibe o código em logs para evitar vazamento
+            print(f"[DEBUG] Falha ao enviar email de recuperação para {email}")
 
         return jsonify({
             "success": True,

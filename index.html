@@ -5915,8 +5915,6 @@ function validateInlineRegPassword() {
     }
 }
 
-let _regVerificationToken = null;
-
 async function sendInlineRegistrationCode() {
     const email    = document.getElementById('regInlineEmail').value.trim().toLowerCase();
     const password = document.getElementById('regInlinePassword').value;
@@ -5945,14 +5943,26 @@ async function sendInlineRegistrationCode() {
     regEmail    = email;
     regPassword = password;
 
-    // Simula "envio de código" mostrando etapa 2
-    document.getElementById('regInlineEmailDisplay').textContent = email;
-    document.getElementById('regInlineStep1').style.display = 'none';
-    document.getElementById('regInlineStep2').style.display = '';
+    try {
+        const r = await fetch(`${AUTH_API}/auth/send-reg-code`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email })
+        });
 
-    // Gera código local de 6 dígitos
-    _regVerificationToken = String(Math.floor(100000 + Math.random() * 900000));
-    showToast('info', 'Código gerado', `Seu código de verificação é: ${_regVerificationToken}`, 12000);
+        const data = await r.json();
+        if (data.success) {
+            document.getElementById('regInlineEmailDisplay').textContent = email;
+            document.getElementById('regInlineStep1').style.display = 'none';
+            document.getElementById('regInlineStep2').style.display = '';
+            showToast('success', 'Código enviado', 'Enviamos um código de verificação para seu e-mail.');
+        } else {
+            showToast('error', 'Erro ao enviar código', data.error || 'Erro ao enviar código.');
+        }
+    } catch (e) {
+        console.error('Erro ao enviar código de registro (inline):', e);
+        showToast('error', 'Erro ao enviar código', 'Erro ao enviar código: ' + e.message);
+    }
 }
 
 async function verifyInlineRegistrationCode() {
@@ -5961,31 +5971,44 @@ async function verifyInlineRegistrationCode() {
         showToast('warning', 'Código obrigatório', 'Digite o código de verificação.');
         return;
     }
-    if (code !== _regVerificationToken) {
-        showToast('error', 'Código inválido', 'O código digitado está incorreto.');
-        return;
+    try {
+        const r = await fetch(`${AUTH_API}/auth/register`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: regEmail, password: regPassword, code })
+        });
+
+        const data = await r.json();
+        if (data.success) {
+            showToast('success', 'Conta criada', 'Sua conta foi criada com sucesso! Faça login para continuar.');
+            setTimeout(() => switchToLogin(), 1500);
+        } else {
+            showToast('error', 'Erro ao criar conta', data.error || 'Erro ao criar conta.');
+        }
+    } catch (e) {
+        console.error('Erro ao registrar usuário (inline):', e);
+        showToast('error', 'Erro ao criar conta', 'Erro ao criar conta: ' + e.message);
     }
-
-    // Salva usuário localmente
-    const users = _localUsers();
-    const name  = regEmail.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-    const newUser = {
-        email: regEmail,
-        name,
-        passwordHash: _hashPassword(regPassword),
-        createdAt: new Date().toISOString(),
-    };
-    users.push(newUser);
-    _saveLocalUsers(users);
-
-    _regVerificationToken = null;
-    showToast('success', 'Conta criada! 🎉', 'Agora faça o login para entrar.');
-    setTimeout(() => switchToLogin(), 1500);
 }
 
 async function resendInlineCode() {
-    _regVerificationToken = String(Math.floor(100000 + Math.random() * 900000));
-    showToast('info', 'Novo código gerado', `Seu código é: ${_regVerificationToken}`, 12000);
+    if (!regEmail) return;
+    try {
+        const r = await fetch(`${AUTH_API}/auth/send-reg-code`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: regEmail })
+        });
+        const data = await r.json();
+        if (data.success) {
+            showToast('success', 'Código reenviado', 'Enviamos um novo código de verificação para seu e-mail.');
+        } else {
+            showToast('error', 'Erro ao reenviar', data.error || 'Erro ao reenviar código.');
+        }
+    } catch (e) {
+        console.error('Erro ao reenviar código (inline):', e);
+        showToast('error', 'Erro ao reenviar', 'Erro ao reenviar o código: ' + e.message);
+    }
 }
 
 // ── Profile Functions ─────────────────────────────────────────────────────────
@@ -7326,7 +7349,6 @@ function closeEmailVerificationModal() {
 }
 
 let pendingEmail = null;
-let pendingVerificationToken = null;
 
 async function verifyEmailCode() {
     const code = document.getElementById('verificationCode').value;
@@ -7339,7 +7361,7 @@ async function verifyEmailCode() {
         const r = await fetch(`${AUTH_API}/auth/verify-code`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email: pendingEmail, code, verification_token: pendingVerificationToken })
+            body: JSON.stringify({ email: pendingEmail, code })
         });
 
         const data = await r.json();
@@ -7366,10 +7388,10 @@ async function resendVerificationCode() {
     if (!pendingEmail) return;
 
     try {
-        const r = await fetch(`${AUTH_API}/auth/email`, {
+        const r = await fetch(`${AUTH_API}/auth/send-reg-code`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email: pendingEmail, password: 'dummy' })
+            body: JSON.stringify({ email: pendingEmail })
         });
 
         const data = await r.json();
@@ -7615,22 +7637,35 @@ document.getElementById('emailLoginForm').addEventListener('submit', function(e)
     loginBtnText.textContent = 'Entrando...';
     loginSpinner.classList.remove('hidden');
 
-    setTimeout(() => {
-        const users = _localUsers();
-        const user  = users.find(u => u.email === email);
+    (async () => {
+        try {
+            const r = await fetch(`${AUTH_API}/auth/login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, password })
+            });
 
-        if (!user) {
-            showToast('error', 'Conta não encontrada', 'E-mail não cadastrado. Crie uma conta primeiro.');
-        } else if (user.passwordHash !== _hashPassword(password)) {
-            showToast('error', 'Senha incorreta', 'Verifique sua senha e tente novamente.');
-        } else {
-            _doLocalLogin(user);
+            const data = await r.json().catch(() => ({}));
+            if (r.ok && data && data.success) {
+                localStorage.setItem('authToken', data.token);
+                currentUser = data.user;
+                authToken = data.token;
+                updateUserUI(currentUser);
+                syncProfilesFromServer();
+                showSection('home');
+                openSuccessModal(data.user);
+            } else {
+                showToast('error', 'Falha no login', (data && data.error) ? data.error : 'Não foi possível fazer login.');
+            }
+        } catch (err) {
+            console.error('Erro no login:', err);
+            showToast('error', 'Erro no login', 'Erro ao fazer login. Verifique se o servidor está rodando.');
+        } finally {
+            loginBtn.disabled = false;
+            loginBtnText.textContent = 'Entrar';
+            loginSpinner.classList.add('hidden');
         }
-
-        loginBtn.disabled = false;
-        loginBtnText.textContent = 'Entrar';
-        loginSpinner.classList.add('hidden');
-    }, 600);
+    })();
 });
 
 function logout() {
