@@ -1,11 +1,6 @@
 from flask import Flask, jsonify, request, make_response, send_from_directory
 from flask_cors import CORS
 import requests
-try:
-    import cloudscraper as _cloudscraper_mod
-    _CLOUDSCRAPER_AVAILABLE = True
-except ImportError:
-    _CLOUDSCRAPER_AVAILABLE = False
 import os
 import random
 import time
@@ -25,265 +20,163 @@ import gzip
 import json as _json_mod
 import urllib.request
 
+
 # ─────────────────────────────────────────────────────────────────────────────
-#  FUTEBOL — API pública streamed.pk (sem Playwright, funciona no Render)
+#  FUTEBOL — WatchFooty API (sem chave, sem CF, requests puro)
 #
-#  Fluxo real:
-#    1. GET /api/matches/football  → lista de partidas com sources:[{source,id}]
-#    2. GET /api/stream/{source}/{id} → lista de streams com embedUrl real
-#    3. GET /api/matches/all-today → usado para tab "canais" (partidas do dia)
+#  Endpoint principal: GET https://api.watchfooty.st/api/v1/matches/football/live
+#  Streams já vêm junto com o match — sem segundo request necessário.
+#  URLs de stream: https://sportsembed.su/embed/{id}/{slug}/{source}/{n}
 # ─────────────────────────────────────────────────────────────────────────────
 
-FUTEBOL_OK = True  # Sempre True — usa só requests
+FUTEBOL_OK = True
 
-_STREAMED_BASE = "https://streamed.pk"
-_STREAMED_IMG  = "https://streamed.pk"   # badges: /api/images/badge/{name}
-
-_FUT_HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-    "Accept": "application/json, */*",
-    "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8",
-    "Origin":  _STREAMED_BASE,
-    "Referer": _STREAMED_BASE + "/",
-}
-
-# Sessão com bypass de Cloudflare JS-challenge (necessário no Render)
-if _CLOUDSCRAPER_AVAILABLE:
-    _cf_session = _cloudscraper_mod.create_scraper(
-        browser={"browser": "chrome", "platform": "windows", "mobile": False}
-    )
-    print("[STREAMED] cloudscraper ativo — bypass CF habilitado")
-else:
-    _cf_session = requests.Session()
-    print("[STREAMED] AVISO: cloudscraper nao instalado, usando requests puro")
+_WF_BASE = "https://api.watchfooty.st/api/v1"
 
 
-def _streamed_get(path: str, timeout: int = 15):
-    """GET na API do streamed.pk com bypass Cloudflare (cloudscraper)."""
-    url = f"{_STREAMED_BASE}{path}"
+def _wf_get(path: str, timeout: int = 15):
+    """GET na WatchFooty API retornando JSON ou None."""
     try:
-        r = _cf_session.get(url, headers=_FUT_HEADERS, timeout=timeout)
-        ct = r.headers.get("Content-Type", "")
-        if r.status_code in (403, 503) or ("text/html" in ct and r.status_code != 200):
-            print(f"[STREAMED] {path} -> bloqueado CF ({r.status_code})")
-            return None
+        r = requests.get(f"{_WF_BASE}{path}", timeout=timeout)
         r.raise_for_status()
         return r.json()
     except Exception as e:
-        print(f"[STREAMED] {path} -> erro: {e}")
+        print(f"[WATCHFOOTY] {path} erro: {e}")
         return None
 
 
-def _get_embed_urls(sources: list) -> list:
-    """
-    Dado sources = [{source, id}, ...] de uma partida,
-    busca os streams reais e retorna lista [{url: embedUrl, lang: language}].
-    Faz requests paralelas para não bloquear muito.
-    """
-    streams = []
-    seen_urls = set()
-
-    def fetch_source(src):
-        source_name = src.get("source", "")
-        source_id   = src.get("id", "")
-        if not source_name or not source_id:
-            return []
-        data = _streamed_get(f"/api/stream/{source_name}/{source_id}", timeout=8)
-        if not data or not isinstance(data, list):
-            return []
-        result = []
-        for s in data:
-            url  = s.get("embedUrl", "")
-            lang = s.get("language", "PT") or "PT"
-            if url and url not in seen_urls:
-                seen_urls.add(url)
-                result.append({"url": url, "lang": lang})
-        return result
-
-    with ThreadPoolExecutor(max_workers=min(len(sources), 4)) as ex:
-        futures = [ex.submit(fetch_source, src) for src in sources[:4]]  # max 4 sources
-        for f in as_completed(futures):
-            try:
-                streams.extend(f.result())
-            except Exception:
-                pass
-
-    return streams
-
-
-def _normalize_match(match: dict, q_lower: str = "") -> dict | None:
-    """
-    Converte um objeto APIMatch do streamed.pk para o formato do frontend:
-    {nome, categoria, status, streams:[{url, lang}]}
-    Retorna None se não passar no filtro de query.
-    """
+def _wf_normalize(m: dict) -> dict | None:
+    """Converte match WatchFooty → formato do frontend."""
     try:
-        title     = match.get("title", "")
-        categoria = match.get("category", "")
-        teams     = match.get("teams") or {}
-        home_name = (teams.get("home") or {}).get("name", "")
-        away_name = (teams.get("away") or {}).get("name", "")
-
-        # Nome preferencial: title do match (já vem "Time A vs Time B")
-        nome = title or (f"{home_name} vs {away_name}" if away_name else home_name) or "Sem nome"
-
-        # Filtro por query
-        if q_lower and q_lower not in nome.lower() and q_lower not in categoria.lower():
-            return None
-
-        # Data → status simplificado (streamed.pk não retorna status diretamente)
-        date_ms  = match.get("date", 0) or 0
-        agora_ms = time.time() * 1000
-        diff_min = (agora_ms - date_ms) / 60000  # positivo = já começou
-        if 0 <= diff_min < 120:
+        title   = m.get("title", "") or ""
+        liga    = m.get("league", "") or ""
+        sport   = m.get("sport", "football")
+        raw     = m.get("status", "pre")
+        if raw == "in":
             status = "live"
-        elif diff_min >= 120:
+        elif raw in ("post", "post-pens"):
             status = "finished"
         else:
             status = "upcoming"
 
-        # Busca embedUrls reais para cada source
-        sources = match.get("sources") or []
-        streams = _get_embed_urls(sources)
+        streams_raw = m.get("streams") or []
+        streams = []
+        seen = set()
+        for s in streams_raw:
+            url = s.get("url", "")
+            if url and url not in seen:
+                seen.add(url)
+                streams.append({
+                    "url":     url,
+                    "lang":    s.get("language") or "EN",
+                    "hd":      s.get("quality", "").upper() == "HD",
+                    "source":  s.get("id") or "",
+                    "ads":     bool(s.get("ads")),
+                })
 
-        # Fallback: link direto da página do match no streamed.pk
-        if not streams:
-            mid = match.get("id", "")
-            if mid:
-                streams = [{"url": f"{_STREAMED_BASE}/watch/{mid}", "lang": "PT"}]
+        teams      = m.get("teams") or {}
+        home       = teams.get("home") or {}
+        away       = teams.get("away") or {}
+        home_badge = f"https://api.watchfooty.st{home['logoUrl']}" if home.get("logoUrl") else ""
+        away_badge = f"https://api.watchfooty.st{away['logoUrl']}" if away.get("logoUrl") else ""
+
+        home_score = m.get("homeScore", -1)
+        away_score = m.get("awayScore", -1)
+        score = f"{home_score} - {away_score}" if home_score >= 0 else ""
+
+        # Tenta capturar horário de início (campo pode variar conforme a API)
+        start_ts = (
+            m.get("startTime") or
+            m.get("start_time") or
+            m.get("kickoff") or
+            m.get("matchTime") or
+            m.get("date") or
+            ""
+        )
 
         return {
-            "nome":      nome,
-            "categoria": categoria,
-            "status":    status,
-            "streams":   streams,
+            "nome":       title,
+            "match_id":   str(m.get("matchId", "")),
+            "categoria":  liga,
+            "sport":      sport,
+            "status":     status,
+            "streams":    streams,
+            "iframe_url": streams[0]["url"] if streams else "",
+            "home_badge": home_badge,
+            "away_badge": away_badge,
+            "score":      score,
+            "start_time": start_ts,
         }
     except Exception as e:
-        print(f"[STREAMED] _normalize_match erro: {e}")
+        print(f"[WATCHFOOTY] _normalize erro: {e}")
         return None
 
 
-def _fetch_matches(endpoint: str, q_lower: str = "") -> list:
-    """Busca partidas de um endpoint e normaliza para o formato do frontend."""
-    data = _streamed_get(endpoint)
-    if not data or not isinstance(data, list):
-        return []
+def scrape_eventos(query: str) -> list:
+    """Busca partidas filtrando por query — live + pre (agendados) do dia."""
+    q    = query.strip().lower()
+    # Busca todos do dia (inclui pre, in, post)
+    data = _wf_get("/matches/football") or []
 
     resultado = []
-    # Filtra primeiro sem buscar streams (evita N requests desnecessárias)
-    candidatos = []
-    for match in data:
-        title     = match.get("title", "")
-        categoria = match.get("category", "")
-        if q_lower and q_lower not in title.lower() and q_lower not in categoria.lower():
+    for m in data:
+        title = m.get("title", "") or ""
+        liga  = m.get("league", "") or ""
+        if q and q not in title.lower() and q not in liga.lower():
             continue
-        candidatos.append(match)
+        item = _wf_normalize(m)
+        if item:
+            resultado.append(item)
 
-    # Normaliza (busca streams) em paralelo
-    with ThreadPoolExecutor(max_workers=min(len(candidatos), 6)) as ex:
-        futures = {ex.submit(_normalize_match, m, q_lower): m for m in candidatos}
-        for f in as_completed(futures):
-            try:
-                item = f.result()
-                if item:
-                    resultado.append(item)
-            except Exception:
-                pass
-
-    # Ordena: live primeiro, depois upcoming, depois finished
     ordem = {"live": 0, "upcoming": 1, "finished": 2}
     resultado.sort(key=lambda x: ordem.get(x["status"], 9))
+    print(f"[WATCHFOOTY] {len(resultado)} eventos para query='{query}'")
     return resultado
-
-
-def scrape_eventos(query: str) -> list:
-    """
-    Busca partidas de futebol filtrando por query.
-    Usa /api/matches/football para partidas do dia e /api/matches/live para ao vivo.
-    """
-    q = query.strip().lower()
-    # Tenta live primeiro (mais relevante), depois todas as de hoje
-    vivo   = _fetch_matches("/api/matches/live",    q)
-    hoje   = _fetch_matches("/api/matches/football", q)
-
-    # Junta sem duplicar (pelo nome)
-    seen = {e["nome"] for e in vivo}
-    for e in hoje:
-        if e["nome"] not in seen:
-            vivo.append(e)
-            seen.add(e["nome"])
-
-    print(f"[STREAMED] {len(vivo)} eventos para query='{query}'")
-    return vivo
-
-
-def _partidas_hoje_como_canais() -> list:
-    """
-    Converte partidas de futebol de hoje em cards de "canais" para a tab principal.
-    Cada partida vira um card com nome e iframe_url do primeiro stream disponível.
-    """
-    data = _streamed_get("/api/matches/all-today")
-    if not data or not isinstance(data, list):
-        # Fallback: partidas de futebol
-        data = _streamed_get("/api/matches/football") or []
-
-    canais = []
-    for match in data:
-        if match.get("category", "").lower() not in ("football", "futebol", "soccer", ""):
-            continue
-        title   = match.get("title", "") or ""
-        sources = match.get("sources") or []
-        if not title or not sources:
-            continue
-
-        streams = _get_embed_urls(sources[:2])  # só 2 sources pra ser rápido
-        iframe_url = streams[0]["url"] if streams else f"{_STREAMED_BASE}/watch/{match.get('id','')}"
-
-        canais.append({"nome": title, "iframe_url": iframe_url})
-
-    print(f"[STREAMED] {len(canais)} partidas como canais")
-    return canais
 
 
 def scrape_canais_futebol() -> list:
     """
-    Retorna partidas de futebol do dia formatadas como canais para o frontend BR.
+    Retorna partidas ao vivo como canais para o frontend.
+    Usa /live — streams já vêm junto, sem segundo request.
     """
-    return _partidas_hoje_como_canais()
+    data   = _wf_get("/matches/football/live") or []
+    canais = []
+    for m in data:
+        item = _wf_normalize(m)
+        if item and item["streams"]:
+            canais.append(item)
+    print(f"[WATCHFOOTY] {len(canais)} canais ao vivo")
+    return canais
 
 
 def scrape_canais_por_pais() -> dict:
     """
-    Agrupa partidas por categoria/competição simulando seções por país.
-    Retorna dict { "BRASIL": [...], "INTERNACIONAL": [...], ... }
+    Agrupa partidas ao vivo por liga/competição.
+    Retorna {grupo: [{nome, match_id, iframe_url, streams}]}
     """
-    data = _streamed_get("/api/matches/all-today")
-    if not data or not isinstance(data, list):
-        data = _streamed_get("/api/matches/football") or []
-
-    por_pais: dict = {}
-    for match in data:
-        categoria = (match.get("category") or "GERAL").upper()
-        title     = match.get("title", "")
-        sources   = match.get("sources") or []
-        if not title or not sources:
+    data     = _wf_get("/matches/football/live") or []
+    por_grupo: dict = {}
+    for m in data:
+        item = _wf_normalize(m)
+        if not item or not item["streams"]:
             continue
+        grupo = item["categoria"].upper() if item["categoria"] else "GERAL"
+        por_grupo.setdefault(grupo, []).append(item)
+    print(f"[WATCHFOOTY] {sum(len(v) for v in por_grupo.values())} partidas em {len(por_grupo)} grupos")
+    return por_grupo
 
-        streams    = _get_embed_urls(sources[:2])
-        iframe_url = streams[0]["url"] if streams else f"{_STREAMED_BASE}/watch/{match.get('id','')}"
 
-        por_pais.setdefault(categoria, []).append({"nome": title, "iframe_url": iframe_url})
-
-    # Garante que BRASIL aparece primeiro se existir
-    resultado = {}
-    for k in ("FOOTBALL", "SOCCER", "FUTEBOL"):
-        if k in por_pais:
-            resultado["BRASIL"] = por_pais.pop(k)
-            break
-    resultado.update(por_pais)
-
-    print(f"[STREAMED] {sum(len(v) for v in resultado.values())} partidas em {len(resultado)} categorias")
-    return resultado
+def _wf_get_streams(match_id: str) -> list:
+    """
+    Busca streams de uma partida pelo match_id.
+    Tenta no cache de partidas; se não achar, chama /match/{id}.
+    """
+    # Tenta achar no cache de canais via detail endpoint
+    data = _wf_get(f"/match/{match_id}")
+    if not data:
+        return []
+    item = _wf_normalize({**data, "matchId": match_id})
+    return item["streams"] if item else []
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 app = Flask(__name__, static_folder=BASE_DIR, static_url_path='')
@@ -1687,6 +1580,9 @@ FOOTBALL_CACHE_TTL = 300   # 5 minutos
 _football_all_cache    = None
 _football_all_cache_ts = 0
 
+_football_pre_cache    = None
+_football_pre_cache_ts = 0
+
 @app.route("/api/football/channels")
 def football_channels():
     """
@@ -1741,6 +1637,44 @@ def football_channels_all():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/api/football/pre")
+def football_pre():
+    """
+    GET /api/football/pre
+    Retorna partidas agendadas (status 'pre') do dia — sem streams necessários.
+    Cache de 10 min (jogos pré não mudam rápido).
+    """
+    global _football_pre_cache, _football_pre_cache_ts
+
+    if not FUTEBOL_OK:
+        return jsonify({"error": "servico temporariamente indisponivel"}), 503
+
+    if _football_pre_cache and (time.time() - _football_pre_cache_ts) < 600:
+        return jsonify(_football_pre_cache)
+
+    try:
+        data = _wf_get("/matches/football") or []
+        jogos = []
+        for m in data:
+            raw = m.get("status", "")
+            if raw != "pre":
+                continue
+            item = _wf_normalize(m)
+            if item:
+                jogos.append(item)
+        # ordena por título
+        jogos.sort(key=lambda x: x.get("nome", ""))
+        _football_pre_cache    = jogos
+        _football_pre_cache_ts = time.time()
+        print(f"[FOOTBALL/PRE] {len(jogos)} jogos agendados")
+        return jsonify(jogos)
+    except Exception as e:
+        print(f"[FOOTBALL/PRE] Erro: {e}")
+        if _football_pre_cache:
+            return jsonify(_football_pre_cache)
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route("/api/football/watch")
 def football_watch():
     """
@@ -1772,6 +1706,25 @@ def football_watch():
         return jsonify({"nome": nome, "iframe_url": "", "erro": "Canal nao encontrado"})
     except Exception as e:
         print(f"[FOOTBALL] watch erro: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/football/streams")
+def football_streams():
+    """
+    GET /api/football/streams?id=401859367
+    Retorna streams de uma partida específica pelo matchId.
+    """
+    if not FUTEBOL_OK:
+        return jsonify({"error": "servico temporariamente indisponivel"}), 503
+    match_id = request.args.get("id", "").strip()
+    if not match_id:
+        return jsonify({"error": "Parametro 'id' obrigatorio"}), 400
+    try:
+        streams = _wf_get_streams(match_id)
+        return jsonify({"match_id": match_id, "streams": streams})
+    except Exception as e:
+        print(f"[FOOTBALL] streams erro: {e}")
         return jsonify({"error": str(e)}), 500
 
 

@@ -2133,6 +2133,12 @@
     transition: transform .4s cubic-bezier(.23,1,.32,1);
     filter: brightness(.9);
 }
+/* Poster da partida: cobre o card inteiro */
+.fut-poster-img {
+    object-fit: cover !important;
+    padding: 0 !important;
+    filter: brightness(.95) !important;
+}
 .fut-card:hover .fut-card-bg { transform: scale(1.06); filter: brightness(1.05); }
 
 .fut-card-color-bg {
@@ -2187,7 +2193,31 @@
     50% { opacity:.3; transform:scale(.6); }
 }
 
-/* Info abaixo do thumb */
+/* Badge UPCOMING */
+.fut-badge-upcoming {
+    position: absolute; top: 10px; left: 10px;
+    background: rgba(30,30,50,.85);
+    color: rgba(255,255,255,.7); font-size: 9px; font-weight: 800;
+    letter-spacing: .08em; text-transform: uppercase;
+    padding: 3px 9px; border-radius: 6px;
+    display: flex; align-items: center; gap: 5px;
+    border: 1px solid rgba(255,255,255,.15);
+    backdrop-filter: blur(6px);
+}
+
+/* Placar ao vivo */
+.fut-score-badge {
+    position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%);
+    background: rgba(0,0,0,.75);
+    color: #fff; font-size: 14px; font-weight: 900;
+    letter-spacing: .06em;
+    padding: 4px 14px; border-radius: 8px;
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255,255,255,.15);
+    white-space: nowrap;
+}
+
+
 .fut-card-info {
     padding: 12px 10px 10px;
     display: flex; align-items: flex-start; justify-content: space-between; gap: 8px;
@@ -2530,7 +2560,7 @@
                     <p class="fut-subtitle" id="futSubtitle">Buscando canais disponíveis...</p>
                 </div>
             </div>
-            <button onclick="loadFutebol(true)" class="fut-refresh-btn" id="futRefreshBtn">
+            <button onclick="_futCanaisSubTab==='agendados' ? (_futPreJogos=[], loadFutebolPre()) : loadFutebol(true)" class="fut-refresh-btn" id="futRefreshBtn">
                 <i class="fas fa-sync-alt text-xs"></i> Atualizar
             </button>
         </div>
@@ -2540,16 +2570,18 @@
     <div class="fut-tabs">
         <button class="fut-tab-btn active" id="tabCanais" onclick="switchFutTab('canais')">📺 Canais</button>
         <button class="fut-tab-btn" id="tabEventos" onclick="switchFutTab('eventos')">🏆 Eventos</button>
-        <button class="fut-tab-btn" id="tabInternacional" onclick="switchFutTab('internacional')">🌎 Internacional</button>
+
     </div>
 
     <!-- PAINEL CANAIS -->
     <div id="panelCanais">
-        <div class="fut-filters" id="futFilters">
-            <button class="fut-filter-btn active" onclick="filterFutebol('todos', this)">Todos</button>
-            <button class="fut-filter-btn" onclick="filterFutebol('live', this)">
-                <span style="width:7px;height:7px;background:#ef4444;border-radius:50%;animation:livePulse 1.2s infinite;display:inline-block;"></span>
-                Ao Vivo
+        <!-- Sub-tabs: Ao Vivo / Agendados -->
+        <div class="fut-filters" id="futFilters" style="padding-bottom:0;gap:6px;">
+            <button class="fut-filter-btn active" id="subTabAoVivo" onclick="switchCanaisSubTab('aovivo', this)">
+                <span style="width:7px;height:7px;background:#ef4444;border-radius:50%;animation:livePulse 1.2s infinite;display:inline-block;margin-right:4px;"></span>Ao Vivo
+            </button>
+            <button class="fut-filter-btn" id="subTabAgendados" onclick="switchCanaisSubTab('agendados', this)">
+                <i class="fas fa-calendar-alt" style="font-size:9px;margin-right:4px;"></i>Agendados
             </button>
         </div>
         <div class="fut-grid" id="futGrid">
@@ -2589,20 +2621,7 @@
     </div>
 
     <!-- PAINEL INTERNACIONAL -->
-    <div id="panelInternacional" style="display:none;">
-        <div id="globeWrapper">
-            <div id="globeEl"></div>
-            <div id="globeHint">🖱 Arraste para girar · Clique num país para ver os canais</div>
-            <div id="globeSelectedLabel"></div>
-        </div>
-        <div id="globeCountryBtns"></div>
-        <div id="globeSearchWrap">
-            <input id="globeSearchInput" type="text" placeholder="🔍 Buscar país..." 
-                oninput="filterGlobeCountries(this.value)"
-                onkeydown="if(event.key==='Enter'){const f=document.querySelector('.globe-country-btn:not([style*=none])');if(f)f.click();}">
-        </div>
-        <div id="intlChannelGrid"></div>
-    </div>
+
 </div>
 
 <!-- Player de Futebol -->
@@ -2632,6 +2651,8 @@
 // ═══════════════════════════════════════
 
 let _futCanais = [];
+let _futPreJogos = [];
+let _futCanaisSubTab = 'aovivo'; // 'aovivo' | 'agendados'
 
 async function loadFutebol(force = false) {
     const grid = document.getElementById('futGrid');
@@ -2729,22 +2750,36 @@ function renderCanais(canais) {
     }
 
     grid.innerHTML = canais.map((c, idx) => {
-        const banner   = CANAL_BANNERS[c.nome] || '';
+        const sub      = c.categoria || getCanalSub(c.nome);
+        // Usa o poster oficial da WatchFooty se tiver match_id, senão fallback de cor
+        const posterUrl = c.match_id
+            ? `https://api.watchfooty.st/api/v1/poster/${c.match_id}`
+            : '';
         const gradient = getCanalGradient(c.nome);
-        const sub      = getCanalSub(c.nome);
-        const chNum    = String(idx + 1).padStart(3, '0');
 
-        const bgContent = banner
+        const bgContent = posterUrl
             ? `<div class="fut-card-color-bg" style="background:${gradient};"></div>
-               <img class="fut-card-bg" src="${banner}" alt="${c.nome}"
+               <img class="fut-card-bg fut-poster-img" src="${posterUrl}" alt="${c.nome}"
                     onerror="this.style.display='none';">`
             : `<div class="fut-card-color-bg" style="background:${gradient};"></div>`;
+
+        // Badge de status
+        const isLive = c.status === 'live';
+        const badge = isLive
+            ? `<div class="fut-badge-live"><span></span> Ao Vivo</div>`
+            : `<div class="fut-badge-upcoming"><i class="fas fa-clock" style="font-size:7px"></i> Em breve</div>`;
+
+        // Placar se disponível
+        const score = (c.score && isLive)
+            ? `<span class="fut-score-badge">${c.score}</span>`
+            : '';
 
         return `<div class="fut-card" onclick="openCanalPlayer(_futCanais[${idx}])">
             <div class="fut-card-thumb">
                 ${bgContent}
                 <div class="fut-card-thumb-overlay"></div>
-                <div class="fut-badge-live"><span></span> Ao Vivo</div>
+                ${badge}
+                ${score}
                 <div class="fut-play-circle">
                     <div class="fut-play-circle-inner">
                         <svg fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
@@ -2756,17 +2791,14 @@ function renderCanais(canais) {
                     <div class="fut-ch-nome">${c.nome}</div>
                     <div class="fut-ch-sub">${sub}</div>
                 </div>
-                <div class="fut-ch-num">CH-${chNum}</div>
             </div>
         </div>`;
     }).join('');
 }
 
 function filterFutebol(tipo, btn) {
-    document.querySelectorAll('.fut-filter-btn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    // Todos os canais são ao vivo, filtro é visual apenas
-    renderCanais(_futCanais);
+    // Mantido por compatibilidade — sub-tabs agora gerenciam o painel
+    switchCanaisSubTab(tipo === 'live' ? 'aovivo' : 'aovivo', btn);
 }
 
 // ── Player ──────────────────────────────────────────────────────
@@ -2796,6 +2828,137 @@ function closeFutPlayer() {
     overlay.style.display = 'none';
     frame.src = '';
     document.body.style.overflow = '';
+}
+
+// ── Sub-tabs Canais: Ao Vivo / Agendados ────────────────────────
+function switchCanaisSubTab(tab, btn) {
+    _futCanaisSubTab = tab;
+    document.querySelectorAll('.fut-filter-btn').forEach(b => b.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+
+    const sub = document.getElementById('futSubtitle');
+
+    if (tab === 'aovivo') {
+        renderCanais(_futCanais);
+        if (sub) sub.textContent = _futCanais.length
+            ? _futCanais.length + ' canal' + (_futCanais.length !== 1 ? 'is' : '') + ' ao vivo'
+            : 'Nenhum jogo ao vivo agora';
+    } else {
+        if (_futPreJogos.length) {
+            renderPreJogos(_futPreJogos);
+            if (sub) sub.textContent = _futPreJogos.length + ' jogo' + (_futPreJogos.length !== 1 ? 's' : '') + ' agendado' + (_futPreJogos.length !== 1 ? 's' : '');
+        } else {
+            loadFutebolPre();
+        }
+    }
+}
+
+async function loadFutebolPre() {
+    const grid = document.getElementById('futGrid');
+    const sub  = document.getElementById('futSubtitle');
+    if (sub) sub.textContent = 'Buscando jogos agendados...';
+
+    const skel = Array(6).fill(`
+        <div class="fut-skeleton">
+            <div class="fut-skeleton-thumb"></div>
+            <div class="fut-skeleton-info">
+                <div class="fut-skeleton-line" style="width:65%"></div>
+                <div class="fut-skeleton-line" style="width:38%"></div>
+            </div>
+        </div>`).join('');
+    grid.innerHTML = skel;
+
+    try {
+        const res = await fetch('/api/football/pre');
+        if (!res.ok) throw new Error('Erro ' + res.status);
+        const jogos = await res.json();
+        _futPreJogos = jogos;
+        renderPreJogos(jogos);
+        if (sub) sub.textContent = jogos.length
+            ? jogos.length + ' jogo' + (jogos.length !== 1 ? 's' : '') + ' agendado' + (jogos.length !== 1 ? 's' : '')
+            : 'Nenhum jogo agendado para hoje';
+    } catch(e) {
+        console.error('[FutPre]', e);
+        grid.innerHTML = `<div class="fut-empty">
+            <i class="fas fa-calendar-times" style="color:rgba(139,92,246,.4)"></i>
+            <p class="text-sm font-bold text-gray-500 mb-2">Não foi possível carregar</p>
+            <button onclick="loadFutebolPre()" class="px-6 py-2 rounded-full text-xs font-bold" style="background:rgba(139,92,246,.15);border:1px solid rgba(139,92,246,.3);color:#a78bfa;">Tentar novamente</button>
+        </div>`;
+        if (sub) sub.textContent = 'Erro ao carregar jogos agendados';
+    }
+}
+
+function _formatMatchTime(start_time) {
+    if (!start_time) return null;
+    try {
+        // Suporta unix timestamp (número ou string numérica) e ISO string
+        const ts = typeof start_time === 'number' || /^\d{9,13}$/.test(String(start_time))
+            ? new Date(Number(start_time) * (String(start_time).length <= 10 ? 1000 : 1))
+            : new Date(start_time);
+        if (isNaN(ts.getTime())) return null;
+        const hoje = new Date();
+        const amanha = new Date(hoje); amanha.setDate(hoje.getDate() + 1);
+        const mesmaData = (a, b) =>
+            a.getDate() === b.getDate() && a.getMonth() === b.getMonth() && a.getFullYear() === b.getFullYear();
+
+        const hora = ts.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+        if (mesmaData(ts, hoje)) return `Hoje, ${hora}`;
+        if (mesmaData(ts, amanha)) return `Amanhã, ${hora}`;
+        return ts.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) + ', ' + hora;
+    } catch { return null; }
+}
+
+function renderPreJogos(jogos) {
+    const grid = document.getElementById('futGrid');
+    if (!jogos || !jogos.length) {
+        grid.innerHTML = `<div class="fut-empty">
+            <i class="fas fa-calendar-check" style="color:rgba(139,92,246,.4)"></i>
+            <p class="text-sm font-bold text-gray-500 mb-1">Nenhum jogo agendado</p>
+            <p class="text-xs text-gray-700">Volte mais tarde para ver os próximos jogos.</p>
+        </div>`;
+        return;
+    }
+
+    grid.innerHTML = jogos.map((c, idx) => {
+        const liga     = c.categoria || '';
+        const posterUrl = c.match_id
+            ? `https://api.watchfooty.st/api/v1/poster/${c.match_id}`
+            : '';
+        const gradient = getCanalGradient(c.nome);
+
+        const bgContent = posterUrl
+            ? `<div class="fut-card-color-bg" style="background:${gradient};"></div>
+               <img class="fut-card-bg fut-poster-img" src="${posterUrl}" alt="${c.nome}" onerror="this.style.display='none';">`
+            : `<div class="fut-card-color-bg" style="background:${gradient};"></div>`;
+
+        const horario = _formatMatchTime(c.start_time);
+        const badge = horario
+            ? `<div class="fut-badge-upcoming"><i class="fas fa-clock" style="font-size:7px"></i> ${horario}</div>`
+            : `<div class="fut-badge-upcoming"><i class="fas fa-clock" style="font-size:7px"></i> Agendado</div>`;
+
+        // Se tiver streams, pode abrir player; senão mostra visual apenas
+        const clickHandler = c.streams && c.streams.length
+            ? `openCanalPlayer(_futPreJogos[${idx}])`
+            : `null`;
+
+        return `<div class="fut-card" onclick="${clickHandler}" style="${!c.streams?.length ? 'cursor:default;opacity:.75;' : ''}">
+            <div class="fut-card-thumb">
+                ${bgContent}
+                <div class="fut-card-thumb-overlay"></div>
+                ${badge}
+                ${c.streams && c.streams.length
+                    ? `<div class="fut-play-circle"><div class="fut-play-circle-inner"><svg fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></div></div>`
+                    : `<div class="fut-play-circle" style="opacity:.3"><div class="fut-play-circle-inner"><i class="fas fa-lock" style="font-size:12px"></i></div></div>`
+                }
+            </div>
+            <div class="fut-card-info">
+                <div>
+                    <div class="fut-ch-nome">${c.nome}</div>
+                    <div class="fut-ch-sub">${liga || 'Aguardando transmissão'}</div>
+                </div>
+            </div>
+        </div>`;
+    }).join('');
 }
 
 document.addEventListener('keydown', function(e) {
@@ -3163,25 +3326,28 @@ function openIntlPlayer(url, nome) {
 function switchFutTab(tab) {
     const panelCanais        = document.getElementById('panelCanais');
     const panelEventos       = document.getElementById('panelEventos');
-    const panelInternacional = document.getElementById('panelInternacional');
     const tabCanais          = document.getElementById('tabCanais');
     const tabEventos         = document.getElementById('tabEventos');
-    const tabInternacional   = document.getElementById('tabInternacional');
     const sub                = document.getElementById('futSubtitle');
     const refreshBtn         = document.getElementById('futRefreshBtn');
 
     // esconde tudo
-    panelCanais.style.display        = 'none';
-    panelEventos.style.display       = 'none';
-    panelInternacional.style.display = 'none';
+    panelCanais.style.display  = 'none';
+    panelEventos.style.display = 'none';
     tabCanais.classList.remove('active');
     tabEventos.classList.remove('active');
-    if (tabInternacional) tabInternacional.classList.remove('active');
 
     if (tab === 'canais') {
         panelCanais.style.display = '';
         tabCanais.classList.add('active');
         if (refreshBtn) refreshBtn.style.display = '';
+        // Garante que sub-tab ao vivo fica ativa ao voltar para canais
+        _futCanaisSubTab = 'aovivo';
+        const btnAoVivo = document.getElementById('subTabAoVivo');
+        const btnAg     = document.getElementById('subTabAgendados');
+        if (btnAoVivo) { btnAoVivo.classList.add('active'); }
+        if (btnAg)     { btnAg.classList.remove('active'); }
+        renderCanais(_futCanais);
         if (sub && _futCanais.length)
             sub.textContent = _futCanais.length + ' canal' + (_futCanais.length !== 1 ? 'is' : '') + ' disponível';
     } else if (tab === 'eventos') {
@@ -3190,11 +3356,34 @@ function switchFutTab(tab) {
         if (refreshBtn) refreshBtn.style.display = 'none';
         if (sub) sub.textContent = 'Busque por campeonato ou evento';
         setTimeout(() => { const inp = document.getElementById('evSearchInput'); if (inp) inp.focus(); }, 80);
-    } else if (tab === 'internacional') {
-        panelInternacional.style.display = '';
-        if (tabInternacional) tabInternacional.classList.add('active');
+    }
+}
+
+// ── Sub-tabs Ao Vivo: Canais / Internacional ──────────────────────
+let _aovivoSubTab = 'canais';
+
+function switchAoVivoTab(tab, btn) {
+    _aovivoSubTab = tab;
+
+    // atualiza botões
+    document.querySelectorAll('#section-aovivo .fut-tab-btn').forEach(b => b.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+
+    const panelCanais = document.getElementById('aovivoPanel-canais');
+    const panelIntl   = document.getElementById('aovivoPanel-internacional');
+    const subtitle    = document.getElementById('aovivoSubtitle');
+    const refreshBtn  = document.getElementById('aovivoRefreshBtn');
+
+    if (tab === 'canais') {
+        panelCanais.style.display = '';
+        panelIntl.style.display   = 'none';
+        if (refreshBtn) refreshBtn.style.display = '';
+        if (subtitle && _canaisCache) subtitle.textContent = _canaisCache.length + ' canais disponíveis';
+    } else {
+        panelCanais.style.display = 'none';
+        panelIntl.style.display   = '';
         if (refreshBtn) refreshBtn.style.display = 'none';
-        if (sub) sub.textContent = 'Canais esportivos internacionais';
+        if (subtitle) subtitle.textContent = 'Canais esportivos internacionais';
         renderInternacional();
     }
 }
@@ -3384,23 +3573,24 @@ async function renderEventos(eventos, q) {
 
     if (sub) sub.textContent = eventos.length + ' evento' + (eventos.length !== 1 ? 's' : '') + ' encontrado' + (eventos.length !== 1 ? 's' : '');
 
-    // Render inicial rápido (sem logos)
-    grid.innerHTML = eventos.map((ev, idx) => buildEvCard(ev, idx, null, null)).join('');
+    // Render inicial rápido — usa logos do WatchFooty se disponíveis
+    grid.innerHTML = eventos.map((ev, idx) =>
+        buildEvCard(ev, idx, ev.home_badge || null, ev.away_badge || null)
+    ).join('');
 
-    // Busca logos em paralelo e atualiza os cards progressivamente
+    // Busca logos via TheSportsDB só para os que ainda não têm badge
     const logoPromises = eventos.map(async (ev, idx) => {
+        if (ev.home_badge && ev.away_badge) return; // já tem, não precisa buscar
         const [teamA, teamB] = parseTeams(ev.nome);
         const [logoA, logoB] = await Promise.all([
-            fetchTeamLogo(teamA),
-            teamB ? fetchTeamLogo(teamB) : Promise.resolve(null)
+            ev.home_badge ? Promise.resolve(ev.home_badge) : fetchTeamLogo(teamA),
+            ev.away_badge ? Promise.resolve(ev.away_badge) : (teamB ? fetchTeamLogo(teamB) : Promise.resolve(null))
         ]);
-        // Atualiza o card no DOM com os logos encontrados
         if (logoA || logoB) {
             const cards = grid.querySelectorAll('.ev-card');
             if (cards[idx]) {
                 const cover = cards[idx].querySelector('.ev-cover');
                 if (cover) {
-                    // Cria elemento temporario para parsear o novo HTML
                     const tmp = document.createElement('div');
                     tmp.innerHTML = buildEvCover(ev, idx, logoA, logoB);
                     const newCover = tmp.firstElementChild;
@@ -3418,9 +3608,8 @@ async function renderEventos(eventos, q) {
 function evOpenPlayer(evIdx, streamIdx) {
     const ev = _evEventos[evIdx];
     if (!ev) return;
-    const stream = ev.streams[streamIdx];
-    if (!stream) return;
-    openCanalPlayer({ nome: ev.nome, iframe_url: stream.url });
+    // Passa o objeto completo — openCanalPlayer é async e busca streams frescos
+    openCanalPlayer({ nome: ev.nome, match_id: ev.match_id, streams: ev.streams || [], iframe_url: (ev.streams || [])[streamIdx]?.url || '' });
 }
 
 // Copia URL via data-url attribute — sem JSON inline
@@ -4649,10 +4838,10 @@ function evCopyUrl(btn) {
     <div class="aovivo-header">
         <div class="flex items-start justify-between gap-4 flex-wrap">
             <div>
-                <h2 class="aovivo-title">📺 TV Ao Vivo</h2>
+                <h2 class="aovivo-title" id="aovivoTitle">📺 TV Ao Vivo</h2>
                 <p class="aovivo-subtitle" id="aovivoSubtitle">Carregando canais...</p>
             </div>
-            <button onclick="loadCanais(true)"
+            <button id="aovivoRefreshBtn" onclick="loadCanais(true)"
                 class="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition"
                 style="background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.25);color:#ef4444;">
                 <i class="fas fa-sync-alt text-xs"></i> Atualizar
@@ -4660,31 +4849,52 @@ function evCopyUrl(btn) {
         </div>
     </div>
 
-    <!-- Controles: busca + filtros -->
-    <div class="aovivo-controls">
-        <div class="aovivo-search-wrap">
-            <i class="fas fa-search"></i>
-            <input type="text" id="aovivoSearch" class="aovivo-search"
-                placeholder="Buscar canal..."
-                oninput="filtrarCanais()">
+    <!-- Sub-tabs: Canais / Internacional -->
+    <div style="display:flex;gap:4px;padding:0 20px 0;max-width:1280px;margin:0 auto 4px;">
+        <button class="fut-tab-btn active" id="aovivoTabCanais" onclick="switchAoVivoTab('canais', this)">📺 Canais</button>
+        <button class="fut-tab-btn" id="aovivoTabIntl" onclick="switchAoVivoTab('internacional', this)">🌎 Internacional</button>
+    </div>
+
+    <!-- Painel: Canais -->
+    <div id="aovivoPanel-canais">
+        <div class="aovivo-controls">
+            <div class="aovivo-search-wrap">
+                <i class="fas fa-search"></i>
+                <input type="text" id="aovivoSearch" class="aovivo-search"
+                    placeholder="Buscar canal..."
+                    oninput="filtrarCanais()">
+            </div>
+            <div class="aovivo-filters" id="aovivoFilters">
+                <button class="aovivo-filter-btn active" onclick="setCanalCategoria('', this)">Todos</button>
+            </div>
         </div>
-        <div class="aovivo-filters" id="aovivoFilters">
-            <button class="aovivo-filter-btn active" onclick="setCanalCategoria('', this)">Todos</button>
+        <div class="aovivo-grid" id="aovivoGrid">
+            <div class="canal-skeleton"><div class="canal-skeleton-thumb"></div><div class="canal-skeleton-line"></div></div>
+            <div class="canal-skeleton"><div class="canal-skeleton-thumb"></div><div class="canal-skeleton-line" style="width:50%"></div></div>
+            <div class="canal-skeleton"><div class="canal-skeleton-thumb"></div><div class="canal-skeleton-line" style="width:70%"></div></div>
+            <div class="canal-skeleton"><div class="canal-skeleton-thumb"></div><div class="canal-skeleton-line" style="width:45%"></div></div>
+            <div class="canal-skeleton"><div class="canal-skeleton-thumb"></div><div class="canal-skeleton-line" style="width:55%"></div></div>
+            <div class="canal-skeleton"><div class="canal-skeleton-thumb"></div><div class="canal-skeleton-line" style="width:60%"></div></div>
+            <div class="canal-skeleton"><div class="canal-skeleton-thumb"></div><div class="canal-skeleton-line" style="width:40%"></div></div>
         </div>
     </div>
 
-    <!-- Grid -->
-    <div class="aovivo-grid" id="aovivoGrid">
-        <!-- skeletons iniciais -->
-        <div class="canal-skeleton"><div class="canal-skeleton-thumb"></div><div class="canal-skeleton-line"></div></div>
-        <div class="canal-skeleton"><div class="canal-skeleton-thumb"></div><div class="canal-skeleton-line" style="width:50%"></div></div>
-        <div class="canal-skeleton"><div class="canal-skeleton-thumb"></div><div class="canal-skeleton-line" style="width:70%"></div></div>
-        <div class="canal-skeleton"><div class="canal-skeleton-thumb"></div><div class="canal-skeleton-line" style="width:45%"></div></div>
-        <div class="canal-skeleton"><div class="canal-skeleton-thumb"></div><div class="canal-skeleton-line"></div></div>
-        <div class="canal-skeleton"><div class="canal-skeleton-thumb"></div><div class="canal-skeleton-line" style="width:55%"></div></div>
-        <div class="canal-skeleton"><div class="canal-skeleton-thumb"></div><div class="canal-skeleton-line" style="width:60%"></div></div>
-        <div class="canal-skeleton"><div class="canal-skeleton-thumb"></div><div class="canal-skeleton-line" style="width:40%"></div></div>
+    <!-- Painel: Internacional -->
+    <div id="aovivoPanel-internacional" style="display:none;">
+        <div id="globeWrapper">
+            <div id="globeEl"></div>
+            <div id="globeHint">🖱 Arraste para girar · Clique num país para ver os canais</div>
+            <div id="globeSelectedLabel"></div>
+        </div>
+        <div id="globeCountryBtns"></div>
+        <div id="globeSearchWrap">
+            <input id="globeSearchInput" type="text" placeholder="🔍 Buscar país..."
+                oninput="filterGlobeCountries(this.value)"
+                onkeydown="if(event.key==='Enter'){const f=document.querySelector('.globe-country-btn:not([style*=none])');if(f)f.click();}">
+        </div>
+        <div id="intlChannelGrid"></div>
     </div>
+
 </div>
 
 <!-- Modal player ao vivo -->
