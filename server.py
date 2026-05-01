@@ -268,8 +268,40 @@ GENEROS = {
     "Romance": 10749, "Suspense": 53, "Crime": 80,
 }
 
+import json as _json_stdlib
+import threading as _threading
+
 _cache = {}
-CACHE_TTL = 300
+CACHE_TTL = 3600  # 1 hora
+
+# ── Cache em disco ────────────────────────────────────────────────────────────
+# Persiste entre restarts do servidor. Formato: {key: {data, ts}} por arquivo.
+CACHE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".cache")
+os.makedirs(CACHE_DIR, exist_ok=True)
+_disk_lock = _threading.Lock()
+
+def _disk_path(key: str) -> str:
+    safe = re.sub(r"[^a-zA-Z0-9_-]", "_", key)
+    return os.path.join(CACHE_DIR, f"{safe}.json")
+
+def _disk_read(key: str, ttl: int = None):
+    try:
+        with open(_disk_path(key), "r") as f:
+            entry = _json_stdlib.load(f)
+        effective_ttl = ttl if ttl is not None else CACHE_TTL
+        if (time.time() - entry["ts"]) < effective_ttl:
+            return entry["data"]
+    except Exception:
+        pass
+    return None
+
+def _disk_write(key: str, data):
+    try:
+        with _disk_lock:
+            with open(_disk_path(key), "w") as f:
+                _json_stdlib.dump({"data": data, "ts": time.time()}, f)
+    except Exception as e:
+        print(f"[CACHE] Falha ao salvar {key} em disco: {e}")
 
 def validate_password(password):
     """
@@ -463,17 +495,25 @@ def _verify_code_from_db(email: str, code: str):
         conn.close()
 
 def cache_get(key):
+    # 1. Memória (mais rápido)
     e = _cache.get(key)
     if e and (time.time() - e["ts"]) < CACHE_TTL:
         return e["data"]
+    # 2. Disco (sobrevive a restarts)
+    data = _disk_read(key)
+    if data is not None:
+        _cache[key] = {"data": data, "ts": time.time()}  # repopula memória
+        return data
     return None
 
 def cache_set(key, data):
     _cache[key] = {"data": data, "ts": time.time()}
+    _disk_write(key, data)  # persiste em disco em paralelo (não bloqueia resposta)
 
 def player_urls(tmdb_id, tipo, season=1, ep=1):
     if tipo == "tv":
         return [
+            {"label": "WarezCDN",    "url": f"https://warezcdn.site/serie/{tmdb_id}/{season}/{ep}"},
             {"label": "VidSrc",      "url": f"https://vidsrc-embed.ru/embed/tv/{tmdb_id}/{season}-{ep}"},
             {"label": "MoviesAPI",   "url": f"https://moviesapi.club/tv/{tmdb_id}-{season}-{ep}"},
             {"label": "MultiEmbed",  "url": f"https://multiembed.mov/directstream.php?video_id={tmdb_id}&tmdb=1&s={season}&e={ep}"},
@@ -481,6 +521,7 @@ def player_urls(tmdb_id, tipo, season=1, ep=1):
             {"label": "Rivestream",  "url": f"https://rivestream.org/embed?type=tv&id={tmdb_id}&season={season}&episode={ep}"},
         ]
     return [
+        {"label": "WarezCDN",    "url": f"https://warezcdn.site/filme/{tmdb_id}"},
         {"label": "VidSrc",      "url": f"https://vidsrc-embed.ru/embed/movie/{tmdb_id}"},
         {"label": "MoviesAPI",   "url": f"https://moviesapi.club/movie/{tmdb_id}"},
         {"label": "MultiEmbed",  "url": f"https://multiembed.mov/directstream.php?video_id={tmdb_id}&tmdb=1"},
@@ -1324,33 +1365,34 @@ def save_profiles():
         conn.close()
 
 
-@app.route("/api/catalogo")
-def catalogo():
-    cached = cache_get("catalogo")
-    if cached:
-        return jsonify(cached)
+# ── Catalogo pré-gerado ───────────────────────────────────────────────────────
+# A lógica de busca fica aqui, separada da route.
+# O job _catalogo_job() chama isso de hora em hora em background.
+# A route só lê — nunca espera o TMDB.
 
-    secoes = {
-        "trending_movies": ("/trending/movie/week", "movie", {}),
-        "trending_series": ("/trending/tv/week",    "tv",    {}),
-        "populares_movie": ("/movie/popular",        "movie", {}),
-        "populares_tv":    ("/tv/popular",           "tv",    {}),
-        "top_movie":       ("/movie/top_rated",      "movie", {}),
-        "top_tv":          ("/tv/top_rated",         "tv",    {}),
-        "lancamentos":     ("/movie/now_playing",    "movie", {}),
-        # Filmes que AINDA vão lançar (upcoming) — seção separada no home
-        "em_breve":        ("/movie/upcoming",      "movie", {}),
-        "terror_movie":    ("/discover/movie",       "movie", {"with_genres": 27}),
-        "terror_tv":       ("/discover/tv",          "tv",    {"with_genres": 27}),
-        "acao":            ("/discover/movie",       "movie", {"with_genres": 28}),
-        "sci_fi":          ("/discover/movie",       "movie", {"with_genres": 878}),
-        "drama_tv":        ("/discover/tv",          "tv",    {"with_genres": 18}),
-        "anime":           ("/discover/tv",          "tv",    {"with_genres": 16, "with_origin_country": "JP"}),
-        "crime":           ("/discover/movie",       "movie", {"with_genres": 80}),
-    }
+_CATALOGO_SECOES = {
+    "trending_movies": ("/trending/movie/week", "movie", {}),
+    "trending_series": ("/trending/tv/week",    "tv",    {}),
+    "populares_movie": ("/movie/popular",        "movie", {}),
+    "populares_tv":    ("/tv/popular",           "tv",    {}),
+    "top_movie":       ("/movie/top_rated",      "movie", {}),
+    "top_tv":          ("/tv/top_rated",         "tv",    {}),
+    "lancamentos":     ("/movie/now_playing",    "movie", {}),
+    "em_breve":        ("/movie/upcoming",       "movie", {}),
+    "terror_movie":    ("/discover/movie",       "movie", {"with_genres": 27}),
+    "terror_tv":       ("/discover/tv",          "tv",    {"with_genres": 27}),
+    "acao":            ("/discover/movie",       "movie", {"with_genres": 28}),
+    "sci_fi":          ("/discover/movie",       "movie", {"with_genres": 878}),
+    "drama_tv":        ("/discover/tv",          "tv",    {"with_genres": 18}),
+    "anime":           ("/discover/tv",          "tv",    {"with_genres": 16, "with_origin_country": "JP"}),
+    "crime":           ("/discover/movie",       "movie", {"with_genres": 80}),
+}
 
+
+def _build_catalogo() -> dict:
+    """Busca todas as secoes no TMDB em paralelo e retorna o resultado."""
     def fetch_secao(key):
-        endpoint, tipo, extra = secoes[key]
+        endpoint, tipo, extra = _CATALOGO_SECOES[key]
         pagina = random.randint(1, 3)
         items  = buscar_pagina(endpoint, tipo, pagina, extra)
         random.shuffle(items)
@@ -1358,13 +1400,38 @@ def catalogo():
 
     resultado = {}
     with ThreadPoolExecutor(max_workers=8) as ex:
-        futures = {ex.submit(fetch_secao, k): k for k in secoes}
+        futures = {ex.submit(fetch_secao, k): k for k in _CATALOGO_SECOES}
         for f in as_completed(futures):
             key, items = f.result()
             resultado[key] = items
+    return resultado
 
-    cache_set("catalogo", resultado)
-    return jsonify(resultado)
+
+def _catalogo_job():
+    """
+    Job que roda em background e atualiza o catalogo de hora em hora.
+    Nunca deixa o usuario esperar — a route so le o que ja esta pronto.
+    """
+    while True:
+        try:
+            print("[CATALOGO] Atualizando catalogo em background...")
+            resultado = _build_catalogo()
+            cache_set("catalogo", resultado)
+            print("[CATALOGO] Catalogo atualizado.")
+        except Exception as e:
+            print(f"[CATALOGO] Falha ao atualizar: {e}")
+        time.sleep(CACHE_TTL)  # dorme 1h e repete
+
+
+@app.route("/api/catalogo")
+def catalogo():
+    # So le — nunca constroi na hora do request
+    cached = cache_get("catalogo")
+    if cached:
+        return jsonify(cached)
+    # Fallback: cache ainda nao pronto (primeiros segundos apos deploy)
+    # Retorna vazio com flag para o frontend tentar de novo em 3s
+    return jsonify({"_building": True}), 202
 
 
 @app.route("/api/kids-catalog")
@@ -1894,7 +1961,7 @@ def event_logos():
 _GLOBETV_CHANNELS_URL = "https://raw.githubusercontent.com/globetvapp/globetv.app/main/channels.json.gz"
 _GLOBETV_CACHE        = None
 _GLOBETV_CACHE_TS     = 0
-_GLOBETV_CACHE_TTL    = 86400   # 24 horas
+_GLOBETV_CACHE_TTL    = 86400   # 24 horas (igual ao TTL do disco em _disk_read)
 
 
 def _fetch_gz(url: str):
@@ -1906,8 +1973,81 @@ def _fetch_gz(url: str):
     return _json_mod.loads(data)
 
 
-_TV_LOGO_BASE    = "https://raw.githubusercontent.com/tv-logo/tv-logos/main/countries/brazil"
+_TV_LOGO_BASE       = "https://raw.githubusercontent.com/tv-logo/tv-logos/main/countries/brazil"
 _GLOBETV_LOGOS_JSON = "https://raw.githubusercontent.com/globetvapp/globetv.app/refs/heads/main/logos.json"
+
+# iptv-org API — logos oficiais por channel id/nome
+_IPTVORG_CHANNELS_URL  = "https://iptv-org.github.io/api/channels.json"
+_IPTVORG_LOGO_CACHE:    dict  = {}   # {id: logo}
+_IPTVORG_LOGO_BY_NAME:  dict  = {}   # {nome_normalizado: logo}
+_IPTVORG_LOGO_CACHE_TS: float = 0
+_IPTVORG_LOGO_CACHE_TTL: int  = 86400  # 24h
+
+
+def _normalize_name(s: str) -> str:
+    """Remove acentos, pontuação, lowercase — para comparar nomes de canais."""
+    import unicodedata
+    nfkd = unicodedata.normalize("NFKD", s)
+    ascii_s = nfkd.encode("ASCII", "ignore").decode("ASCII")
+    return re.sub(r"[^a-z0-9]", "", ascii_s.lower())
+
+
+def _fetch_iptvorg_logos() -> tuple:
+    """
+    Baixa channels.json do iptv-org.
+    Retorna (by_id, by_name_normalized) — dois dicts para lookup de logo.
+    Cache global de 24h.
+    """
+    global _IPTVORG_LOGO_CACHE, _IPTVORG_LOGO_BY_NAME, _IPTVORG_LOGO_CACHE_TS
+    now = time.time()
+    if _IPTVORG_LOGO_CACHE and (now - _IPTVORG_LOGO_CACHE_TS) < _IPTVORG_LOGO_CACHE_TTL:
+        return _IPTVORG_LOGO_CACHE, _IPTVORG_LOGO_BY_NAME
+    try:
+        req = urllib.request.Request(
+            _IPTVORG_CHANNELS_URL,
+            headers={"User-Agent": "Mozilla/5.0"}
+        )
+        with urllib.request.urlopen(req, timeout=20) as r:
+            data = _json_mod.loads(r.read())
+        by_id   = {}
+        by_name = {}
+        for ch in data:
+            cid  = ch.get("id", "")
+            logo = ch.get("logo", "")
+            name = ch.get("name", "")
+            if not logo:
+                continue
+            if cid:
+                by_id[cid] = logo
+                # indexa sem sufixo de país: "Globo.br" → "globo"
+                base = cid.rsplit(".", 1)[0] if "." in cid else cid
+                by_name.setdefault(_normalize_name(base), logo)
+            if name:
+                by_name.setdefault(_normalize_name(name), logo)
+        _IPTVORG_LOGO_CACHE    = by_id
+        _IPTVORG_LOGO_BY_NAME  = by_name
+        _IPTVORG_LOGO_CACHE_TS = now
+        print(f"[IPTVORG] {len(by_id)} por id, {len(by_name)} por nome")
+        return by_id, by_name
+    except Exception as e:
+        print(f"[IPTVORG] Falha ao carregar channels.json: {e}")
+        return _IPTVORG_LOGO_CACHE, _IPTVORG_LOGO_BY_NAME
+
+
+def _iptvorg_logo(cid: str, name: str, by_id: dict, by_name: dict) -> str:
+    """
+    Tenta encontrar logo do iptv-org para um canal, em 3 tentativas:
+    1. Match exato por channel id (ex: 'Globo.br')
+    2. Match pelo id sem sufixo normalizado (ex: 'globo')
+    3. Match pelo nome do canal normalizado (ex: 'tv globo' → 'tvglobo')
+    """
+    if cid in by_id:
+        return by_id[cid]
+    base_id = cid.rsplit(".", 1)[0] if "." in cid else cid
+    logo = by_name.get(_normalize_name(base_id), "")
+    if logo:
+        return logo
+    return by_name.get(_normalize_name(name), "")
 
 # Mapeamento manual para canais cujo nome/id não bate com o slug automático
 _LOGO_OVERRIDE = {
@@ -1936,6 +2076,46 @@ _LOGO_OVERRIDE = {
     "ESPN3.br":        "espn-3-br.png",
     "Cartoon.br":      "cartoon-network-br.png",
 }
+
+# Logos de redes para canais regionais/afiliados (match por prefixo/keyword no nome)
+# URL direta do iptv-org database (CDN estável, sem CORS)
+_NETWORK_LOGO_MAP = [
+    # (keyword_no_nome_normalizado, logo_url)
+    ("sbt",         "https://upload.wikimedia.org/wikipedia/commons/thumb/9/9d/SBT_logo_2020.svg/640px-SBT_logo_2020.svg.png"),
+    ("record",      "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3e/RecordTV_logo_2015.svg/800px-RecordTV_logo_2015.svg.png"),
+    ("novatempo",   "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0e/Logotipo_Novo_Tempo.png/250px-Logotipo_Novo_Tempo.png"),
+    ("novotempo",   "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0e/Logotipo_Novo_Tempo.png/250px-Logotipo_Novo_Tempo.png"),
+    ("redemaispr",  "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b5/Rede_Mais_logo.png/200px-Rede_Mais_logo.png"),
+    ("redemais",    "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b5/Rede_Mais_logo.png/200px-Rede_Mais_logo.png"),
+    ("globo",       "https://upload.wikimedia.org/wikipedia/commons/thumb/2/22/Logo_Rede_Globo.svg/640px-Logo_Rede_Globo.svg.png"),
+    ("band",        "https://upload.wikimedia.org/wikipedia/commons/thumb/3/35/Band_logo_2021.svg/640px-Band_logo_2021.svg.png"),
+    ("redetv",      "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4b/RedeTV!_logo.svg/640px-RedeTV!_logo.svg.png"),
+    ("cnn",         "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b1/CNN_Brasil_logo.svg/640px-CNN_Brasil_logo.svg.png"),
+    ("cultura",     "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c4/TV_Cultura_2020.svg/640px-TV_Cultura_2020.svg.png"),
+    ("aparecida",   "https://upload.wikimedia.org/wikipedia/commons/thumb/8/89/TV_Aparecida.png/250px-TV_Aparecida.png"),
+    ("cancaonova",  "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8e/Can%C3%A7%C3%A3o_Nova_-_Logo.svg/640px-Can%C3%A7%C3%A3o_Nova_-_Logo.svg.png"),
+    ("redevida",    "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Rede_Vida_logo.svg/640px-Rede_Vida_logo.svg.png"),
+    ("boasnovas",   "https://upload.wikimedia.org/wikipedia/pt/thumb/3/39/Rede_Boas_Novas.png/200px-Rede_Boas_Novas.png"),
+    ("sportv",      "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a9/SporTV_logo.svg/640px-SporTV_logo.svg.png"),
+    ("espn",        "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2f/ESPN_wordmark.svg/640px-ESPN_wordmark.svg.png"),
+    ("foxsports",   "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f7/Fox_Sports_LatAm_logo.svg/640px-Fox_Sports_LatAm_logo.svg.png"),
+    ("cnt",         "https://upload.wikimedia.org/wikipedia/commons/thumb/4/45/CNT_logo.svg/750px-CNT_logo.svg.png"),
+    ("tv3",         ""),  # skip vazio
+]
+
+
+def _network_logo(name: str) -> str:
+    """
+    Retorna logo da rede-mãe para canais afiliados/regionais.
+    Ex: 'SBT Ribeirão Preto' → logo do SBT
+        'Rede Novo Tempo de Comunicação' → logo do Novo Tempo
+    """
+    n = _normalize_name(name)
+    for keyword, url in _NETWORK_LOGO_MAP:
+        if keyword and url and keyword in n:
+            return url
+    return ""
+
 
 def _canal_logo_slug(name: str) -> str:
     """
@@ -1978,14 +2158,21 @@ def _fetch_globetv_logos() -> dict:
 
 def _build_canais_br():
     """
-    Baixa channels + logos do globetv/GitHub, filtra BR e monta lista.
+    Baixa channels + logos, filtra BR e monta lista.
     Prioridade de logo:
       1. Override manual (_LOGO_OVERRIDE) -> tv-logo/tv-logos
-      2. logos.json do globetv (imgur/wikimedia, sempre acessível)
-      3. Slug automático -> tv-logo/tv-logos (fallback final)
+      2. iptv-org API (channels.json) — logo oficial por channel_id
+      3. logos.json do globetv (imgur/wikimedia, proxiado)
+      4. Slug automático -> tv-logo/tv-logos (fallback final)
     """
-    channels  = _fetch_gz(_GLOBETV_CHANNELS_URL)
-    logo_map  = _fetch_globetv_logos()   # {channel_id: url}
+    # Paraleliza os 3 downloads externos — reduz cold start de ~45s para ~15s
+    with ThreadPoolExecutor(max_workers=3) as ex:
+        f_ch  = ex.submit(_fetch_gz, _GLOBETV_CHANNELS_URL)
+        f_log = ex.submit(_fetch_globetv_logos)
+        f_ipt = ex.submit(_fetch_iptvorg_logos)
+        channels = f_ch.result()
+        logo_map = f_log.result()
+        iptvorg_by_id, iptvorg_by_name = f_ipt.result()
 
     br_channels = []
     for ch in channels:
@@ -2000,14 +2187,20 @@ def _build_canais_br():
         name = ch.get("name") or ch.get("title") or cid
         cats = ch.get("categories") or ch.get("category") or []
 
-        # 1. Override manual -> tv-logo/tv-logos (raw GitHub, sem CORS)
+        # 1. Override manual
         if cid in _LOGO_OVERRIDE:
             logo = f"{_TV_LOGO_BASE}/{_LOGO_OVERRIDE[cid]}"
-        # 2. logos.json do globetv (imgur/wikimedia) — proxiado para evitar CORS/hotlink
+        # 2. iptv-org API (match por id, id-base e nome normalizado)
+        elif _iptvorg_logo(cid, name, iptvorg_by_id, iptvorg_by_name):
+            logo = _iptvorg_logo(cid, name, iptvorg_by_id, iptvorg_by_name)
+        # 3. Logo da rede-mãe para afiliadas/regionais (SBT SP, Record RJ, Novo Tempo etc)
+        elif _network_logo(name):
+            logo = _network_logo(name)
+        # 4. logos.json do globetv (proxiado para evitar CORS)
         elif cid in logo_map and logo_map[cid]:
             import urllib.parse
             logo = f"/api/logo-proxy?url={urllib.parse.quote(logo_map[cid], safe='')}"
-        # 3. Slug automático -> tv-logo/tv-logos (raw GitHub, sem CORS)
+        # 5. Slug automático -> tv-logo/tv-logos (último recurso)
         else:
             logo = f"{_TV_LOGO_BASE}/{_canal_logo_slug(name)}"
 
@@ -2058,24 +2251,113 @@ def canais_aovivo():
     """
     GET /api/canais
     Retorna lista de canais ao vivo BR com embed_url e logo.
-    Cache em memória de 24h — os dados mudam raramente.
+    Cache em memoria de 24h — os dados mudam raramente.
+    Persiste em disco para sobreviver a restarts.
     """
     global _GLOBETV_CACHE, _GLOBETV_CACHE_TS
 
     now = time.time()
+
+    # 1. Memoria quente
     if _GLOBETV_CACHE and (now - _GLOBETV_CACHE_TS) < _GLOBETV_CACHE_TTL:
         return jsonify(_GLOBETV_CACHE)
+
+    # 2. Disco (sobrevive restart)
+    disco = _disk_read("canais_br", ttl=_GLOBETV_CACHE_TTL)
+    if disco is not None:
+        _GLOBETV_CACHE    = disco
+        _GLOBETV_CACHE_TS = now
+        return jsonify(disco)
 
     try:
         canais = _build_canais_br()
         _GLOBETV_CACHE    = canais
         _GLOBETV_CACHE_TS = now
+        _disk_write("canais_br", canais)  # persiste em disco
         return jsonify(canais)
     except Exception as e:
         print(f"[AOVIVO] Erro ao buscar canais: {e}")
-        # Se tiver cache antigo, devolve mesmo expirado
         if _GLOBETV_CACHE:
             return jsonify(_GLOBETV_CACHE)
+        return jsonify({"error": str(e)}), 500
+
+
+# ── Canais internacionais por país ───────────────────────────────────────────
+_INTL_CACHE     = {}   # { "US": [...], "DE": [...] }
+_INTL_CACHE_TS  = {}   # { "US": timestamp }
+_INTL_CACHE_TTL = 86400  # 24h
+
+@app.route("/api/canais-intl")
+def canais_intl():
+    """
+    GET /api/canais-intl?cc=US
+    Retorna lista de canais de qualquer país do globetv channels.json.gz.
+    Cache por país de 24h.
+    """
+    cc = request.args.get("cc", "").upper()
+    if not cc or len(cc) > 3:
+        return jsonify({"error": "cc inválido"}), 400
+
+    now = time.time()
+    if cc in _INTL_CACHE and (now - _INTL_CACHE_TS.get(cc, 0)) < _INTL_CACHE_TTL:
+        return jsonify(_INTL_CACHE[cc])
+
+    try:
+        # Paraleliza os 3 downloads externos
+        with ThreadPoolExecutor(max_workers=3) as ex:
+            f_ch  = ex.submit(_fetch_gz, _GLOBETV_CHANNELS_URL)
+            f_log = ex.submit(_fetch_globetv_logos)
+            f_ipt = ex.submit(_fetch_iptvorg_logos)
+            channels = f_ch.result()
+            logo_map = f_log.result()
+            iptvorg_by_id, iptvorg_by_name = f_ipt.result()
+
+        result = []
+        for ch in channels:
+            country = (
+                ch.get("country") or ch.get("country_code") or
+                ch.get("countryCode") or ch.get("cc") or ""
+            ).upper()
+            if country != cc:
+                continue
+
+            cid  = ch.get("id") or ch.get("channel_id") or ch.get("channelId") or ""
+            name = ch.get("name") or ch.get("title") or cid
+            cats = ch.get("categories") or ch.get("category") or []
+
+            # 1. Override manual
+            if cid in _LOGO_OVERRIDE:
+                logo = f"{_TV_LOGO_BASE}/{_LOGO_OVERRIDE[cid]}"
+            # 2. iptv-org API (match por id, id-base e nome normalizado)
+            elif _iptvorg_logo(cid, name, iptvorg_by_id, iptvorg_by_name):
+                logo = _iptvorg_logo(cid, name, iptvorg_by_id, iptvorg_by_name)
+            # 3. Logo da rede-mãe para afiliadas/regionais
+            elif _network_logo(name):
+                logo = _network_logo(name)
+            # 4. logos.json do globetv (proxiado)
+            elif cid in logo_map and logo_map[cid]:
+                import urllib.parse
+                logo = f"/api/logo-proxy?url={urllib.parse.quote(logo_map[cid], safe='')}"
+            # 5. Slug automático (último recurso)
+            else:
+                logo = f"{_TV_LOGO_BASE}/{_canal_logo_slug(name)}"
+
+            result.append({
+                "id":         cid,
+                "name":       name,
+                "logo":       logo,
+                "categories": cats if isinstance(cats, list) else [cats],
+                "embed_url":  f"https://globetv.app/embed/?cc={cc}&cid={cid}&lang=por",
+            })
+
+        print(f"[INTL] {len(result)} canais para {cc}")
+        _INTL_CACHE[cc]    = result
+        _INTL_CACHE_TS[cc] = now
+        return jsonify(result)
+    except Exception as e:
+        print(f"[INTL] Erro ao buscar canais {cc}: {e}")
+        if cc in _INTL_CACHE:
+            return jsonify(_INTL_CACHE[cc])
         return jsonify({"error": str(e)}), 500
 
 
@@ -2085,6 +2367,50 @@ def not_found(e):
     return jsonify({"error": "Not found"}), 404
 
 
+def _warmup():
+    """
+    Ao subir o servidor:
+    1. Se nao houver cache em disco, constroi o catalogo uma vez imediatamente.
+    2. Dispara o job de atualizacao periodica em background (roda pra sempre).
+    3. Pre-carrega os canais BR se necessario.
+    """
+    import threading
+
+    def _run():
+        time.sleep(2)  # aguarda Flask terminar de subir
+
+        # 1. Catalogo — constroi agora se nao tiver cache no disco
+        try:
+            if not cache_get("catalogo"):
+                print("[WARMUP] Sem cache — construindo catalogo inicial...")
+                resultado = _build_catalogo()
+                cache_set("catalogo", resultado)
+                print("[WARMUP] Catalogo inicial pronto.")
+            else:
+                print("[WARMUP] Cache do catalogo encontrado, pulando build inicial.")
+        except Exception as e:
+            print(f"[WARMUP] Falha no catalogo inicial: {e}")
+
+        # 2. Canais BR ao vivo
+        try:
+            if not cache_get("canais_br"):
+                print("[WARMUP] Pre-carregando canais BR...")
+                canais = _build_canais_br()
+                _disk_write("canais_br", canais)
+                print("[WARMUP] Canais BR prontos.")
+        except Exception as e:
+            print(f"[WARMUP] Falha nos canais BR: {e}")
+
+    # Job que atualiza o catalogo de hora em hora (daemon — morre com o servidor)
+    def _start_job():
+        time.sleep(CACHE_TTL)  # primeira execucao apos 1h (o warmup ja fez a inicial)
+        _catalogo_job()        # loop infinito a partir daqui
+
+    threading.Thread(target=_run,       daemon=True, name="warmup").start()
+    threading.Thread(target=_start_job, daemon=True, name="catalogo-job").start()
+
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 9012))
+    _warmup()
     app.run(debug=False, port=port, host='0.0.0.0')

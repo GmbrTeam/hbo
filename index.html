@@ -1861,7 +1861,7 @@
                 </button>
             </div>
         </div>
-        <iframe id="playerFrame" src="" allowfullscreen class="w-full h-full border-none hidden" allow="autoplay; encrypted-media; picture-in-picture; fullscreen"></iframe>
+        <iframe id="playerFrame" src="" allowfullscreen class="player-iframe w-full h-full border-none hidden" allow="autoplay; encrypted-media; picture-in-picture; fullscreen"></iframe>
     </div>
     <div class="flex-none flex justify-center py-2 bg-black/60">
         <button id="notWorkingBtn" class="hidden text-[10px] text-yellow-400 border border-yellow-400/30 bg-yellow-400/10 hover:bg-yellow-400/20 px-4 py-1.5 rounded-full font-bold transition">
@@ -2637,7 +2637,7 @@
     </div>
     <div class="fut-player-sources" id="futPlayerSources"></div>
     <div style="flex:1;position:relative;overflow:hidden;background:#000;">
-        <iframe id="futPlayerFrame" src="" allowfullscreen allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
+        <iframe id="futPlayerFrame" src="" allowfullscreen allow="autoplay; encrypted-media; picture-in-picture; fullscreen" class="player-iframe"
             style="width:100%;height:100%;border:none;display:block;"></iframe>
     </div>
     <div class="flex-none flex justify-center py-2 bg-black/60">
@@ -2992,25 +2992,7 @@ const _PAIS_LABEL = {
 };
 
 async function loadIntlCanais() {
-    try {
-        const res = await fetch('/api/football/channels/all');
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-        const data = await res.json(); // { "BRASIL": [{nome, iframe_url}], ... }
-        const novo = {};
-        for (const [secao, canais] of Object.entries(data)) {
-            const label = _PAIS_LABEL[secao] || secao;
-            if (!canais || !canais.length) continue;
-            novo[label] = canais.map(c => ({
-                nome: c.nome,
-                logo: '',
-                url: c.iframe_url
-            }));
-        }
-        INTL_CANAIS = novo;
-    } catch(e) {
-        console.warn('[INTL] Falha ao carregar canais:', e);
-        // mantém INTL_CANAIS vazio, o globo continuará funcional
-    }
+    // Substituído pela API /api/canais-intl?cc=XX por país
 }
 
 // ═══════════════════════════════════════
@@ -3018,30 +3000,254 @@ async function loadIntlCanais() {
 // ═══════════════════════════════════════
 
 const _GLOBE_COORDS = {
-    'Argentina':     { lat: -34,  lon: -64,  flag: 'ar' },
-    'Brasil':        { lat: -10,  lon: -55,  flag: 'br' },
-    'Colômbia':      { lat:   4,  lon: -74,  flag: 'co' },
-    'Chile':         { lat: -35,  lon: -71,  flag: 'cl' },
-    'Peru':          { lat: -10,  lon: -76,  flag: 'pe' },
-    'México':        { lat:  23,  lon: -102, flag: 'mx' },
-    'EUA':           { lat:  38,  lon: -97,  flag: 'us' },
-    'Espanha':       { lat:  40,  lon:  -4,  flag: 'es' },
-    'Portugal':      { lat:  39,  lon:  -8,  flag: 'pt' },
-    'Latinoamérica': { lat:  -5,  lon: -65,  flag: null },
-    'Mundo':         { lat:  20,  lon:  30,  flag: null },
+    'Afeganistão':              { lat:  33,   lon:  65,   flag: 'af' },
+    'África do Sul':            { lat: -29,   lon:  25,   flag: 'za' },
+    'Albânia':                  { lat:  41,   lon:  20,   flag: 'al' },
+    'Alemanha':                 { lat:  51,   lon:  10,   flag: 'de' },
+    'Andorra':                  { lat:  42.5, lon:   1.5, flag: 'ad' },
+    'Angola':                   { lat: -12,   lon:  18,   flag: 'ao' },
+    'Arábia Saudita':           { lat:  24,   lon:  45,   flag: 'sa' },
+    'Argélia':                  { lat:  28,   lon:   3,   flag: 'dz' },
+    'Argentina':                { lat: -34,   lon: -64,   flag: 'ar' },
+    'Armênia':                  { lat:  40,   lon:  45,   flag: 'am' },
+    'Aruba':                    { lat:  12.5, lon: -70,   flag: 'aw' },
+    'Austrália':                { lat: -25,   lon: 133,   flag: 'au' },
+    'Áustria':                  { lat:  47,   lon:  14,   flag: 'at' },
+    'Azerbaijão':               { lat:  40,   lon:  48,   flag: 'az' },
+    'Bahamas':                  { lat:  24,   lon: -76,   flag: 'bs' },
+    'Bangladesh':               { lat:  24,   lon:  90,   flag: 'bd' },
+    'Barbados':                 { lat:  13,   lon: -59,   flag: 'bb' },
+    'Barein':                   { lat:  26,   lon:  50,   flag: 'bh' },
+    'Bélgica':                  { lat:  50,   lon:   4,   flag: 'be' },
+    'Belize':                   { lat:  17,   lon: -88,   flag: 'bz' },
+    'Benin':                    { lat:   9,   lon:   2,   flag: 'bj' },
+    'Bielorrússia':             { lat:  53,   lon:  28,   flag: 'by' },
+    'Bolívia':                  { lat: -17,   lon: -65,   flag: 'bo' },
+    'Bósnia e Herzegovina':     { lat:  44,   lon:  17,   flag: 'ba' },
+    'Brasil':                   { lat: -10,   lon: -55,   flag: 'br' },
+    'Brunei':                   { lat:   4.5, lon: 115,   flag: 'bn' },
+    'Bulgária':                 { lat:  43,   lon:  25,   flag: 'bg' },
+    'Burquina Faso':            { lat:  12,   lon:  -2,   flag: 'bf' },
+    'Cabo Verde':               { lat:  16,   lon: -24,   flag: 'cv' },
+    'Camarões':                 { lat:   6,   lon:  12,   flag: 'cm' },
+    'Camboja':                  { lat:  13,   lon: 105,   flag: 'kh' },
+    'Canadá':                   { lat:  60,   lon: -96,   flag: 'ca' },
+    'Catar':                    { lat:  25,   lon:  51,   flag: 'qa' },
+    'Cazaquistão':              { lat:  48,   lon:  68,   flag: 'kz' },
+    'Chile':                    { lat: -35,   lon: -71,   flag: 'cl' },
+    'China':                    { lat:  35,   lon: 105,   flag: 'cn' },
+    'Chipre':                   { lat:  35,   lon:  33,   flag: 'cy' },
+    'Colômbia':                 { lat:   4,   lon: -74,   flag: 'co' },
+    'Congo - Kinshasa':         { lat:  -4,   lon:  24,   flag: 'cd' },
+    'Coreia do Norte':          { lat:  40,   lon: 127,   flag: 'kp' },
+    'Coreia do Sul':            { lat:  37,   lon: 128,   flag: 'kr' },
+    'Costa do Marfim':          { lat:   7,   lon:  -5,   flag: 'ci' },
+    'Costa Rica':               { lat:  10,   lon: -84,   flag: 'cr' },
+    'Croácia':                  { lat:  45,   lon:  16,   flag: 'hr' },
+    'Cuba':                     { lat:  22,   lon: -80,   flag: 'cu' },
+    'Curaçao':                  { lat:  12,   lon: -69,   flag: 'cw' },
+    'Dinamarca':                { lat:  56,   lon:  10,   flag: 'dk' },
+    'Egito':                    { lat:  27,   lon:  30,   flag: 'eg' },
+    'El Salvador':              { lat:  14,   lon: -89,   flag: 'sv' },
+    'Emirados Árabes Unidos':   { lat:  24,   lon:  54,   flag: 'ae' },
+    'Equador':                  { lat:  -2,   lon: -78,   flag: 'ec' },
+    'Eritreia':                 { lat:  15,   lon:  39,   flag: 'er' },
+    'Eslováquia':               { lat:  48,   lon:  19,   flag: 'sk' },
+    'Eslovênia':                { lat:  46,   lon:  15,   flag: 'si' },
+    'Espanha':                  { lat:  40,   lon:  -4,   flag: 'es' },
+    'Estados Unidos':           { lat:  38,   lon: -97,   flag: 'us' },
+    'Estônia':                  { lat:  59,   lon:  25,   flag: 'ee' },
+    'Filipinas':                { lat:  13,   lon: 122,   flag: 'ph' },
+    'Finlândia':                { lat:  64,   lon:  26,   flag: 'fi' },
+    'França':                   { lat:  46,   lon:   2,   flag: 'fr' },
+    'Gâmbia':                   { lat:  13,   lon: -16,   flag: 'gm' },
+    'Gana':                     { lat:   8,   lon:  -2,   flag: 'gh' },
+    'Geórgia':                  { lat:  42,   lon:  44,   flag: 'ge' },
+    'Grécia':                   { lat:  39,   lon:  22,   flag: 'gr' },
+    'Groenlândia':              { lat:  72,   lon: -40,   flag: 'gl' },
+    'Guadalupe':                { lat:  16,   lon: -62,   flag: 'gp' },
+    'Guam':                     { lat:  13.5, lon: 145,   flag: 'gu' },
+    'Guatemala':                { lat:  15,   lon: -90,   flag: 'gt' },
+    'Guiana':                   { lat:   5,   lon: -59,   flag: 'gy' },
+    'Guiana Francesa':          { lat:   4,   lon: -53,   flag: 'gf' },
+    'Guiné':                    { lat:  11,   lon: -11,   flag: 'gn' },
+    'Guiné Equatorial':         { lat:   2,   lon:  10,   flag: 'gq' },
+    'Haiti':                    { lat:  19,   lon: -73,   flag: 'ht' },
+    'Honduras':                 { lat:  15,   lon: -87,   flag: 'hn' },
+    'Hong Kong, RAE da China':  { lat:  22.3, lon: 114,   flag: 'hk' },
+    'Hungria':                  { lat:  47,   lon:  19,   flag: 'hu' },
+    'Iêmen':                    { lat:  15,   lon:  48,   flag: 'ye' },
+    'Ilhas Faroé':              { lat:  62,   lon:  -7,   flag: 'fo' },
+    'Ilhas Virgens Britânicas': { lat:  18.4, lon: -64.6, flag: 'vg' },
+    'Índia':                    { lat:  22,   lon:  79,   flag: 'in' },
+    'Indonésia':                { lat:  -5,   lon: 120,   flag: 'id' },
+    'Irã':                      { lat:  32,   lon:  53,   flag: 'ir' },
+    'Iraque':                   { lat:  33,   lon:  44,   flag: 'iq' },
+    'Irlanda':                  { lat:  53,   lon:  -8,   flag: 'ie' },
+    'Islândia':                 { lat:  65,   lon: -18,   flag: 'is' },
+    'Israel':                   { lat:  31,   lon:  35,   flag: 'il' },
+    'Itália':                   { lat:  43,   lon:  12,   flag: 'it' },
+    'Jamaica':                  { lat:  18,   lon: -77,   flag: 'jm' },
+    'Japão':                    { lat:  36,   lon: 138,   flag: 'jp' },
+    'Jordânia':                 { lat:  31,   lon:  36,   flag: 'jo' },
+    'Kosovo':                   { lat:  42.5, lon:  21,   flag: 'xk' },
+    'Kuwait':                   { lat:  29,   lon:  48,   flag: 'kw' },
+    'Laos':                     { lat:  18,   lon: 103,   flag: 'la' },
+    'Letônia':                  { lat:  57,   lon:  25,   flag: 'lv' },
+    'Líbano':                   { lat:  34,   lon:  36,   flag: 'lb' },
+    'Líbia':                    { lat:  27,   lon:  17,   flag: 'ly' },
+    'Lituânia':                 { lat:  56,   lon:  24,   flag: 'lt' },
+    'Luxemburgo':               { lat:  49.8, lon:   6.1, flag: 'lu' },
+    'Macau, RAE da China':      { lat:  22.2, lon: 113.5, flag: 'mo' },
+    'Macedônia do Norte':       { lat:  41.6, lon:  21.7, flag: 'mk' },
+    'Malásia':                  { lat:   4,   lon: 110,   flag: 'my' },
+    'Maldivas':                 { lat:   3,   lon:  73,   flag: 'mv' },
+    'Mali':                     { lat:  17,   lon:  -4,   flag: 'ml' },
+    'Malta':                    { lat:  35.9, lon:  14.4, flag: 'mt' },
+    'Marrocos':                 { lat:  32,   lon:  -5,   flag: 'ma' },
+    'Martinica':                { lat:  14.6, lon: -61,   flag: 'mq' },
+    'México':                   { lat:  23,   lon: -102,  flag: 'mx' },
+    'Mianmar (Birmânia)':       { lat:  20,   lon:  96,   flag: 'mm' },
+    'Moçambique':               { lat: -18,   lon:  35,   flag: 'mz' },
+    'Moldávia':                 { lat:  47,   lon:  29,   flag: 'md' },
+    'Mônaco':                   { lat:  43.7, lon:   7.4, flag: 'mc' },
+    'Mongólia':                 { lat:  46,   lon: 105,   flag: 'mn' },
+    'Montenegro':               { lat:  42.7, lon:  19.4, flag: 'me' },
+    'Namíbia':                  { lat: -22,   lon:  17,   flag: 'na' },
+    'Nepal':                    { lat:  28,   lon:  84,   flag: 'np' },
+    'Nicarágua':                { lat:  13,   lon: -85,   flag: 'ni' },
+    'Níger':                    { lat:  16,   lon:   8,   flag: 'ne' },
+    'Nigéria':                  { lat:  10,   lon:   8,   flag: 'ng' },
+    'Noruega':                  { lat:  64,   lon:  13,   flag: 'no' },
+    'Nova Zelândia':            { lat: -41,   lon: 174,   flag: 'nz' },
+    'Omã':                      { lat:  21,   lon:  57,   flag: 'om' },
+    'Países Baixos':            { lat:  52,   lon:   5,   flag: 'nl' },
+    'Países Baixos Caribenhos': { lat:  12.2, lon: -68.3, flag: 'bq' },
+    'Paquistão':                { lat:  30,   lon:  70,   flag: 'pk' },
+    'Panamá':                   { lat:   9,   lon: -80,   flag: 'pa' },
+    'Papua-Nova Guiné':         { lat:  -6,   lon: 147,   flag: 'pg' },
+    'Paraguai':                 { lat: -23,   lon: -58,   flag: 'py' },
+    'Peru':                     { lat: -10,   lon: -76,   flag: 'pe' },
+    'Polinésia Francesa':       { lat: -17,   lon:-149,   flag: 'pf' },
+    'Polônia':                  { lat:  52,   lon:  20,   flag: 'pl' },
+    'Porto Rico':               { lat:  18.2, lon: -66.6, flag: 'pr' },
+    'Portugal':                 { lat:  39,   lon:  -8,   flag: 'pt' },
+    'Quênia':                   { lat:   0,   lon:  38,   flag: 'ke' },
+    'Quirguistão':              { lat:  41,   lon:  75,   flag: 'kg' },
+    'Reino Unido':              { lat:  54,   lon:  -2,   flag: 'gb' },
+    'República do Congo':       { lat:  -1,   lon:  15,   flag: 'cg' },
+    'República Dominicana':     { lat:  19,   lon: -70,   flag: 'do' },
+    'Romênia':                  { lat:  46,   lon:  25,   flag: 'ro' },
+    'Rússia':                   { lat:  60,   lon:  90,   flag: 'ru' },
+    'Ruanda':                   { lat:  -2,   lon:  30,   flag: 'rw' },
+    'Saara Ocidental':          { lat:  24,   lon: -13,   flag: 'eh' },
+    'San Marino':               { lat:  43.9, lon:  12.5, flag: 'sm' },
+    'São Cristóvão e Névis':    { lat:  17.3, lon: -62.7, flag: 'kn' },
+    'Senegal':                  { lat:  14,   lon: -14,   flag: 'sn' },
+    'Sérvia':                   { lat:  44,   lon:  21,   flag: 'rs' },
+    'Singapura':                { lat:   1.4, lon: 104,   flag: 'sg' },
+    'Sint Maarten':             { lat:  18.1, lon: -63.1, flag: 'sx' },
+    'Síria':                    { lat:  35,   lon:  38,   flag: 'sy' },
+    'Sri Lanka':                { lat:   8,   lon:  81,   flag: 'lk' },
+    'Sudão':                    { lat:  15,   lon:  30,   flag: 'sd' },
+    'Suécia':                   { lat:  62,   lon:  16,   flag: 'se' },
+    'Suíça':                    { lat:  47,   lon:   8,   flag: 'ch' },
+    'Suriname':                 { lat:   4,   lon: -56,   flag: 'sr' },
+    'Tadjiquistão':             { lat:  39,   lon:  71,   flag: 'tj' },
+    'Tailândia':                { lat:  15,   lon: 101,   flag: 'th' },
+    'Taiwan':                   { lat:  24,   lon: 121,   flag: 'tw' },
+    'Tanzânia':                 { lat:  -6,   lon:  35,   flag: 'tz' },
+    'Tchéquia':                 { lat:  50,   lon:  16,   flag: 'cz' },
+    'Territórios palestinos':   { lat:  31.9, lon:  35.2, flag: 'ps' },
+    'Togo':                     { lat:   8,   lon:   1,   flag: 'tg' },
+    'Trinidad e Tobago':        { lat:  11,   lon: -61,   flag: 'tt' },
+    'Tunísia':                  { lat:  34,   lon:   9,   flag: 'tn' },
+    'Turcomenistão':            { lat:  40,   lon:  60,   flag: 'tm' },
+    'Turquia':                  { lat:  39,   lon:  35,   flag: 'tr' },
+    'Uganda':                   { lat:   1,   lon:  32,   flag: 'ug' },
+    'Ucrânia':                  { lat:  49,   lon:  32,   flag: 'ua' },
+    'Uruguai':                  { lat: -33,   lon: -56,   flag: 'uy' },
+    'Uzbequistão':              { lat:  41,   lon:  64,   flag: 'uz' },
+    'Venezuela':                { lat:   8,   lon: -66,   flag: 've' },
+    'Vietnã':                   { lat:  16,   lon: 108,   flag: 'vn' },
+    'Zimbábue':                 { lat: -20,   lon:  30,   flag: 'zw' },
 };
 
-// Mapeamento nome → ISO_A3 (para highlight do território no GeoJSON)
 const _COUNTRY_ISO = {
-    'Argentina':    'ARG',
-    'Brasil':       'BRA',
-    'Colômbia':     'COL',
-    'Chile':        'CHL',
-    'Peru':         'PER',
-    'México':       'MEX',
-    'EUA':          'USA',
-    'Espanha':      'ESP',
-    'Portugal':     'PRT',
+    'Afeganistão':              'AFG', 'África do Sul':            'ZAF',
+    'Albânia':                  'ALB', 'Alemanha':                 'DEU',
+    'Andorra':                  'AND', 'Angola':                   'AGO',
+    'Arábia Saudita':           'SAU', 'Argélia':                  'DZA',
+    'Argentina':                'ARG', 'Armênia':                  'ARM',
+    'Austrália':                'AUS', 'Áustria':                  'AUT',
+    'Azerbaijão':               'AZE', 'Bahamas':                  'BHS',
+    'Bangladesh':               'BGD', 'Barein':                   'BHR',
+    'Bélgica':                  'BEL', 'Belize':                   'BLZ',
+    'Benin':                    'BEN', 'Bielorrússia':             'BLR',
+    'Bolívia':                  'BOL', 'Bósnia e Herzegovina':     'BIH',
+    'Brasil':                   'BRA', 'Brunei':                   'BRN',
+    'Bulgária':                 'BGR', 'Burquina Faso':            'BFA',
+    'Cabo Verde':               'CPV', 'Camarões':                 'CMR',
+    'Camboja':                  'KHM', 'Canadá':                   'CAN',
+    'Catar':                    'QAT', 'Cazaquistão':              'KAZ',
+    'Chile':                    'CHL', 'China':                    'CHN',
+    'Chipre':                   'CYP', 'Colômbia':                 'COL',
+    'Congo - Kinshasa':         'COD', 'Coreia do Norte':          'PRK',
+    'Coreia do Sul':            'KOR', 'Costa do Marfim':          'CIV',
+    'Costa Rica':               'CRI', 'Croácia':                  'HRV',
+    'Cuba':                     'CUB', 'Dinamarca':                'DNK',
+    'Egito':                    'EGY', 'El Salvador':              'SLV',
+    'Emirados Árabes Unidos':   'ARE', 'Equador':                  'ECU',
+    'Eritreia':                 'ERI', 'Eslováquia':               'SVK',
+    'Eslovênia':                'SVN', 'Espanha':                  'ESP',
+    'Estados Unidos':           'USA', 'Estônia':                  'EST',
+    'Filipinas':                'PHL', 'Finlândia':                'FIN',
+    'França':                   'FRA', 'Gana':                     'GHA',
+    'Geórgia':                  'GEO', 'Grécia':                   'GRC',
+    'Groenlândia':              'GRL', 'Guatemala':                'GTM',
+    'Guiana':                   'GUY', 'Guiné':                    'GIN',
+    'Honduras':                 'HND', 'Hungria':                  'HUN',
+    'Iêmen':                    'YEM', 'Índia':                    'IND',
+    'Indonésia':                'IDN', 'Irã':                      'IRN',
+    'Iraque':                   'IRQ', 'Irlanda':                  'IRL',
+    'Islândia':                 'ISL', 'Israel':                   'ISR',
+    'Itália':                   'ITA', 'Jamaica':                  'JAM',
+    'Japão':                    'JPN', 'Jordânia':                 'JOR',
+    'Kuwait':                   'KWT', 'Laos':                     'LAO',
+    'Letônia':                  'LVA', 'Líbano':                   'LBN',
+    'Líbia':                    'LBY', 'Lituânia':                 'LTU',
+    'Luxemburgo':               'LUX', 'Macedônia do Norte':       'MKD',
+    'Malásia':                  'MYS', 'Mali':                     'MLI',
+    'Malta':                    'MLT', 'Marrocos':                 'MAR',
+    'México':                   'MEX', 'Mianmar (Birmânia)':       'MMR',
+    'Moçambique':               'MOZ', 'Moldávia':                 'MDA',
+    'Mongólia':                 'MNG', 'Montenegro':               'MNE',
+    'Namíbia':                  'NAM', 'Nepal':                    'NPL',
+    'Nicarágua':                'NIC', 'Níger':                    'NER',
+    'Nigéria':                  'NGA', 'Noruega':                  'NOR',
+    'Nova Zelândia':            'NZL', 'Omã':                      'OMN',
+    'Países Baixos':            'NLD', 'Paquistão':                'PAK',
+    'Panamá':                   'PAN', 'Papua-Nova Guiné':         'PNG',
+    'Paraguai':                 'PRY', 'Peru':                     'PER',
+    'Polônia':                  'POL', 'Portugal':                 'PRT',
+    'Quênia':                   'KEN', 'Quirguistão':              'KGZ',
+    'Reino Unido':              'GBR', 'República do Congo':       'COG',
+    'República Dominicana':     'DOM', 'Romênia':                  'ROU',
+    'Rússia':                   'RUS', 'Ruanda':                   'RWA',
+    'São Cristóvão e Névis':    'KNA', 'Senegal':                  'SEN',
+    'Sérvia':                   'SRB', 'Singapura':                'SGP',
+    'Síria':                    'SYR', 'Sri Lanka':                'LKA',
+    'Sudão':                    'SDN', 'Suécia':                   'SWE',
+    'Suíça':                    'CHE', 'Suriname':                 'SUR',
+    'Tadjiquistão':             'TJK', 'Tailândia':                'THA',
+    'Taiwan':                   'TWN', 'Tanzânia':                 'TZA',
+    'Tchéquia':                 'CZE', 'Territórios palestinos':   'PSE',
+    'Togo':                     'TGO', 'Trinidad e Tobago':        'TTO',
+    'Tunísia':                  'TUN', 'Turcomenistão':            'TKM',
+    'Turquia':                  'TUR', 'Uganda':                   'UGA',
+    'Ucrânia':                  'UKR', 'Uruguai':                  'URY',
+    'Uzbequistão':              'UZB', 'Venezuela':                'VEN',
+    'Vietnã':                   'VNM', 'Zimbábue':                 'ZWE',
 };
 
 // Cores dominantes das bandeiras para pintar o território selecionado no globo
@@ -3055,6 +3261,54 @@ const _FLAG_COLORS = {
     'USA': { cap: 'rgba(60,59,110,0.80)',   stroke: '#3c3b6e' },  // azul EUA
     'ESP': { cap: 'rgba(170,21,27,0.80)',   stroke: '#aa151b' },  // vermelho espanha
     'PRT': { cap: 'rgba(0,102,0,0.80)',     stroke: '#006600' },  // verde portugal
+};
+
+// Cores lembrativas por país (código ISO lowercase = chave do flag)
+const _COUNTRY_COLOR = {
+    'br': '#009c3b', 'ar': '#74acdf', 'co': '#fcd116', 'cl': '#d52b1e',
+    'pe': '#d52b1e', 'mx': '#006847', 'us': '#3c3b6e', 'es': '#aa151b',
+    'pt': '#006600', 'de': '#ffce00', 'fr': '#002395', 'it': '#009246',
+    'gb': '#cf142b', 'ru': '#0039a6', 'cn': '#de2910', 'jp': '#bc002d',
+    'in': '#ff9933', 'au': '#00008b', 'ca': '#ff0000', 'kr': '#c60c30',
+    'tr': '#e30a17', 'nl': '#ae1c28', 'be': '#fdda24', 'se': '#006aa7',
+    'no': '#ef2b2d', 'dk': '#c60c30', 'fi': '#003580', 'pl': '#dc143c',
+    'cz': '#d7141a', 'hu': '#ce2939', 'ro': '#002b7f', 'gr': '#0d5eaf',
+    'ua': '#005bbb', 'by': '#cf101a', 'rs': '#c6363c', 'hr': '#171796',
+    'ba': '#002395', 'sk': '#ee1c25', 'si': '#003da5', 'bg': '#00966e',
+    'mk': '#ce2028', 'al': '#e41e20', 'me': '#d4af37', 'xk': '#244aa5',
+    'md': '#003DA5', 'lv': '#9e3039', 'lt': '#fdb913', 'ee': '#0072ce',
+    'is': '#003897', 'ie': '#169b62', 'at': '#ed2939', 'ch': '#ff0000',
+    'lu': '#ef3340', 'mc': '#ce1126', 'sm': '#5EB6E4', 'ad': '#0032a0',
+    'sa': '#006c35', 'ae': '#00732f', 'ir': '#239f40', 'iq': '#007a3d',
+    'il': '#0038b8', 'jo': '#007a3d', 'lb': '#ee161f', 'sy': '#007a3d',
+    'ye': '#ce1126', 'kw': '#007a3d', 'qa': '#8d1b3d', 'bh': '#ce1126',
+    'om': '#db161b', 'eg': '#c8102e', 'ly': '#000000', 'tn': '#e70013',
+    'ma': '#c1272d', 'dz': '#006233', 'sd': '#d21034', 'et': '#078930',
+    'ke': '#006600', 'ug': '#fcdc04', 'tz': '#1eb53a', 'rw': '#20603d',
+    'ng': '#008751', 'gh': '#006b3f', 'ci': '#f77f00', 'cm': '#007a5e',
+    'sn': '#00853f', 'ml': '#009a00', 'ne': '#e05206', 'bf': '#ef2b2d',
+    'bj': '#008751', 'tg': '#006a4e', 'gn': '#ce1126', 'ao': '#cc0000',
+    'mz': '#009a44', 'za': '#007a4d', 'na': '#003580', 'zw': '#006400',
+    'cd': '#007fff', 'cg': '#009543', 'gq': '#3e9a00', 'er': '#4189dd',
+    'pk': '#01411c', 'bd': '#006a4e', 'lk': '#8d153a', 'np': '#003893',
+    'mm': '#fecb00', 'kh': '#032ea1', 'la': '#ce1126', 'vn': '#da251d',
+    'th': '#a51931', 'my': '#cc0001', 'sg': '#ef3340', 'id': '#ce1126',
+    'ph': '#0038a8', 'tw': '#fe0000', 'hk': '#de2910', 'mo': '#009b77',
+    'kz': '#00afca', 'uz': '#1eb53a', 'tm': '#31a84e', 'kg': '#e8112d',
+    'tj': '#006600', 'az': '#0092bc', 'am': '#d90012', 'ge': '#ff0000',
+    'mn': '#c4272f', 'kp': '#024fa2', 'af': '#000000', 'iq': '#007a3d',
+    'ir': '#239f40', 'in': '#ff9933', 'cn': '#de2910', 'au': '#00008b',
+    'nz': '#00247d', 'pg': '#000000', 'gu': '#193f8f', 'pf': '#ce1126',
+    'gf': '#002395', 'mq': '#002395', 'gp': '#002395',
+    'cu': '#002a8f', 'do': '#002d62', 'ht': '#00209f', 'jm': '#000000',
+    'tt': '#ce1126', 'bb': '#00267f', 'bs': '#00778b', 'bz': '#003f87',
+    'gt': '#4997d0', 'hn': '#0073cf', 'ni': '#3a75c4', 'cr': '#002b7f',
+    'pa': '#005293', 'sv': '#0f47af', 'bo': '#d52b1e', 'ec': '#ffda00',
+    'py': '#d52b1e', 'uy': '#ffffff', 've': '#cf142b', 'gy': '#009e60',
+    'sr': '#377e3f', 'aw': '#418fde', 'cw': '#002b7f', 'bq': '#21468b',
+    'sx': '#003087', 'vg': '#013220', 'pr': '#ed0c30', 'kn': '#009e60',
+    'gl': '#003087', 'fo': '#003897', 'cv': '#003893', 'gm': '#3a7728',
+    'gn': '#ce1126', 'mw': '#000000', 'ly': '#239e46',
 };
 
 let _globeInit = false;
@@ -3071,14 +3325,14 @@ function initGlobe() {
     if (_globeInit) return;
     _globeInit = true;
 
-    // Pill buttons (sempre renderiza, independente da lib)
+    // Pill buttons — usa _GLOBE_COORDS (fonte completa de países)
     const btnWrap = document.getElementById('globeCountryBtns');
-    btnWrap.innerHTML = Object.keys(INTL_CANAIS).map(name => {
+    btnWrap.innerHTML = Object.keys(_GLOBE_COORDS).sort().map(name => {
         const coords = _GLOBE_COORDS[name];
         const flagHtml = coords && coords.flag
             ? `<img src="https://flagcdn.com/w40/${coords.flag}.png" alt="${name}" onerror="this.style.display='none'">`
             : `<span class="flag-icon">🌐</span>`;
-        return `<button class="globe-country-btn" data-country="${name}" onclick="globeSelectCountry('${name.replace(/'/g,"\\'")}', this)">${flagHtml}${name}</button>`;
+        return `<button class="globe-country-btn" data-country="${name}" onclick="globeSelectCountry('${name.replace(/'/g,"\\'")}', this)" title="${name}">${flagHtml}</button>`;
     }).join('');
 
     if (typeof Globe === 'undefined') {
@@ -3097,7 +3351,6 @@ function initGlobe() {
         .width(W).height(W)
         .backgroundColor('rgba(0,0,0,0)')
         .globeImageUrl('https://unpkg.com/three-globe/example/img/earth-night.jpg')
-        .bumpImageUrl('https://unpkg.com/three-globe/example/img/earth-topology.png')
         .atmosphereColor('#4477ff')
         .atmosphereAltitude(0.18)
         // Polígonos de países
@@ -3105,9 +3358,18 @@ function initGlobe() {
         .polygonCapColor(feat => {
             const iso = feat.properties.ISO_A3;
             const selIso = _COUNTRY_ISO[window._globeSelected];
-            if (iso === selIso && _FLAG_COLORS[iso]) return _FLAG_COLORS[iso].cap;
-            if (iso === selIso) return 'rgba(34,197,94,0.55)';
-            return 'rgba(255,255,255,0.04)';
+            // País selecionado fica mais brilhante
+            if (iso === selIso) {
+                const entry = Object.entries(_COUNTRY_ISO).find(([,v]) => v === iso);
+                const flag = entry ? _GLOBE_COORDS[entry[0]]?.flag : null;
+                const base = flag && _COUNTRY_COLOR[flag];
+                return base ? base + 'ff' : 'rgba(255,255,255,0.9)';
+            }
+            // Todos os outros países: cor lembrada com opacidade
+            const entry = Object.entries(_COUNTRY_ISO).find(([,v]) => v === iso);
+            const flag = entry ? _GLOBE_COORDS[entry[0]]?.flag : null;
+            const color = flag && _COUNTRY_COLOR[flag];
+            return color ? color + 'bb' : 'rgba(255,255,255,0.07)';
         })
         .polygonSideColor(() => 'rgba(0,0,0,0)')
         .polygonStrokeColor(feat => {
@@ -3120,7 +3382,7 @@ function initGlobe() {
         .polygonAltitude(feat => {
             const iso = feat.properties.ISO_A3;
             const selIso = _COUNTRY_ISO[window._globeSelected];
-            return iso === selIso ? 0.03 : 0.001;
+            return iso === selIso ? 0.03 : 0.008;
         })
         .onPolygonClick(feat => {
             const iso = feat.properties.ISO_A3;
@@ -3131,50 +3393,15 @@ function initGlobe() {
             el.style.cursor = feat ? 'pointer' : 'grab';
         })
         // Marcadores de ponto para TODOS os países (incluindo Latinoamérica e Mundo)
-        .pointsData(pointsData)
+        .pointsData([])
         .pointLat(d => d.lat)
         .pointLng(d => d.lon)
-        .pointAltitude(0.04)
-        .pointRadius(d => d.name === window._globeSelected ? 0.6 : 0.35)
-        .pointColor(d => d.name === window._globeSelected ? '#22c55e' : 'rgba(100,180,255,0.85)')
-        .pointResolution(12)
+        .pointAltitude(0)
+        .pointRadius(0)
+        .pointColor(() => 'transparent')
+        .pointResolution(4)
         .onPointClick(d => globeSelectCountry(d.name))
         .onPointHover(d => { el.style.cursor = d ? 'pointer' : 'grab'; })
-        // HTML markers visíveis para todos os países
-        .htmlElementsData(pointsData)
-        .htmlLat(d => d.lat)
-        .htmlLng(d => d.lon)
-        .htmlAltitude(0.06)
-        .htmlElement(d => {
-            const div = document.createElement('div');
-            const isSel = d.name === window._globeSelected;
-            div.style.cssText = `
-                display:flex;flex-direction:column;align-items:center;gap:3px;
-                cursor:pointer;pointer-events:auto;
-                transform:translate(-50%,-100%);
-                transition: transform .2s;
-            `;
-            const flagHtml = d.flag
-                ? `<img src="https://flagcdn.com/w40/${d.flag}.png" style="width:24px;height:16px;object-fit:cover;border-radius:3px;box-shadow:0 2px 8px rgba(0,0,0,.8);border:2px solid ${isSel ? '#22c55e' : 'rgba(255,255,255,.5)'};display:block;">`
-                : `<span style="font-size:18px;line-height:1;filter:drop-shadow(0 2px 4px rgba(0,0,0,.8));">🌐</span>`;
-            div.innerHTML = `
-                ${flagHtml}
-                <div style="
-                    background:${isSel ? '#22c55e' : 'rgba(0,0,0,0.85)'};
-                    color:${isSel ? '#000' : '#fff'};
-                    font-family:Sora,sans-serif;
-                    font-size:9px;font-weight:800;
-                    padding:2px 7px;border-radius:99px;
-                    white-space:nowrap;
-                    border:1.5px solid ${isSel ? '#22c55e' : 'rgba(255,255,255,.3)'};
-                    box-shadow:0 2px 10px rgba(0,0,0,.7);
-                    letter-spacing:.03em;
-                    text-shadow:none;
-                ">${d.name}</div>
-            `;
-            div.addEventListener('click', () => globeSelectCountry(d.name));
-            return div;
-        })
         (el);
 
     // Carrega GeoJSON de países e plugga no globo
@@ -3183,6 +3410,8 @@ function initGlobe() {
         .then(geo => {
             window._geoFeatures = geo.features;
             myGlobe.polygonsData(geo.features);
+            // Força repintura com as cores corretas após GeoJSON carregar
+            if (window._updateGlobePoints) window._updateGlobePoints();
         })
         .catch(() => {/* sem polígonos — não quebra nada */});
 
@@ -3200,13 +3429,6 @@ function initGlobe() {
 
     // Atualiza highlight dos pontos + polígonos quando um país é selecionado
     window._updateGlobePoints = () => {
-        // Atualiza tamanho/cor dos pontos
-        myGlobe
-            .pointRadius(d => d.name === window._globeSelected ? 0.6 : 0.35)
-            .pointColor(d => d.name === window._globeSelected ? '#22c55e' : 'rgba(100,180,255,0.85)');
-
-        // Recarrega os html markers para refletir o selecionado
-        myGlobe.htmlElementsData([]).htmlElementsData(pointsData);
 
         // Atualiza polígonos (só para países com ISO)
         if (window._geoFeatures) {
@@ -3214,21 +3436,22 @@ function initGlobe() {
                 .polygonCapColor(feat => {
                     const iso = feat.properties.ISO_A3;
                     const selIso = _COUNTRY_ISO[window._globeSelected];
-                    if (iso === selIso && _FLAG_COLORS[iso]) return _FLAG_COLORS[iso].cap;
-                    if (iso === selIso) return 'rgba(34,197,94,0.55)';
-                    return 'rgba(255,255,255,0.04)';
+                    const entry = Object.entries(_COUNTRY_ISO).find(([,v]) => v === iso);
+                    const flag = entry ? _GLOBE_COORDS[entry[0]]?.flag : null;
+                    const color = flag && _COUNTRY_COLOR[flag];
+                    if (iso === selIso) return color ? color + 'ff' : 'rgba(255,255,255,0.9)';
+                    return color ? color + 'bb' : 'rgba(255,255,255,0.07)';
                 })
                 .polygonStrokeColor(feat => {
                     const iso = feat.properties.ISO_A3;
                     const selIso = _COUNTRY_ISO[window._globeSelected];
-                    if (iso === selIso && _FLAG_COLORS[iso]) return _FLAG_COLORS[iso].stroke;
-                    if (iso === selIso) return '#22c55e';
+                    if (iso === selIso) return '#fff';
                     return 'rgba(255,255,255,0.08)';
                 })
                 .polygonAltitude(feat => {
                     const iso = feat.properties.ISO_A3;
                     const selIso = _COUNTRY_ISO[window._globeSelected];
-                    return iso === selIso ? 0.03 : 0.001;
+                    return iso === selIso ? 0.03 : 0.008;
                 });
         }
 
@@ -3243,13 +3466,109 @@ function initGlobe() {
 
 window._globeSelected = null;
 
+let _globeSearchHighlight = -1;
+let _globeSearchResults = [];
+
 function filterGlobeCountries(query) {
     const q = query.trim().toLowerCase();
+    const dropdown = document.getElementById('globeSearchDropdown');
+
+    // Filtra botões de bandeira visualmente (se já existirem)
     document.querySelectorAll('.globe-country-btn').forEach(btn => {
         const name = btn.dataset.country.toLowerCase();
         btn.style.display = (!q || name.includes(q)) ? '' : 'none';
     });
+
+    if (!dropdown) return;
+
+    if (!q) {
+        dropdown.classList.remove('open');
+        dropdown.innerHTML = '';
+        _globeSearchResults = [];
+        _globeSearchHighlight = -1;
+        return;
+    }
+
+    // Busca direto da fonte de dados — _GLOBE_COORDS tem todos os países
+    const allNames = Object.keys(_GLOBE_COORDS).sort();
+
+    const matches = allNames
+        .filter(name => name.toLowerCase().includes(q))
+        .slice(0, 12);
+
+    _globeSearchResults = matches;
+    _globeSearchHighlight = -1;
+
+    if (matches.length === 0) {
+        dropdown.classList.remove('open');
+        dropdown.innerHTML = '';
+        return;
+    }
+
+    dropdown.innerHTML = matches.map((name, i) => {
+        const coords = _GLOBE_COORDS && _GLOBE_COORDS[name];
+        const flagCode = coords && coords.flag ? coords.flag : null;
+        const flagHtml = flagCode
+            ? `<img src="https://flagcdn.com/w40/${flagCode}.png" alt="${name}" onerror="this.style.display='none'">`
+            : `<span class="gsi-flag-emoji">🌐</span>`;
+        return `<div class="globe-search-item" data-idx="${i}" onmousedown="globeSearchPick('${name.replace(/'/g,"\\'")}')">
+            ${flagHtml}
+            <span>${name}</span>
+        </div>`;
+    }).join('');
+
+    dropdown.classList.add('open');
 }
+
+function globeSearchPick(name) {
+    const input = document.getElementById('globeSearchInput');
+    const dropdown = document.getElementById('globeSearchDropdown');
+    if (input) input.value = '';
+    if (dropdown) { dropdown.classList.remove('open'); dropdown.innerHTML = ''; }
+    // Mostra todos os botões de volta
+    document.querySelectorAll('.globe-country-btn').forEach(btn => btn.style.display = '');
+    _globeSearchResults = [];
+    _globeSearchHighlight = -1;
+    globeSelectCountry(name);
+}
+
+function globeSearchKeydown(e) {
+    const dropdown = document.getElementById('globeSearchDropdown');
+    const isOpen = dropdown && dropdown.classList.contains('open');
+
+    if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        _globeSearchHighlight = Math.min(_globeSearchHighlight + 1, _globeSearchResults.length - 1);
+        _globeSearchUpdateHighlight();
+    } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        _globeSearchHighlight = Math.max(_globeSearchHighlight - 1, 0);
+        _globeSearchUpdateHighlight();
+    } else if (e.key === 'Enter') {
+        e.preventDefault();
+        const idx = _globeSearchHighlight >= 0 ? _globeSearchHighlight : 0;
+        if (_globeSearchResults[idx]) globeSearchPick(_globeSearchResults[idx]);
+    } else if (e.key === 'Escape') {
+        const input = document.getElementById('globeSearchInput');
+        if (input) { input.value = ''; filterGlobeCountries(''); }
+    }
+}
+
+function _globeSearchUpdateHighlight() {
+    document.querySelectorAll('.globe-search-item').forEach((el, i) => {
+        el.classList.toggle('highlighted', i === _globeSearchHighlight);
+        if (i === _globeSearchHighlight) el.scrollIntoView({ block: 'nearest' });
+    });
+}
+
+// Fecha dropdown ao clicar fora
+document.addEventListener('click', e => {
+    const wrap = document.getElementById('globeSearchWrap');
+    if (wrap && !wrap.contains(e.target)) {
+        const dd = document.getElementById('globeSearchDropdown');
+        if (dd) { dd.classList.remove('open'); dd.innerHTML = ''; }
+    }
+});
 
 function globeSelectCountry(name, btnEl) {
     window._globeSelected = name;
@@ -3284,27 +3603,56 @@ function globeSelectCountry(name, btnEl) {
     renderIntlChannels(name);
 }
 
-function renderIntlChannels(countryName) {
-    const grid   = document.getElementById('intlChannelGrid');
-    const canais = INTL_CANAIS[countryName];
-    if (!canais || !canais.length) { grid.innerHTML = ''; return; }
+const _intlApiCache = {};
 
+async function renderIntlChannels(countryName) {
+    const grid = document.getElementById('intlChannelGrid');
+    if (!grid) return;
+
+    // Pega código ISO do país via _GLOBE_COORDS (flag = código ISO lowercase)
+    const coords = _GLOBE_COORDS[countryName];
+    const cc = coords && coords.flag ? coords.flag.toUpperCase() : null;
+    if (!cc) { grid.innerHTML = ''; return; }
+
+    // Loading
+    grid.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:32px;opacity:.5;font-size:.9rem;">Carregando canais...</div>`;
+
+    // Cache em memória
+    if (_intlApiCache[cc]) {
+        _renderIntlCards(grid, _intlApiCache[cc]);
+        return;
+    }
+
+    try {
+        const res = await fetch(`/api/canais-intl?cc=${cc}`);
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const canais = await res.json();
+        _intlApiCache[cc] = canais;
+        _renderIntlCards(grid, canais);
+    } catch(e) {
+        console.warn('[INTL] Erro ao carregar canais:', e);
+        grid.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:32px;opacity:.5;font-size:.9rem;">Nenhum canal disponível para este país.</div>`;
+    }
+}
+
+function _renderIntlCards(grid, canais) {
+    if (!canais || !canais.length) {
+        grid.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:32px;opacity:.5;font-size:.9rem;">Nenhum canal disponível para este país.</div>`;
+        return;
+    }
     grid.innerHTML = canais.map((c, i) => {
-        const eu = c.url.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-        const en = c.nome.replace(/'/g,"\\'");
-        return `<div class="intl-card" style="animation-delay:${i*30}ms" onclick="openIntlPlayer('${eu}','${en}')">
+        const eu = (c.embed_url || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+        const en = (c.name || c.nome || '').replace(/'/g,"\\'");
+        const logo = c.logo || '';
+        return `<div class="intl-card" style="animation-delay:${Math.min(i,30)*30}ms" onclick="openIntlPlayer('${eu}','${en}')">
             <div class="intl-card-thumb">
                 <div class="intl-live-dot">AO VIVO</div>
-                ${c.logo
-                    ? `<img src="${c.logo}" alt="${c.nome}" loading="lazy" onerror="this.style.display='none';this.nextSibling.style.display='flex'">`
-                    : ''}
-                <div class="intl-fallback" style="display:${c.logo?'none':'flex'}">${c.nome}</div>
+                ${logo ? `<img src="${logo}" alt="${en}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">` : ''}
+                <div class="intl-fallback" style="display:${logo?'none':'flex'}">${en}</div>
             </div>
-            <div class="intl-card-name">${c.nome}</div>
+            <div class="intl-card-name">${en}</div>
         </div>`;
     }).join('');
-
-    // Scroll suave até o grid
     setTimeout(() => grid.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 150);
 }
 
@@ -4582,10 +4930,11 @@ function evCopyUrl(btn) {
 #intlChannelGrid .intl-card { animation: fadeInUp .25s ease both; }
 #globeCountryBtns {
     display: flex; flex-wrap: wrap; justify-content: center;
-    gap: 8px; padding: 12px 16px 4px;
+    gap: 6px; padding: 12px 16px 4px;
 }
 #globeSearchWrap {
     padding: 8px 16px 4px;
+    position: relative;
 }
 #globeSearchInput {
     width: 100%; background: rgba(255,255,255,.06);
@@ -4599,28 +4948,96 @@ function evCopyUrl(btn) {
     border-color: rgba(99,102,241,.6);
     background: rgba(99,102,241,.1);
 }
+/* Dropdown de autocomplete da busca */
+#globeSearchDropdown {
+    display: none;
+    position: absolute;
+    top: calc(100% - 2px);
+    left: 16px; right: 16px;
+    background: rgba(12,10,28,.97);
+    border: 1px solid rgba(99,102,241,.35);
+    border-radius: 14px;
+    overflow: hidden;
+    z-index: 200;
+    max-height: 220px;
+    overflow-y: auto;
+    box-shadow: 0 8px 30px rgba(0,0,0,.6);
+}
+#globeSearchDropdown.open { display: block; }
+.globe-search-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 16px; cursor: pointer;
+    transition: background .12s;
+    border-bottom: 1px solid rgba(255,255,255,.04);
+    font-size: 13px; font-weight: 600; color: #e2e8f0;
+}
+.globe-search-item:last-child { border-bottom: none; }
+.globe-search-item:hover, .globe-search-item.highlighted {
+    background: rgba(99,102,241,.25);
+}
+.globe-search-item img {
+    width: 26px; height: 17px; object-fit: cover;
+    border-radius: 3px; flex-shrink: 0;
+    box-shadow: 0 1px 4px rgba(0,0,0,.5);
+}
+.globe-search-item .gsi-flag-emoji {
+    font-size: 20px; flex-shrink: 0; line-height: 1;
+}
 .globe-country-btn {
-    background: rgba(255,255,255,.04);
-    border: 1px solid rgba(255,255,255,.1);
-    color: rgba(255,255,255,.6);
-    border-radius: 99px; padding: 5px 13px 5px 8px;
-    font-size: 11px; font-weight: 700; cursor: pointer;
-    transition: background .18s, color .18s, border-color .18s, transform .1s;
-    display: inline-flex; align-items: center; gap: 7px;
+    position: relative;
+    background: rgba(255,255,255,.06);
+    border: 1px solid rgba(255,255,255,.12);
+    border-radius: 6px;
+    padding: 4px;
+    cursor: pointer;
+    transition: background .15s, border-color .15s, transform .1s;
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 36px; height: 26px;
 }
 .globe-country-btn img {
-    width: 20px; height: 14px;
+    width: 28px; height: 18px;
     object-fit: cover; border-radius: 3px;
     flex-shrink: 0;
-    box-shadow: 0 1px 4px rgba(0,0,0,.4);
+    box-shadow: 0 1px 4px rgba(0,0,0,.5);
+    pointer-events: none;
 }
 .globe-country-btn .flag-icon {
-    font-size: 15px; line-height: 1; flex-shrink: 0;
+    font-size: 18px; line-height: 1; flex-shrink: 0;
+    pointer-events: none;
 }
-.globe-country-btn:hover { background: rgba(99,102,241,.18); border-color: rgba(99,102,241,.5); color: #fff; }
+.globe-country-btn .gcb-label {
+    display: none;
+}
+/* Tooltip com nome do país */
+.globe-country-btn::after {
+    content: attr(data-country);
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 50%; transform: translateX(-50%);
+    background: rgba(15,15,30,.95);
+    color: #e2e8f0;
+    font-size: 11px; font-weight: 600;
+    white-space: nowrap;
+    padding: 4px 8px;
+    border-radius: 6px;
+    border: 1px solid rgba(255,255,255,.1);
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity .15s;
+    z-index: 99;
+}
+.globe-country-btn:hover::after { opacity: 1; }
+.globe-country-btn:hover {
+    background: rgba(99,102,241,.25);
+    border-color: rgba(99,102,241,.6);
+    transform: scale(1.12);
+    z-index: 2;
+}
 .globe-country-btn.active {
-    background: rgba(99,102,241,.28); border-color: #818cf8;
-    color: #c7d2fe; transform: scale(1.05);
+    background: rgba(99,102,241,.35);
+    border-color: #818cf8;
+    transform: scale(1.12);
+    z-index: 2;
 }
 
 /* ══ AO VIVO SECTION ══════════════════════════════════════════ */
@@ -4890,7 +5307,8 @@ function evCopyUrl(btn) {
         <div id="globeSearchWrap">
             <input id="globeSearchInput" type="text" placeholder="🔍 Buscar país..."
                 oninput="filterGlobeCountries(this.value)"
-                onkeydown="if(event.key==='Enter'){const f=document.querySelector('.globe-country-btn:not([style*=none])');if(f)f.click();}">
+                onkeydown="globeSearchKeydown(event)">
+            <div id="globeSearchDropdown"></div>
         </div>
         <div id="intlChannelGrid"></div>
     </div>
@@ -4910,7 +5328,7 @@ function evCopyUrl(btn) {
             </button>
         </div>
         <div class="aovivo-modal-frame">
-            <iframe id="aovivoModalIframe" allowfullscreen allow="autoplay; fullscreen"></iframe>
+            <iframe id="aovivoModalIframe" allowfullscreen allow="autoplay; fullscreen" class="player-iframe"></iframe>
         </div>
     </div>
 </div>
@@ -7999,7 +8417,7 @@ async function checkServer() {
     const timer = setTimeout(() => controller.abort(), 30000);
 
     try {
-        const r = await fetch(`${API}/catalogo`, { method: 'GET', signal: controller.signal, cache: 'no-store' });
+        const r = await fetch(`${API}/catalogo`, { method: 'GET', signal: controller.signal });
         clearTimeout(timer);
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         catalogData = await r.json();
@@ -9249,7 +9667,7 @@ function startWatchingUrl(url, title = '', sources = []) {
             </div>
             <div class="text-center">
                 <span class="block text-xs font-bold text-white tracking-wide">${s.label}</span>
-                <span class="block text-[9px] text-gray-400 mt-0.5">Servidor ${i + 1}</span>
+                ${s.label === 'WarezCDN' ? '<span class="inline-block mt-1 text-[9px] font-bold bg-green-500/20 text-green-300 border border-green-500/30 rounded-full px-2 py-0.5">🇧🇷 Foco em Dub PT</span>' : '<span class="block text-[9px] text-gray-400 mt-0.5">Servidor ' + (i + 1) + '</span>'}
             </div>
         </button>
     `).join('');
@@ -9258,7 +9676,7 @@ function startWatchingUrl(url, title = '', sources = []) {
     btns.innerHTML = _currentSources.map((s, i) => `
         <button onclick="switchSource('${s.url}', ${i})"
             class="source-btn text-[10px] font-bold px-3 py-1 rounded-full border transition bg-white/5 border-white/20 text-gray-400 hover:border-purple-500">
-            ${s.label}
+            ${s.label}${s.label === 'WarezCDN' ? ' 🇧🇷' : ''}
         </button>
     `).join('');
     btns.classList.add('hidden');
@@ -9269,6 +9687,7 @@ function startWatchingUrl(url, title = '', sources = []) {
 function player_urls(tmdb_id, tipo, season = 1, ep = 1) {
     if (tipo === 'tv') {
         return [
+            { label: 'WarezCDN', url: `https://warezcdn.site/serie/${tmdb_id}/${season}/${ep}` },
             { label: 'VidSrc', url: `https://vidsrc-embed.ru/embed/tv/${tmdb_id}/${season}-${ep}` },
             { label: 'MoviesAPI', url: `https://moviesapi.club/tv/${tmdb_id}-${season}-${ep}` },
             { label: 'MultiEmbed', url: `https://multiembed.mov/directstream.php?video_id=${tmdb_id}&tmdb=1&s=${season}&e=${ep}` },
@@ -9277,6 +9696,7 @@ function player_urls(tmdb_id, tipo, season = 1, ep = 1) {
         ];
     }
     return [
+        { label: 'WarezCDN', url: `https://warezcdn.site/filme/${tmdb_id}` },
         { label: 'VidSrc', url: `https://vidsrc-embed.ru/embed/movie/${tmdb_id}` },
         { label: 'MoviesAPI', url: `https://moviesapi.club/movie/${tmdb_id}` },
         { label: 'MultiEmbed', url: `https://multiembed.mov/directstream.php?video_id=${tmdb_id}&tmdb=1` },
@@ -9983,85 +10403,66 @@ window.addEventListener('scroll', () => {
 
 // ── Anti-Ad / Anti-Redirect Block ─────────────────────────────────────────────
 (function() {
-    // Domínios permitidos pelo window.open (players legítimos + auth Google)
-    const ALLOWED_OPEN = [
-        'youtube-nocookie.com',
+    const WHITELIST = [
+        location.hostname,
+        'accounts.google.com',
+        'google.com',
+        'googleapis.com',
         'youtube.com',
-        'accounts.google.com',  // Google OAuth popup
-        'google.com/o/',        // Google OAuth redirect
+        'youtube-nocookie.com',
+        'warezcdn.site',
+        'vidsrc',
+        'moviesapi',
+        'multiembed',
+        'rivestream',
+        'globetv.app',
     ];
 
-    // 1) Bloqueia window.open — exceto domínios legítimos (player + Google auth)
+    const isWhitelisted = (url) => {
+        if (!url || url === 'about:blank' || url.startsWith('#') || url.startsWith('/') || url.startsWith(location.origin))
+            return true;
+        try {
+            const host = new URL(url).hostname;
+            return WHITELIST.some(w => host.includes(w));
+        } catch { return false; }
+    };
+
+    // 1) window.open — única coisa que conseguimos interceptar de iframes cross-origin
     const _origOpen = window.open;
     window.open = function(url, name, specs) {
-        if (!url || url === 'about:blank') return null;
-        if (typeof url === 'string') {
-            if (ALLOWED_OPEN.some(d => url.includes(d))) {
-                return _origOpen.call(window, url, name, specs);
-            }
-        }
+        if (isWhitelisted(url)) return _origOpen.call(window, url, name, specs);
         console.warn('[AdBlock] window.open bloqueado:', url);
         return null;
     };
 
-    // 2) Bloqueia iframes de anúncio injetados dinamicamente no DOM principal
+    // 2) Iframes ad injetados no DOM principal (não os do player)
+    const _blockIframe = (node) => {
+        if (node?.tagName !== 'IFRAME' || node.id || node.classList?.contains('player-iframe')) return false;
+        const src = node.src || node.getAttribute?.('src') || '';
+        return src && !isWhitelisted(src);
+    };
     const _origAppendChild = Element.prototype.appendChild;
     Element.prototype.appendChild = function(node) {
-        if (node && node.tagName === 'IFRAME' && !node.id) {
-            const src = node.src || node.getAttribute('src') || '';
-            if (src && !src.includes('youtube') && !src.includes('googleapis') && !src.includes('accounts.google.com') && !src.includes('google.com/o/')) {
-                console.warn('[AdBlock] iframe ad bloqueado:', src);
-                return node;
-            }
-        }
+        if (_blockIframe(node)) { console.warn('[AdBlock] iframe ad bloqueado:', node.src); return node; }
         return _origAppendChild.call(this, node);
     };
     const _origInsertBefore = Element.prototype.insertBefore;
     Element.prototype.insertBefore = function(node, ref) {
-        if (node && node.tagName === 'IFRAME' && !node.id) {
-            const src = node.src || node.getAttribute('src') || '';
-            if (src && !src.includes('youtube') && !src.includes('googleapis') && !src.includes('accounts.google.com') && !src.includes('google.com/o/')) {
-                console.warn('[AdBlock] iframe ad bloqueado (insertBefore):', src);
-                return node;
-            }
-        }
+        if (_blockIframe(node)) { console.warn('[AdBlock] iframe ad bloqueado:', node.src); return node; }
         return _origInsertBefore.call(this, node, ref);
     };
 
-    // 3) Protege window.top.location — impede que o iframe redirecione a página pai.
-    //    Browsers modernos já bloqueiam isso para iframes cross-origin por padrão,
-    //    mas este guard adiciona proteção para casos edge.
-    try {
-        Object.defineProperty(window, 'location', {
-            configurable: true,
-            get() { return window._realLocation || (window._realLocation = location); },
-            set(v) { console.warn('[AdBlock] window.location override bloqueado:', v); }
-        });
-    } catch(e) {}
-
-    // 4) Quando o player está aberto e a janela perde o foco (popup abriu),
-    //    refoca imediatamente para trazer o usuário de volta.
-    let _adPopupGuard = false;
+    // 3) Refoca janela se perder foco — fecha popup automaticamente
+    //    Nota: isso é o máximo que JS da página pai consegue fazer contra
+    //    iframes cross-origin que abrem popups via click interno.
+    //    A solução definitiva é usar extensão de bloqueio de ads no browser.
+    let _guard = false;
     window.addEventListener('blur', function() {
-        const player = document.getElementById('videoPlayer');
-        if (!player || player.style.display === 'none') return;
-        if (_adPopupGuard) return;
-        _adPopupGuard = true;
-        setTimeout(() => {
-            window.focus();
-            _adPopupGuard = false;
-        }, 80);
+        if (_guard) return;
+        _guard = true;
+        setTimeout(() => { window.focus(); _guard = false; }, 50);
     });
 
-    // 5) Bloqueia visibilitychange usado por alguns players para abrir popup ao trocar de aba
-    document.addEventListener('visibilitychange', function(e) {
-        if (document.hidden) {
-            const player = document.getElementById('videoPlayer');
-            if (player && player.style.display !== 'none') {
-                e.stopImmediatePropagation();
-            }
-        }
-    }, true);
 })();
 
 // ══════════════════════════════════════════════════════════════════
@@ -10089,8 +10490,9 @@ const DEMO_CATALOG = (function() {
   function mv(id,title,year,vote,desc){
     return{tmdb_id:id,title,year,vote,desc:desc||'',tipo:'movie',
       img:I+(P[id]||'/cezWGskPY5x7GaglTTRN4Fugfb8.jpg'),released:true,
-      player:`https://vidsrc-embed.ru/embed/movie/${id}`,
+      player:`https://warezcdn.site/filme/${id}`,
       sources:[
+        {label:'WarezCDN',url:`https://warezcdn.site/filme/${id}`},
         {label:'VidSrc',url:`https://vidsrc-embed.ru/embed/movie/${id}`},
         {label:'MoviesAPI',url:`https://moviesapi.club/movie/${id}`},
         {label:'MultiEmbed',url:`https://multiembed.mov/directstream.php?video_id=${id}&tmdb=1`},
@@ -10110,8 +10512,9 @@ const DEMO_CATALOG = (function() {
     };
     return{tmdb_id:id,title,year,vote,desc:desc||'',tipo:'tv',seasons:seasons||1,
       img:I+(TP[id]||'/ggFHVNu6YYI5L9pCfOacjizRGt.jpg'),released:true,
-      player:`https://vidsrc-embed.ru/embed/tv/${id}/1-1`,
+      player:`https://warezcdn.site/serie/${id}/1/1`,
       sources:[
+        {label:'WarezCDN',url:`https://warezcdn.site/serie/${id}/1/1`},
         {label:'VidSrc',url:`https://vidsrc-embed.ru/embed/tv/${id}/1-1`},
         {label:'MoviesAPI',url:`https://moviesapi.club/tv/${id}-1-1`},
         {label:'MultiEmbed',url:`https://multiembed.mov/directstream.php?video_id=${id}&tmdb=1&s=1&e=1`},
@@ -10192,11 +10595,13 @@ const DEMO_KIDS_CATALOG = (function() {
   function k(id,title,year,vote,desc,tipo){
     return{tmdb_id:id,title,year,vote,desc:desc||'',tipo:tipo||'movie',
       img:I+(KP[id]||'/uXDfjJbdP4ijW5hWSBrPl9KsskY.jpg'),released:true,
-      player:tipo==='tv'?`https://vidsrc-embed.ru/embed/tv/${id}/1-1`:`https://vidsrc-embed.ru/embed/movie/${id}`,
+      player:tipo==='tv'?`https://warezcdn.site/serie/${id}/1/1`:`https://warezcdn.site/filme/${id}`,
       sources:tipo==='tv'?[
+        {label:'WarezCDN',url:`https://warezcdn.site/serie/${id}/1/1`},
         {label:'VidSrc',url:`https://vidsrc-embed.ru/embed/tv/${id}/1-1`},
         {label:'Rivestream',url:`https://rivestream.org/embed?type=tv&id=${id}&season=1&episode=1`},
       ]:[
+        {label:'WarezCDN',url:`https://warezcdn.site/filme/${id}`},
         {label:'VidSrc',url:`https://vidsrc-embed.ru/embed/movie/${id}`},
         {label:'MoviesAPI',url:`https://moviesapi.club/movie/${id}`},
         {label:'Rivestream',url:`https://rivestream.org/embed?type=movie&id=${id}`},
@@ -10276,32 +10681,54 @@ window.loadGenre = async function(nome, tipo) {
 
 // ── checkServer modificado: se falhar → ativa demo ────────────────────────────
 async function checkServer() {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 30000);
-  try {
-    const r = await fetch(`${API}/catalogo`, { method:'GET', signal:controller.signal, cache:'no-store' });
-    clearTimeout(timer);
-    if (!r.ok) throw new Error(`HTTP ${r.status}`);
-    catalogData = await r.json();
-    serverOnline = true;
-    renderHome();
-    renderMoviesPage();
-    renderSeriesPage();
-    if (kidsModeEnabled) {
-      const activeSection = document.querySelector('.page-section:not(.hidden)');
-      const activeId = activeSection ? activeSection.id.replace('section-', '') : '';
-      if (activeId === 'home' || activeId === 'kids') showSection('kids');
+  const MAX_RETRIES = 10;   // tenta por até ~30s enquanto o servidor monta o catálogo
+  const RETRY_DELAY = 3000; // 3s entre tentativas
+
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 30000);
+    try {
+      const r = await fetch(`${API}/catalogo`, { method:'GET', signal:controller.signal });
+      clearTimeout(timer);
+
+      // 202 = catálogo ainda sendo construído no servidor (primeiros segundos após deploy)
+      if (r.status === 202) {
+        if (attempt === 0) {
+          // Mostra feedback ao usuário só na primeira vez
+          const hero = document.getElementById('hero');
+          if (hero) hero.style.display = '';
+        }
+        await new Promise(res => setTimeout(res, RETRY_DELAY));
+        continue;
+      }
+
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      catalogData = await r.json();
+      serverOnline = true;
+      renderHome();
+      renderMoviesPage();
+      renderSeriesPage();
+      if (kidsModeEnabled) {
+        const activeSection = document.querySelector('.page-section:not(.hidden)');
+        const activeId = activeSection ? activeSection.id.replace('section-', '') : '';
+        if (activeId === 'home' || activeId === 'kids') showSection('kids');
+      }
+      return; // sucesso — sai do loop
+    } catch(err) {
+      clearTimeout(timer);
+      // Só ativa demo depois de esgotar as tentativas
+      if (attempt === MAX_RETRIES - 1) {
+        _activateDemoMode();
+        const hero = document.getElementById('hero');
+        if (hero) hero.style.display = '';
+        document.body.style.overflow = '';
+        renderHome();
+        renderMoviesPage();
+        renderSeriesPage();
+      } else {
+        await new Promise(res => setTimeout(res, RETRY_DELAY));
+      }
     }
-  } catch(err) {
-    clearTimeout(timer);
-    // ► Servidor offline → ativa modo demo silenciosamente
-    _activateDemoMode();
-    const hero = document.getElementById('hero');
-    if (hero) hero.style.display = '';
-    document.body.style.overflow = '';
-    renderHome();
-    renderMoviesPage();
-    renderSeriesPage();
   }
 }
 
