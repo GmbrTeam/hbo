@@ -274,34 +274,75 @@ import threading as _threading
 _cache = {}
 CACHE_TTL = 3600  # 1 hora
 
-# ── Cache em disco ────────────────────────────────────────────────────────────
-# Persiste entre restarts do servidor. Formato: {key: {data, ts}} por arquivo.
-CACHE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".cache")
-os.makedirs(CACHE_DIR, exist_ok=True)
-_disk_lock = _threading.Lock()
+# ── Cache global no PostgreSQL ────────────────────────────────────────────────
+# Compartilhado entre todas as instancias e usuarios.
+# Tabela: cache_store(key TEXT PK, data TEXT, updated_at FLOAT)
+# _disk_read/_disk_write mantidos como nomes para nao quebrar o resto do codigo.
 
-def _disk_path(key: str) -> str:
-    safe = re.sub(r"[^a-zA-Z0-9_-]", "_", key)
-    return os.path.join(CACHE_DIR, f"{safe}.json")
+def _init_cache_table():
+    """Cria a tabela cache_store se nao existir."""
+    try:
+        conn = get_db_connection()
+        if not conn:
+            return
+        with conn.cursor() as cur:
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS cache_store (
+                    key         TEXT PRIMARY KEY,
+                    data        TEXT NOT NULL,
+                    updated_at  DOUBLE PRECISION NOT NULL
+                )
+            """)
+        conn.commit()
+        conn.close()
+        print("[CACHE] Tabela cache_store pronta.")
+    except Exception as e:
+        print(f"[CACHE] Falha ao criar cache_store: {e}")
 
 def _disk_read(key: str, ttl: int = None):
+    """Le do PostgreSQL. Retorna None se nao existir ou estiver expirado."""
+    # 1. Memoria local primeiro (evita roundtrip ao banco na mesma instancia)
+    e = _cache.get(f"pg:{key}")
+    effective_ttl = ttl if ttl is not None else CACHE_TTL
+    if e and (time.time() - e["ts"]) < effective_ttl:
+        return e["data"]
+    # 2. Banco
     try:
-        with open(_disk_path(key), "r") as f:
-            entry = _json_stdlib.load(f)
-        effective_ttl = ttl if ttl is not None else CACHE_TTL
-        if (time.time() - entry["ts"]) < effective_ttl:
-            return entry["data"]
-    except Exception:
-        pass
+        conn = get_db_connection()
+        if not conn:
+            return None
+        with conn.cursor() as cur:
+            cur.execute("SELECT data, updated_at FROM cache_store WHERE key = %s", (key,))
+            row = cur.fetchone()
+        conn.close()
+        if row and (time.time() - float(row["updated_at"])) < effective_ttl:
+            data = _json_stdlib.loads(row["data"])
+            _cache[f"pg:{key}"] = {"data": data, "ts": float(row["updated_at"])}
+            return data
+    except Exception as e:
+        print(f"[CACHE] Falha ao ler {key} do banco: {e}")
     return None
 
 def _disk_write(key: str, data):
+    """Salva no PostgreSQL (upsert) e atualiza memoria local."""
+    ts = time.time()
+    _cache[f"pg:{key}"] = {"data": data, "ts": ts}
     try:
-        with _disk_lock:
-            with open(_disk_path(key), "w") as f:
-                _json_stdlib.dump({"data": data, "ts": time.time()}, f)
+        conn = get_db_connection()
+        if not conn:
+            return
+        with conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO cache_store (key, data, updated_at)
+                VALUES (%s, %s, %s)
+                ON CONFLICT (key) DO UPDATE
+                    SET data = EXCLUDED.data,
+                        updated_at = EXCLUDED.updated_at
+            """, (key, _json_stdlib.dumps(data), ts))
+        conn.commit()
+        conn.close()
     except Exception as e:
-        print(f"[CACHE] Falha ao salvar {key} em disco: {e}")
+        print(f"[CACHE] Falha ao salvar {key} no banco: {e}")
 
 def validate_password(password):
     """
@@ -2412,5 +2453,6 @@ def _warmup():
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 9012))
+    _init_cache_table()  # garante que cache_store existe no PostgreSQL
     _warmup()
     app.run(debug=False, port=port, host='0.0.0.0')
