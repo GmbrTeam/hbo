@@ -19,6 +19,115 @@ from psycopg2.extras import RealDictCursor
 import gzip
 import json as _json_mod
 import urllib.request
+import base64 as _base64
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  GITHUB — push do catálogo como JSON estático
+#  O servidor gera o catálogo de hora em hora e faz push pro GitHub.
+#  O frontend lê direto do raw.githubusercontent.com — sem esperar o servidor.
+# ─────────────────────────────────────────────────────────────────────────────
+
+GITHUB_TOKEN     = os.environ.get("GITHUB_TOKEN", "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")
+GITHUB_REPO_NAME = os.environ.get("GITHUB_REPO", "hboplus-catalogo")
+GITHUB_BRANCH    = "main"
+_GH_API          = "https://api.github.com"
+_GH_HEADERS      = lambda: {
+    "Authorization": f"token {GITHUB_TOKEN}",
+    "Accept": "application/vnd.github+json",
+    "X-GitHub-Api-Version": "2022-11-28",
+}
+
+
+def _gh_get_username() -> str:
+    """Retorna o login do dono do token."""
+    r = requests.get(f"{_GH_API}/user", headers=_GH_HEADERS(), timeout=10)
+    r.raise_for_status()
+    return r.json()["login"]
+
+
+def _gh_ensure_repo(username: str) -> str:
+    """Cria o repo se não existir. Retorna o nome completo 'owner/repo'."""
+    full = f"{username}/{GITHUB_REPO_NAME}"
+    r = requests.get(f"{_GH_API}/repos/{full}", headers=_GH_HEADERS(), timeout=10)
+    if r.status_code == 200:
+        print(f"[GITHUB] Repo já existe: {full}")
+        return full
+
+    # Cria o repo com um README para ter ao menos um commit inicial
+    payload = {
+        "name":      GITHUB_REPO_NAME,
+        "description": "Catálogo HBO+ — gerado automaticamente pelo servidor",
+        "private":   False,
+        "auto_init": True,
+    }
+    r = requests.post(f"{_GH_API}/user/repos", headers=_GH_HEADERS(),
+                      json=payload, timeout=15)
+    r.raise_for_status()
+    print(f"[GITHUB] Repo criado: {full}")
+    return full
+
+
+def _gh_push_file(full_repo: str, path: str, content_str: str, message: str):
+    """
+    Cria ou atualiza um arquivo no repositório via API do GitHub.
+    Nunca faz replace destrutivo — usa o sha do arquivo atual se existir.
+    """
+    url = f"{_GH_API}/repos/{full_repo}/contents/{path}"
+
+    # Pega SHA atual (necessário para update)
+    sha = None
+    r = requests.get(url, headers=_GH_HEADERS(), timeout=10)
+    if r.status_code == 200:
+        sha = r.json().get("sha")
+
+    content_b64 = _base64.b64encode(content_str.encode("utf-8")).decode("ascii")
+    payload = {
+        "message": message,
+        "content": content_b64,
+        "branch":  GITHUB_BRANCH,
+    }
+    if sha:
+        payload["sha"] = sha   # obrigatório para update
+
+    r = requests.put(url, headers=_GH_HEADERS(), json=payload, timeout=20)
+    r.raise_for_status()
+    action = "atualizado" if sha else "criado"
+    print(f"[GITHUB] {path} {action}: {r.json()['content']['html_url']}")
+
+
+def push_catalogo_to_github(catalogo: dict, kids: dict | None = None):
+    """
+    Faz push do catálogo (e opcionalmente do kids) como JSON estático no GitHub.
+    Chamado pelo _catalogo_job() após cada atualização.
+    """
+    try:
+        username = "GmbrTeam"
+        full_repo = _gh_ensure_repo(username)
+
+        import time as _time
+        ts = _time.strftime("%Y-%m-%dT%H:%M:%SZ", _time.gmtime())
+
+        # catalogo.json
+        catalogo_json = _json_mod.dumps({"_updated": ts, **catalogo},
+                                        ensure_ascii=False, separators=(",", ":"))
+        _gh_push_file(full_repo, "catalogo.json", catalogo_json,
+                      f"chore: atualiza catalogo [{ts}]")
+
+        # kids.json (se fornecido)
+        if kids:
+            kids_json = _json_mod.dumps({"_updated": ts, **kids},
+                                        ensure_ascii=False, separators=(",", ":"))
+            _gh_push_file(full_repo, "kids.json", kids_json,
+                          f"chore: atualiza kids [{ts}]")
+
+        raw_base = f"https://raw.githubusercontent.com/{full_repo}/{GITHUB_BRANCH}"
+        print(f"[GITHUB] ✅ Push concluído. Raw URL: {raw_base}/catalogo.json")
+        return raw_base
+
+    except Exception as e:
+        print(f"[GITHUB] ❌ Falha no push: {e}")
+        return None
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -554,6 +663,7 @@ def cache_set(key, data):
 def player_urls(tmdb_id, tipo, season=1, ep=1):
     if tipo == "tv":
         return [
+            {"label": "Vidzee",      "url": f"https://player.vidzee.wtf/embed/tv/{tmdb_id}/{season}/{ep}?server=5"},
             {"label": "WarezCDN",    "url": f"https://warezcdn.site/serie/{tmdb_id}/{season}/{ep}"},
             {"label": "VidSrc",      "url": f"https://vidsrc-embed.ru/embed/tv/{tmdb_id}/{season}-{ep}"},
             {"label": "MoviesAPI",   "url": f"https://moviesapi.club/tv/{tmdb_id}-{season}-{ep}"},
@@ -562,6 +672,7 @@ def player_urls(tmdb_id, tipo, season=1, ep=1):
             {"label": "Rivestream",  "url": f"https://rivestream.org/embed?type=tv&id={tmdb_id}&season={season}&episode={ep}"},
         ]
     return [
+        {"label": "Vidzee",      "url": f"https://player.vidzee.wtf/embed/movie/{tmdb_id}?server=5"},
         {"label": "WarezCDN",    "url": f"https://warezcdn.site/filme/{tmdb_id}"},
         {"label": "VidSrc",      "url": f"https://vidsrc-embed.ru/embed/movie/{tmdb_id}"},
         {"label": "MoviesAPI",   "url": f"https://moviesapi.club/movie/{tmdb_id}"},
@@ -1451,7 +1562,9 @@ def _build_catalogo() -> dict:
 def _catalogo_job():
     """
     Job que roda em background e atualiza o catalogo de hora em hora.
-    Nunca deixa o usuario esperar — a route so le o que ja esta pronto.
+    Após cada atualização, faz push do JSON pro GitHub — assim o frontend
+    pode carregar o catálogo diretamente do raw.githubusercontent.com
+    sem depender do servidor estar acordado.
     """
     while True:
         try:
@@ -1459,6 +1572,16 @@ def _catalogo_job():
             resultado = _build_catalogo()
             cache_set("catalogo", resultado)
             print("[CATALOGO] Catalogo atualizado.")
+
+            # Push pro GitHub em thread separada (não bloqueia o job)
+            import threading as _th
+            _th.Thread(
+                target=push_catalogo_to_github,
+                args=(resultado,),
+                daemon=True,
+                name="github-push-catalogo"
+            ).start()
+
         except Exception as e:
             print(f"[CATALOGO] Falha ao atualizar: {e}")
         time.sleep(CACHE_TTL)  # dorme 1h e repete
@@ -1505,7 +1628,34 @@ def kids_catalog():
             resultado[key] = items
 
     cache_set("kids_catalog", resultado)
+
+    # Push do kids pro GitHub em background
+    import threading as _th
+    _th.Thread(
+        target=push_catalogo_to_github,
+        kwargs={"catalogo": {}, "kids": resultado},
+        daemon=True,
+        name="github-push-kids"
+    ).start()
+
     return jsonify(resultado)
+
+
+@app.route("/api/github-catalog-url")
+def github_catalog_url():
+    """
+    Retorna a URL raw do catálogo no GitHub para o frontend usar como
+    fonte primária (evita cold start do Render).
+    """
+    try:
+        username = "GmbrTeam"
+        raw_base = f"https://raw.githubusercontent.com/{username}/{GITHUB_REPO_NAME}/{GITHUB_BRANCH}"
+        return jsonify({
+            "catalogo": f"{raw_base}/catalogo.json",
+            "kids":     f"{raw_base}/kids.json",
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route("/api/kids-search")
@@ -2402,6 +2552,29 @@ def canais_intl():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/api/ep-duration")
+def ep_duration():
+    """
+    GET /api/ep-duration?tmdb_id=&season=1&ep=1
+    Retorna a duração (em segundos) de um episódio via TMDb.
+    Usado pelo sistema de auto-next para o timer de fallback.
+    """
+    tmdb_id = request.args.get("tmdb_id", "")
+    season  = request.args.get("season", "1")
+    ep      = request.args.get("ep", "1")
+    try:
+        r = requests.get(
+            f"{BASE}/tv/{tmdb_id}/season/{season}/episode/{ep}",
+            params={"api_key": API_KEY},
+            timeout=8,
+        )
+        data    = r.json()
+        runtime = data.get("runtime") or 42
+        return jsonify({"duration": runtime * 60})
+    except Exception as e:
+        return jsonify({"duration": 42 * 60, "error": str(e)})
+
+
 @app.errorhandler(404)
 def not_found(e):
     print(f"[DEBUG] 404 - Path: {request.path} - Method: {request.method}")
@@ -2427,6 +2600,8 @@ def _warmup():
                 resultado = _build_catalogo()
                 cache_set("catalogo", resultado)
                 print("[WARMUP] Catalogo inicial pronto.")
+                # Push imediato pro GitHub
+                push_catalogo_to_github(resultado)
             else:
                 print("[WARMUP] Cache do catalogo encontrado, pulando build inicial.")
         except Exception as e:

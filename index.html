@@ -796,6 +796,130 @@
     </div>
 </div>
 
+<!-- Quality Sub-Screen -->
+<div id="qualityScreen" class="fixed inset-0 z-[600] hidden flex-col"
+     style="background:rgba(5,0,15,.98);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);">
+
+  <!-- Header -->
+  <div style="display:flex;align-items:center;justify-content:space-between;
+              padding:max(20px,env(safe-area-inset-top,20px)) 20px 16px;
+              border-bottom:1px solid rgba(255,255,255,.06);flex-shrink:0;">
+    <div style="display:flex;align-items:center;gap:12px;">
+      <div style="width:36px;height:36px;border-radius:50%;background:rgba(157,0,255,.15);
+                  border:1px solid rgba(157,0,255,.3);display:flex;align-items:center;justify-content:center;">
+        <i class="fas fa-sliders-h" style="color:#c084fc;font-size:13px;"></i>
+      </div>
+      <div>
+        <p style="font-size:15px;font-weight:800;color:#fff;letter-spacing:-.01em;">Qualidade de Streaming</p>
+        <p style="font-size:11px;color:rgba(255,255,255,.35);margin-top:1px;">Escolha a resolução padrão</p>
+      </div>
+    </div>
+    <button onclick="closeQualityScreen()" style="
+      width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,.07);
+      border:1px solid rgba(255,255,255,.12);display:flex;align-items:center;justify-content:center;
+      cursor:pointer;transition:background .18s,border-color .18s;"
+      onmouseenter="this.style.background='rgba(255,255,255,.14)';this.style.borderColor='rgba(255,255,255,.25)'"
+      onmouseleave="this.style.background='rgba(255,255,255,.07)';this.style.borderColor='rgba(255,255,255,.12)'">
+      <i class="fas fa-times" style="color:rgba(255,255,255,.7);font-size:13px;"></i>
+    </button>
+  </div>
+
+  <!-- Options -->
+  <div style="flex:1;overflow-y:auto;padding:20px 20px 40px;" class="scroll-hide">
+    <div id="qualityPickerMain" style="display:flex;flex-direction:column;gap:10px;max-width:480px;margin:0 auto;"></div>
+    <p id="qualityDescMain" style="font-size:12px;color:rgba(255,255,255,.3);line-height:1.6;
+       max-width:480px;margin:16px auto 0;min-height:36px;transition:opacity .2s;padding:0 2px;"></p>
+  </div>
+</div>
+
+<script>
+(function(){
+  const OPTS=[
+    {id:'auto',  label:'Auto',        sub:'Adapta à conexão',  badge:null,           desc:'Ajusta automaticamente a qualidade com base na velocidade da sua internet em tempo real.'},
+    {id:'4k',    label:'4K Ultra HD', sub:'2160p · HDR',       badge:'Diamante',     desc:'Resolução máxima com suporte a HDR. Requer conexão de pelo menos 25 Mbps.'},
+    {id:'1080p', label:'Full HD',     sub:'1080p',             badge:'Premium',      desc:'Qualidade excelente para a maioria das telas. Ideal para conexões de 5–10 Mbps.'},
+    {id:'720p',  label:'HD',          sub:'720p',              badge:'Standard',     desc:'Boa qualidade com menor consumo de dados. Recomendado para redes móveis.'},
+    {id:'480p',  label:'SD',          sub:'480p',              badge:'Standard',     desc:'Menor uso de dados. Indicado para conexões lentas ou planos com franquia limitada.'},
+  ];
+
+  function getSel(){ return localStorage.getItem('hbo_quality')||'4k'; }
+
+  function renderMain(){
+    const sel=getSel();
+    const wrap=document.getElementById('qualityPickerMain');
+    const desc=document.getElementById('qualityDescMain');
+    if(!wrap) return;
+    wrap.innerHTML=OPTS.map(o=>{
+      const active=o.id===sel;
+      return `<button onclick="window.__qpick('${o.id}')" style="
+        display:flex;align-items:center;gap:14px;
+        background:${active?'rgba(157,0,255,.13)':'rgba(255,255,255,.03)'};
+        border:1.5px solid ${active?'rgba(157,0,255,.6)':'rgba(255,255,255,.09)'};
+        border-radius:16px;padding:14px 16px;cursor:pointer;
+        transition:background .18s,border-color .18s;text-align:left;width:100%;
+        box-shadow:${active?'0 0 0 3px rgba(157,0,255,.1)':'none'};">
+        <div style="width:20px;height:20px;border-radius:50%;flex-shrink:0;
+          border:2px solid ${active?'#9d00ff':'rgba(255,255,255,.25)'};
+          background:${active?'#9d00ff':'transparent'};
+          display:flex;align-items:center;justify-content:center;">
+          ${active?'<div style="width:7px;height:7px;border-radius:50%;background:#fff;"></div>':''}
+        </div>
+        <div style="flex:1;min-width:0;">
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+            <span style="font-size:14px;font-weight:800;color:${active?'#fff':'rgba(255,255,255,.75)'};">${o.label}</span>
+            ${o.badge?`<span style="font-size:9px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;
+              padding:2px 9px;border-radius:99px;
+              background:${o.badge==='Diamante'?'rgba(125,211,252,.12)':o.badge==='Premium'?'rgba(157,0,255,.18)':'rgba(255,255,255,.08)'};
+              color:${o.badge==='Diamante'?'#7dd3fc':o.badge==='Premium'?'#c084fc':'rgba(255,255,255,.55)'};
+              border:1px solid ${o.badge==='Diamante'?'rgba(125,211,252,.35)':o.badge==='Premium'?'rgba(157,0,255,.4)':'rgba(255,255,255,.18)'};">${o.badge}</span>`:''}
+          </div>
+          <span style="font-size:12px;color:rgba(255,255,255,.38);margin-top:2px;display:block;">${o.sub}</span>
+        </div>
+        ${active?'<i class="fas fa-check" style="color:#9d00ff;font-size:13px;flex-shrink:0;"></i>':''}
+      </button>`;
+    }).join('');
+    const cur=OPTS.find(o=>o.id===sel);
+    if(desc) desc.textContent=cur?cur.desc:'';
+    // update label on trigger button
+    const lbl=document.getElementById('qualityBtnLabel');
+    if(lbl&&cur) lbl.textContent=cur.label;
+  }
+
+  window.__qpick=function(id){
+    localStorage.setItem('hbo_quality',id);
+    renderMain();
+  };
+
+  window.openQualityScreen=function(){
+    const s=document.getElementById('qualityScreen');
+    if(!s) return;
+    renderMain();
+    s.classList.remove('hidden');
+    s.classList.add('flex');
+    document.body.style.overflow='hidden';
+  };
+
+  window.closeQualityScreen=function(){
+    const s=document.getElementById('qualityScreen');
+    if(!s) return;
+    s.classList.add('hidden');
+    s.classList.remove('flex');
+    document.body.style.overflow='';
+  };
+
+  // Init label on load
+  document.addEventListener('DOMContentLoaded',()=>{
+    const lbl=document.getElementById('qualityBtnLabel');
+    const cur=OPTS.find(o=>o.id===getSel());
+    if(lbl&&cur) lbl.textContent=cur.label;
+  });
+  // fallback se DOMContentLoaded já disparou
+  const lbl=document.getElementById('qualityBtnLabel');
+  const cur=OPTS.find(o=>o.id===getSel());
+  if(lbl&&cur) lbl.textContent=cur.label;
+})();
+</script>
+
 <!-- Settings Modal -->
 <div id="settingsModal" class="fixed inset-0 z-[300] hidden items-center justify-center p-6">
     <div class="absolute inset-0 bg-black/80 backdrop-blur-sm" onclick="closeSettingsModal()"></div>
@@ -1816,6 +1940,11 @@
                 class="text-white text-xs font-bold flex items-center gap-1 hover:text-purple-400 transition px-3 py-1.5 rounded-lg bg-purple-600/30 hover:bg-purple-600/50 border border-purple-500/40">
                 Próximo <i class="fas fa-step-forward text-[10px]"></i>
             </button>
+            <button id="autoplayToggleBtn" onclick="toggleAutoplay()" title="Autoplay"
+                style="display:none; align-items:center; gap:5px; padding:5px 10px; border-radius:8px; border:1px solid rgba(255,255,255,.15); background:rgba(255,255,255,.05); color:rgba(255,255,255,.6); font-size:10px; font-weight:800; cursor:pointer; transition:.2s; letter-spacing:.05em;">
+                <i id="autoplayIcon" class="fas fa-infinity" style="font-size:11px;"></i>
+                <span id="autoplayLabel">AUTO</span>
+            </button>
             <div id="sourceBtns" class="flex gap-2"></div>
         </div>
     </div>
@@ -1866,6 +1995,31 @@
     <div class="flex-none flex justify-center py-2 bg-black/60">
         <button id="notWorkingBtn" class="hidden text-[10px] text-yellow-400 border border-yellow-400/30 bg-yellow-400/10 hover:bg-yellow-400/20 px-4 py-1.5 rounded-full font-bold transition">
         </button>
+    </div>
+</div>
+
+<!-- ── Autoplay próximo episódio ── -->
+<div id="nextEpBanner" style="display:none; position:fixed; bottom:80px; right:20px; z-index:210; width:300px; max-width:calc(100vw - 32px);">
+    <div style="background:rgba(10,5,20,0.96);border:1px solid rgba(157,0,255,0.45);border-radius:16px;padding:16px;backdrop-filter:blur(20px);box-shadow:0 8px 32px rgba(0,0,0,0.6);">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+            <span style="font-size:10px;font-weight:800;letter-spacing:.1em;color:rgba(255,255,255,.5);text-transform:uppercase;">Próximo episódio</span>
+            <button onclick="cancelAutoplay()" style="background:rgba(255,255,255,.08);border:none;border-radius:6px;width:22px;height:22px;color:rgba(255,255,255,.5);cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center;">✕</button>
+        </div>
+        <div id="nextEpInfo" style="font-size:13px;font-weight:700;color:white;margin-bottom:12px;line-height:1.4;"></div>
+        <!-- Progress bar countdown -->
+        <div style="background:rgba(255,255,255,.12);border-radius:99px;height:3px;margin-bottom:12px;overflow:hidden;">
+            <div id="nextEpProgress" style="height:100%;background:linear-gradient(90deg,#9d00ff,#6366f1);border-radius:99px;width:100%;transition:width .5s linear;"></div>
+        </div>
+        <div style="display:flex;gap:8px;">
+            <button onclick="triggerAutoplayNow()"
+                style="flex:1;background:linear-gradient(135deg,#7c3aed,#9d00ff);border:none;border-radius:10px;color:white;font-size:11px;font-weight:800;padding:9px 14px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;">
+                <i class="fas fa-play" style="font-size:9px;"></i> Assistir agora
+            </button>
+            <button onclick="cancelAutoplay()"
+                style="background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.15);border-radius:10px;color:rgba(255,255,255,.6);font-size:11px;font-weight:700;padding:9px 12px;cursor:pointer;">
+                Cancelar
+            </button>
+        </div>
     </div>
 </div>
 
@@ -5602,13 +5756,13 @@ function evCopyUrl(btn) {
     <div class="bg-white/5 rounded-2xl p-6 border border-white/10 mb-6">
         <h3 class="text-xs font-bold uppercase tracking-widest text-gray-500 mb-4">Assinatura</h3>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-            <button disabled class="opacity-50 cursor-not-allowed bg-white/5 border border-white/10 px-6 py-4 rounded-xl font-bold flex items-center gap-3 text-left relative overflow-hidden">
+            <button onclick="showSection('plans')" class="bg-white/5 hover:bg-white/10 border border-white/10 px-6 py-4 rounded-xl font-bold flex items-center gap-3 transition text-left">
                 <i class="fas fa-crown text-yellow-400"></i>
                 <div class="flex-1">
-                    <div class="text-white flex items-center gap-2">Planos <span class="text-[9px] font-black px-2 py-0.5 rounded-full bg-yellow-400/15 text-yellow-400 border border-yellow-400/30 uppercase tracking-wider">Em breve</span></div>
+                    <div class="text-white">Planos</div>
                     <div class="text-[10px] text-gray-500">Ver e alterar seu plano atual</div>
                 </div>
-                <i class="fas fa-lock text-gray-600 text-sm ml-auto flex-none"></i>
+                <i class="fas fa-chevron-right text-gray-600 text-sm ml-auto flex-none"></i>
             </button>
             <button disabled class="opacity-50 cursor-not-allowed bg-white/5 border border-white/10 px-6 py-4 rounded-xl font-bold flex items-center gap-3 text-left relative overflow-hidden">
                 <i class="fas fa-credit-card text-green-400"></i>
@@ -5692,16 +5846,25 @@ function evCopyUrl(btn) {
           <option value="fr">🇫🇷 Français</option>
         </select>
       </div>
-      <!-- Qualidade -->
+      <!-- Qualidade — abre sub-tela -->
       <div>
         <label class="text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-2 block">Qualidade de Streaming</label>
-        <select class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-purple-500 transition">
-          <option>Auto</option>
-          <option>4K Ultra HD</option>
-          <option>1080p Full HD</option>
-          <option>720p HD</option>
-          <option>480p SD</option>
-        </select>
+        <button onclick="openQualityScreen()" style="
+          display:flex;align-items:center;justify-content:space-between;
+          width:100%;background:rgba(255,255,255,.05);
+          border:1px solid rgba(255,255,255,.10);border-radius:14px;
+          padding:13px 16px;cursor:pointer;transition:background .18s,border-color .18s;"
+          onmouseenter="this.style.background='rgba(255,255,255,.08)';this.style.borderColor='rgba(157,0,255,.35)'"
+          onmouseleave="this.style.background='rgba(255,255,255,.05)';this.style.borderColor='rgba(255,255,255,.10)'">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <i class="fas fa-sliders-h" style="color:rgba(157,0,255,.8);font-size:14px;"></i>
+            <span style="font-size:13px;font-weight:700;color:#fff;">Qualidade</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span id="qualityBtnLabel" style="font-size:12px;color:rgba(255,255,255,.4);font-weight:600;"></span>
+            <i class="fas fa-chevron-right" style="font-size:10px;color:rgba(255,255,255,.3);"></i>
+          </div>
+        </button>
       </div>
       <!-- Toggles -->
       <div class="space-y-3">
@@ -5732,55 +5895,650 @@ function evCopyUrl(btn) {
   </div>
 </div>
 
-<!-- ══ MODAL: Planos ══ -->
-<div id="plansModal" class="fixed inset-0 z-[500] hidden items-center justify-center p-4 overflow-y-auto" style="background:rgba(0,0,0,.85);backdrop-filter:blur(8px);">
-  <div class="relative bg-zinc-900 border border-white/10 rounded-2xl w-full max-w-lg p-6 shadow-2xl animate-fade">
-    <div class="flex items-center justify-between mb-6">
-      <h3 class="text-lg font-black uppercase tracking-tight text-white flex items-center gap-2"><i class="fas fa-crown text-yellow-400"></i> Planos</h3>
-      <button onclick="closeModal('plansModal')" class="w-8 h-8 rounded-full bg-white/5 hover:bg-white/15 flex items-center justify-center text-gray-400 hover:text-white transition"><i class="fas fa-times text-sm"></i></button>
+<!-- ══ TELA: Planos ══ -->
+<style>
+/* ══ PLANS SECTION ══════════════════════════════════════════════════════════ */
+#section-plans {
+    min-height: 100vh;
+    padding-top: 80px;
+    padding-bottom: 120px;
+    position: relative;
+    overflow-x: hidden;
+    background: radial-gradient(ellipse 80% 40% at 50% 0%, rgba(157,0,255,.12) 0%, transparent 70%);
+}
+#section-plans::before {
+    content: '';
+    position: absolute; inset: 0; pointer-events: none;
+    background:
+        radial-gradient(circle 600px at 10% 30%, rgba(157,0,255,.06) 0%, transparent 70%),
+        radial-gradient(circle 400px at 90% 60%, rgba(124,58,237,.05) 0%, transparent 70%);
+}
+
+/* Toggle */
+.plan-toggle-wrap {
+    display: inline-flex;
+    background: rgba(255,255,255,.05);
+    border: 1px solid rgba(255,255,255,.1);
+    border-radius: 99px;
+    padding: 4px;
+    gap: 2px;
+}
+.plan-toggle-btn {
+    padding: 9px 24px;
+    border-radius: 99px;
+    font-size: 13px;
+    font-weight: 800;
+    border: none;
+    cursor: pointer;
+    transition: all .25s;
+    background: transparent;
+    color: rgba(255,255,255,.4);
+    letter-spacing: .02em;
+}
+.plan-toggle-btn.active { background: #fff; color: #000; }
+
+/* Cards */
+.plan-card {
+    position: relative;
+    border-radius: 28px;
+    border: 1px solid rgba(255,255,255,.07);
+    background: rgba(255,255,255,.025);
+    padding: 36px 28px 28px;
+    display: flex;
+    flex-direction: column;
+    transition: all .35s cubic-bezier(.22,1,.36,1);
+    cursor: pointer;
+    overflow: hidden;
+}
+.plan-card::after {
+    content: '';
+    position: absolute; inset: 0; border-radius: 28px;
+    background: radial-gradient(circle 200px at 50% 0%, rgba(255,255,255,.04) 0%, transparent 70%);
+    pointer-events: none;
+}
+.plan-card:hover {
+    border-color: rgba(255,255,255,.18);
+    background: rgba(255,255,255,.05);
+    transform: translateY(-6px);
+    box-shadow: 0 24px 60px rgba(0,0,0,.4);
+}
+
+/* Card Padrão (featured) */
+.plan-card.featured {
+    border: 1.5px solid rgba(157,0,255,.65);
+    background: rgba(157,0,255,.07);
+    box-shadow: 0 0 0 1px rgba(157,0,255,.1), 0 20px 50px rgba(157,0,255,.15);
+}
+.plan-card.featured::after {
+    background: radial-gradient(circle 220px at 50% 0%, rgba(157,0,255,.18) 0%, transparent 70%);
+}
+.plan-card.featured:hover {
+    border-color: rgba(157,0,255,.9);
+    background: rgba(157,0,255,.12);
+    box-shadow: 0 0 0 1px rgba(157,0,255,.25), 0 30px 70px rgba(157,0,255,.25);
+}
+
+/* Card Premium (ouro) */
+.plan-card.premium-card {
+    border: 1.5px solid rgba(250,191,36,.3);
+    background: rgba(250,191,36,.035);
+}
+.plan-card.premium-card::after {
+    background: radial-gradient(circle 220px at 50% 0%, rgba(250,191,36,.1) 0%, transparent 70%);
+}
+.plan-card.premium-card:hover {
+    border-color: rgba(250,191,36,.6);
+    background: rgba(250,191,36,.07);
+    box-shadow: 0 24px 60px rgba(250,191,36,.1);
+}
+
+.plan-badge {
+    position: absolute; top: -14px; left: 50%; transform: translateX(-50%);
+    background: linear-gradient(135deg, #9d00ff, #7c3aed);
+    color: #fff; font-size: 10px; font-weight: 900;
+    letter-spacing: .12em; text-transform: uppercase;
+    padding: 5px 18px; border-radius: 99px; white-space: nowrap;
+    box-shadow: 0 4px 14px rgba(157,0,255,.5);
+}
+.plan-badge-gold {
+    position: absolute; top: -14px; left: 50%; transform: translateX(-50%);
+    background: linear-gradient(135deg, #f59e0b, #d97706);
+    color: #000; font-size: 10px; font-weight: 900;
+    letter-spacing: .12em; text-transform: uppercase;
+    padding: 5px 18px; border-radius: 99px; white-space: nowrap;
+    box-shadow: 0 4px 14px rgba(250,191,36,.4);
+}
+
+.plan-icon {
+    width: 52px; height: 52px; border-radius: 16px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 24px; margin-bottom: 22px; flex-shrink: 0;
+}
+.plan-name { font-size: 24px; font-weight: 900; color: #fff; margin-bottom: 4px; letter-spacing: -.03em; }
+.plan-desc { font-size: 13px; color: rgba(255,255,255,.38); margin-bottom: 24px; line-height: 1.55; }
+
+.plan-price-wrap { display: flex; align-items: baseline; gap: 5px; margin-bottom: 4px; }
+.plan-price { font-size: 42px; font-weight: 900; color: #fff; line-height: 1; letter-spacing: -.04em; }
+.plan-price-currency { font-size: 18px; font-weight: 700; color: rgba(255,255,255,.6); align-self: flex-start; padding-top: 8px; }
+.plan-price-period { font-size: 13px; color: rgba(255,255,255,.38); }
+.plan-price-annual { font-size: 11px; color: rgba(255,255,255,.28); margin-bottom: 24px; min-height: 16px; }
+
+.plan-divider { height: 1px; background: rgba(255,255,255,.06); margin: 20px 0; }
+
+.plan-feature {
+    display: flex; align-items: center; gap: 11px;
+    font-size: 13px; color: rgba(255,255,255,.72);
+    padding: 6px 0;
+}
+.plan-feature .feat-icon {
+    width: 20px; height: 20px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 6px;
+}
+.feat-check { color: #4ade80; font-size: 11px; }
+.feat-x     { color: rgba(255,255,255,.18); font-size: 10px; }
+.feat-icon-yes { background: rgba(74,222,128,.12); }
+.feat-icon-no  { background: rgba(255,255,255,.04); }
+
+/* Destaque especial para fontes premium */
+.plan-feature.sources-highlight {
+    background: rgba(157,0,255,.08);
+    border: 1px solid rgba(157,0,255,.2);
+    border-radius: 10px;
+    padding: 8px 10px;
+    margin: 4px 0;
+    color: #c084fc;
+}
+.plan-feature.sources-highlight .feat-icon-yes { background: rgba(157,0,255,.2); }
+.plan-feature.sources-highlight .feat-check { color: #c084fc; }
+
+.plan-cta {
+    width: 100%; padding: 15px;
+    border-radius: 16px; font-size: 14px; font-weight: 800;
+    border: none; cursor: pointer; transition: all .25s;
+    letter-spacing: .03em; margin-top: 28px;
+}
+.plan-cta-primary {
+    background: linear-gradient(135deg, #9d00ff, #7c3aed);
+    color: #fff; box-shadow: 0 6px 24px rgba(157,0,255,.4);
+}
+.plan-cta-primary:hover { filter: brightness(1.12); transform: translateY(-2px); box-shadow: 0 12px 32px rgba(157,0,255,.5); }
+.plan-cta-ghost {
+    background: rgba(255,255,255,.06); color: rgba(255,255,255,.75);
+    border: 1px solid rgba(255,255,255,.12);
+}
+.plan-cta-ghost:hover { background: rgba(255,255,255,.11); color: #fff; border-color: rgba(255,255,255,.25); }
+.plan-cta-gold {
+    background: linear-gradient(135deg, #f59e0b, #d97706);
+    color: #000; font-weight: 900;
+    box-shadow: 0 6px 24px rgba(250,191,36,.3);
+}
+.plan-cta-gold:hover { filter: brightness(1.1); transform: translateY(-2px); box-shadow: 0 12px 32px rgba(250,191,36,.4); }
+.plan-cta-current {
+    background: rgba(255,255,255,.04); color: rgba(255,255,255,.3);
+    border: 1px solid rgba(255,255,255,.06); cursor: default;
+}
+
+/* Comparação */
+.compare-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.compare-table th { font-size: 10px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: rgba(255,255,255,.3); padding: 14px 16px; text-align: left; border-bottom: 1px solid rgba(255,255,255,.06); }
+.compare-table th:not(:first-child) { text-align: center; }
+.compare-table td { padding: 13px 16px; border-bottom: 1px solid rgba(255,255,255,.035); color: rgba(255,255,255,.62); }
+.compare-table td:not(:first-child) { text-align: center; }
+.compare-table tr:hover td { background: rgba(255,255,255,.02); }
+.compare-check { color: #4ade80; }
+.compare-x     { color: rgba(255,255,255,.18); }
+.compare-featured-col { background: rgba(157,0,255,.055); }
+
+/* FAQ */
+.faq-item { border-bottom: 1px solid rgba(255,255,255,.05); }
+.faq-q {
+    width: 100%; background: none; border: none;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 20px 0; cursor: pointer;
+    font-size: 14px; font-weight: 700; color: rgba(255,255,255,.78);
+    text-align: left; gap: 12px; transition: color .2s;
+}
+.faq-q:hover { color: #fff; }
+.faq-a { font-size: 13px; color: rgba(255,255,255,.42); padding-bottom: 20px; line-height: 1.75; display: none; }
+.faq-a.open { display: block; }
+.faq-arrow { font-size: 11px; color: rgba(255,255,255,.25); flex-shrink: 0; transition: transform .25s; }
+.faq-q.open .faq-arrow { transform: rotate(180deg); color: #9d00ff; }
+
+/* Garantia */
+.garantia-card {
+    border: 1px solid rgba(34,197,94,.18);
+    background: rgba(34,197,94,.035);
+    border-radius: 24px; padding: 32px;
+    display: flex; align-items: center; gap: 24px; flex-wrap: wrap;
+}
+@media(max-width:640px){ .garantia-card { flex-direction: column; text-align: center; } }
+
+/* Trust bar */
+.trust-bar {
+    display: flex; align-items: center; justify-content: center; gap: 32px;
+    flex-wrap: wrap; padding: 28px 0;
+}
+.trust-item { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 700; color: rgba(255,255,255,.35); }
+.trust-item i { color: rgba(157,0,255,.6); font-size: 14px; }
+
+/* Fontes destaque na seção */
+.sources-unlock-banner {
+    background: linear-gradient(135deg, rgba(157,0,255,.12), rgba(124,58,237,.08));
+    border: 1px solid rgba(157,0,255,.25);
+    border-radius: 20px; padding: 24px 28px;
+    display: flex; align-items: center; gap: 20px; flex-wrap: wrap;
+}
+@media(max-width:600px){ .sources-unlock-banner { flex-direction: column; text-align: center; } }
+</style>
+
+<div id="section-plans" class="page-section hidden">
+
+    <!-- Header -->
+    <div style="padding: 32px 20px 0; max-width: 960px; margin: 0 auto; text-align: center; position:relative; z-index:1;">
+        <button onclick="history.back ? showSection('profile') : showSection('home')" style="display:inline-flex;align-items:center;gap:8px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:99px;padding:8px 18px;color:rgba(255,255,255,.45);font-size:12px;font-weight:700;cursor:pointer;margin-bottom:36px;transition:all .2s;" onmouseover="this.style.color='#fff';this.style.borderColor='rgba(255,255,255,.2)'" onmouseout="this.style.color='rgba(255,255,255,.45)';this.style.borderColor='rgba(255,255,255,.08)'">
+            <i class="fas fa-arrow-left" style="font-size:10px;"></i> Voltar
+        </button>
+
+        <!-- Eyebrow -->
+        <div style="display:inline-flex;align-items:center;gap:8px;background:rgba(157,0,255,.12);border:1px solid rgba(157,0,255,.28);border-radius:99px;padding:7px 18px;font-size:11px;font-weight:900;color:#c084fc;letter-spacing:.14em;text-transform:uppercase;margin-bottom:22px;">
+            <i class="fas fa-crown" style="font-size:10px;"></i> Planos HBO+
+        </div>
+
+        <h1 style="font-size:clamp(2.2rem,5.5vw,3.6rem);font-weight:900;color:#fff;letter-spacing:-.05em;margin-bottom:14px;line-height:1.02;">
+            Escolha a sua<br><span style="background:linear-gradient(135deg,#9d00ff,#c084fc);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">experiência</span>
+        </h1>
+        <p style="font-size:15px;color:rgba(255,255,255,.38);max-width:460px;margin:0 auto 12px;line-height:1.65;">Filmes, séries, futebol ao vivo e as melhores fontes de vídeo. Cancele quando quiser.</p>
+
+        <!-- Trust bar inline -->
+        <div class="trust-bar" style="margin-bottom:28px;">
+            <div class="trust-item"><i class="fas fa-lock"></i> Pagamento seguro</div>
+            <div class="trust-item"><i class="fas fa-sync-alt"></i> Cancele quando quiser</div>
+            <div class="trust-item"><i class="fas fa-shield-alt"></i> 7 dias de garantia</div>
+            <div class="trust-item"><i class="fas fa-play-circle"></i> Acesso imediato</div>
+        </div>
+
+        <!-- Toggle mensal/anual -->
+        <div class="plan-toggle-wrap" style="margin-bottom:10px;">
+            <button class="plan-toggle-btn active" id="toggleMensal" onclick="setPlanPeriod('mensal')">Mensal</button>
+            <button class="plan-toggle-btn" id="toggleAnual" onclick="setPlanPeriod('anual')">Anual <span style="font-size:10px;background:rgba(74,222,128,.15);color:#4ade80;border-radius:99px;padding:1px 7px;margin-left:4px;">-25%</span></button>
+        </div>
+        <p id="anualSavingsBadge" style="font-size:12px;color:#4ade80;font-weight:700;opacity:0;transition:opacity .3s;margin-bottom:0;">🎉 Economize até 25% no plano anual</p>
     </div>
-    <!-- Plano atual -->
-    <div class="bg-purple-600/15 border border-purple-500/40 rounded-xl p-4 mb-5 flex items-center gap-4">
-      <div class="w-10 h-10 rounded-full bg-purple-600/30 flex items-center justify-center"><i class="fas fa-check text-purple-300"></i></div>
-      <div>
-        <p class="text-[10px] font-bold uppercase tracking-widest text-purple-400">Plano Atual</p>
-        <p class="text-white font-black text-base">Premium 4K</p>
-        <p class="text-gray-400 text-xs">Renovação em 15/05/2026 · R$ 39,90/mês</p>
-      </div>
+
+    <!-- Banner fontes premium -->
+    <div style="padding: 32px 20px 0; max-width: 960px; margin: 0 auto; position:relative;z-index:1;">
+        <div class="sources-unlock-banner">
+            <div style="width:48px;height:48px;background:rgba(157,0,255,.18);border:1px solid rgba(157,0,255,.3);border-radius:14px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                <i class="fas fa-lock-open" style="color:#c084fc;font-size:20px;"></i>
+            </div>
+            <div style="flex:1;min-width:200px;">
+                <p style="font-size:15px;font-weight:900;color:#fff;margin-bottom:4px;">Desbloqueie as melhores fontes de vídeo</p>
+                <p style="font-size:13px;color:rgba(255,255,255,.45);line-height:1.5;">Qualquer plano pago dá acesso às fontes <strong style="color:#c084fc;">Vidzee ⭐</strong>, <strong style="color:#c084fc;">WarezCDN 🇧🇷</strong> e <strong style="color:#c084fc;">Rivestream</strong> — mais estáveis, com melhor qualidade e dublagem em PT.</p>
+            </div>
+            <button onclick="selectPlan('padrao')" style="background:linear-gradient(135deg,#9d00ff,#7c3aed);color:#fff;border:none;border-radius:14px;padding:12px 22px;font-size:13px;font-weight:800;cursor:pointer;white-space:nowrap;flex-shrink:0;transition:all .2s;box-shadow:0 6px 20px rgba(157,0,255,.35);" onmouseover="this.style.filter='brightness(1.12)'" onmouseout="this.style.filter=''">
+                Assinar agora
+            </button>
+        </div>
     </div>
-    <!-- Opções -->
-    <div class="space-y-3">
-      <div class="bg-white/5 border border-white/10 rounded-xl p-4 flex justify-between items-center hover:border-white/20 transition cursor-pointer">
-        <div>
-          <p class="text-white font-bold">Básico</p>
-          <p class="text-gray-500 text-xs">1 tela • 720p HD</p>
+
+    <!-- Cards de planos -->
+    <div style="padding: 36px 20px 0; max-width: 960px; margin: 0 auto; position:relative;z-index:1;">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:20px;align-items:center;">
+
+            <!-- Básico -->
+            <div class="plan-card" onclick="selectPlan('basico')">
+                <div class="plan-icon" style="background:rgba(255,255,255,.06);">📱</div>
+                <div class="plan-name">Básico</div>
+                <div class="plan-desc">Ideal para assistir no celular ou tablet com acesso completo.</div>
+                <div class="plan-price-wrap">
+                    <span class="plan-price-currency">R$</span>
+                    <span class="plan-price" id="price-basico">19,90</span>
+                    <span class="plan-price-period">/mês</span>
+                </div>
+                <div class="plan-price-annual" id="annual-basico"></div>
+                <div class="plan-divider"></div>
+                <div class="plan-feature"><span class="feat-icon feat-icon-yes"><i class="fas fa-check feat-check"></i></span> 1 tela simultânea</div>
+                <div class="plan-feature"><span class="feat-icon feat-icon-yes"><i class="fas fa-check feat-check"></i></span> Qualidade 720p HD</div>
+                <div class="plan-feature"><span class="feat-icon feat-icon-yes"><i class="fas fa-check feat-check"></i></span> Catálogo completo</div>
+                <div class="plan-feature sources-highlight"><span class="feat-icon feat-icon-yes"><i class="fas fa-check feat-check"></i></span> <span>Fontes premium desbloqueadas <span style="font-size:10px;opacity:.7;">(Vidzee, WarezCDN, Rive)</span></span></div>
+                <div class="plan-feature"><span class="feat-icon feat-icon-no"><i class="fas fa-times feat-x"></i></span> <span style="color:rgba(255,255,255,.25)">Downloads offline</span></div>
+                <div class="plan-feature"><span class="feat-icon feat-icon-no"><i class="fas fa-times feat-x"></i></span> <span style="color:rgba(255,255,255,.25)">Modo Kids protegido</span></div>
+                <div class="plan-feature"><span class="feat-icon feat-icon-no"><i class="fas fa-times feat-x"></i></span> <span style="color:rgba(255,255,255,.25)">Qualidade 4K</span></div>
+                <button class="plan-cta plan-cta-ghost">Assinar Básico</button>
+            </div>
+
+            <!-- Padrão (destaque) -->
+            <div class="plan-card featured" style="margin-top:-16px;" onclick="selectPlan('padrao')">
+                <div class="plan-badge"><i class="fas fa-fire" style="font-size:9px;margin-right:5px;"></i>Mais Popular</div>
+                <div class="plan-icon" style="background:rgba(157,0,255,.18);">🖥️</div>
+                <div class="plan-name">Padrão</div>
+                <div class="plan-desc">Perfeito para famílias. Qualidade Full HD em até 2 telas.</div>
+                <div class="plan-price-wrap">
+                    <span class="plan-price-currency" style="color:rgba(192,132,252,.7);">R$</span>
+                    <span class="plan-price" id="price-padrao" style="background:linear-gradient(135deg,#c084fc,#9d00ff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">29,90</span>
+                    <span class="plan-price-period">/mês</span>
+                </div>
+                <div class="plan-price-annual" id="annual-padrao"></div>
+                <div class="plan-divider" style="background:rgba(157,0,255,.18);"></div>
+                <div class="plan-feature"><span class="feat-icon feat-icon-yes"><i class="fas fa-check feat-check"></i></span> 2 telas simultâneas</div>
+                <div class="plan-feature"><span class="feat-icon feat-icon-yes"><i class="fas fa-check feat-check"></i></span> Qualidade 1080p Full HD</div>
+                <div class="plan-feature"><span class="feat-icon feat-icon-yes"><i class="fas fa-check feat-check"></i></span> Catálogo completo</div>
+                <div class="plan-feature sources-highlight"><span class="feat-icon feat-icon-yes"><i class="fas fa-check feat-check"></i></span> <span>Fontes premium desbloqueadas <span style="font-size:10px;opacity:.7;">(Vidzee, WarezCDN, Rive)</span></span></div>
+                <div class="plan-feature"><span class="feat-icon feat-icon-yes"><i class="fas fa-check feat-check"></i></span> Downloads offline</div>
+                <div class="plan-feature"><span class="feat-icon feat-icon-yes"><i class="fas fa-check feat-check"></i></span> Modo Kids protegido</div>
+                <div class="plan-feature"><span class="feat-icon feat-icon-no"><i class="fas fa-times feat-x"></i></span> <span style="color:rgba(255,255,255,.25)">Qualidade 4K</span></div>
+                <button class="plan-cta plan-cta-primary">Assinar Padrão</button>
+            </div>
+
+            <!-- Premium 4K -->
+            <div class="plan-card premium-card" onclick="selectPlan('premium')">
+                <div class="plan-badge-gold"><i class="fas fa-crown" style="font-size:9px;margin-right:5px;"></i>Máxima Qualidade</div>
+                <div class="plan-icon" style="background:rgba(250,191,36,.12);">👑</div>
+                <div class="plan-name" style="background:linear-gradient(135deg,#fbbf24,#f59e0b);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">Premium 4K</div>
+                <div class="plan-desc">Experiência máxima com 4K HDR e até 4 telas ao mesmo tempo.</div>
+                <div class="plan-price-wrap">
+                    <span class="plan-price-currency" style="color:rgba(251,191,36,.6);">R$</span>
+                    <span class="plan-price" id="price-premium" style="background:linear-gradient(135deg,#fbbf24,#f59e0b);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">39,90</span>
+                    <span class="plan-price-period">/mês</span>
+                </div>
+                <div class="plan-price-annual" id="annual-premium"></div>
+                <div class="plan-divider" style="background:rgba(250,191,36,.1);"></div>
+                <div class="plan-feature"><span class="feat-icon feat-icon-yes"><i class="fas fa-check feat-check"></i></span> 4 telas simultâneas</div>
+                <div class="plan-feature"><span class="feat-icon feat-icon-yes"><i class="fas fa-check feat-check"></i></span> Qualidade 4K Ultra HD</div>
+                <div class="plan-feature"><span class="feat-icon feat-icon-yes"><i class="fas fa-check feat-check"></i></span> Catálogo completo</div>
+                <div class="plan-feature sources-highlight"><span class="feat-icon feat-icon-yes"><i class="fas fa-check feat-check"></i></span> <span>Fontes premium desbloqueadas <span style="font-size:10px;opacity:.7;">(Vidzee, WarezCDN, Rive)</span></span></div>
+                <div class="plan-feature"><span class="feat-icon feat-icon-yes"><i class="fas fa-check feat-check"></i></span> Downloads offline</div>
+                <div class="plan-feature"><span class="feat-icon feat-icon-yes"><i class="fas fa-check feat-check"></i></span> Modo Kids protegido</div>
+                <div class="plan-feature"><span class="feat-icon feat-icon-yes"><i class="fas fa-check feat-check"></i></span> HDR / Dolby Vision</div>
+                <button class="plan-cta plan-cta-gold">Assinar Premium 4K</button>
+            </div>
+
         </div>
-        <div class="text-right">
-          <p class="text-white font-black">R$ 19,90<span class="text-gray-500 text-xs font-normal">/mês</span></p>
-          <button class="text-[10px] text-purple-400 font-bold mt-1 hover:text-purple-300">Mudar plano</button>
-        </div>
-      </div>
-      <div class="bg-white/5 border border-white/10 rounded-xl p-4 flex justify-between items-center hover:border-white/20 transition cursor-pointer">
-        <div>
-          <p class="text-white font-bold">Padrão</p>
-          <p class="text-gray-500 text-xs">2 telas • 1080p Full HD</p>
-        </div>
-        <div class="text-right">
-          <p class="text-white font-black">R$ 29,90<span class="text-gray-500 text-xs font-normal">/mês</span></p>
-          <button class="text-[10px] text-purple-400 font-bold mt-1 hover:text-purple-300">Mudar plano</button>
-        </div>
-      </div>
-      <div class="bg-gradient-to-r from-purple-600/20 to-yellow-500/10 border border-yellow-500/40 rounded-xl p-4 flex justify-between items-center cursor-pointer">
-        <div>
-          <p class="text-white font-bold flex items-center gap-1">Premium 4K <span class="text-[9px] bg-yellow-400 text-black px-2 py-0.5 rounded-full font-black">ATUAL</span></p>
-          <p class="text-gray-500 text-xs">4 telas • 4K Ultra HD</p>
-        </div>
-        <div class="text-right">
-          <p class="text-yellow-400 font-black">R$ 39,90<span class="text-gray-500 text-xs font-normal">/mês</span></p>
-        </div>
-      </div>
     </div>
-    <button onclick="closeModal('plansModal'); showToast('info','Planos','Entre em contato com o suporte para mudar de plano.')" class="w-full mt-5 py-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white font-bold text-sm transition">Cancelar Assinatura</button>
+
+    <!-- Garantia -->
+    <div style="padding: 44px 20px 0; max-width: 960px; margin: 0 auto; position:relative;z-index:1;">
+        <div class="garantia-card">
+            <div style="width:68px;height:68px;border-radius:50%;background:rgba(34,197,94,.1);border:1.5px solid rgba(34,197,94,.22);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                <i class="fas fa-shield-alt" style="font-size:26px;color:#4ade80;"></i>
+            </div>
+            <div style="flex:1;">
+                <p style="font-size:17px;font-weight:900;color:#fff;margin-bottom:5px;">Garantia de 7 dias sem perguntas</p>
+                <p style="font-size:13px;color:rgba(255,255,255,.42);line-height:1.65;max-width:500px;">Não gostou? Cancele nos primeiros 7 dias e receba reembolso integral. Sem taxas ocultas, sem burocracia. Você não tem nada a perder.</p>
+            </div>
+            <div style="text-align:center;flex-shrink:0;">
+                <p style="font-size:36px;font-weight:900;color:#4ade80;line-height:1;">7</p>
+                <p style="font-size:10px;font-weight:800;color:rgba(34,197,94,.55);letter-spacing:.12em;text-transform:uppercase;">dias grátis</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabela de comparação -->
+    <div style="padding: 60px 20px 0; max-width: 960px; margin: 0 auto; position:relative;z-index:1;">
+        <h2 style="font-size:22px;font-weight:900;color:#fff;text-align:center;margin-bottom:8px;letter-spacing:-.03em;">Compare os planos</h2>
+        <p style="text-align:center;font-size:13px;color:rgba(255,255,255,.3);margin-bottom:32px;">Todos os planos incluem as fontes premium de vídeo desbloqueadas.</p>
+        <div style="overflow-x:auto;border-radius:24px;border:1px solid rgba(255,255,255,.06);background:rgba(255,255,255,.015);">
+            <table class="compare-table">
+                <thead>
+                    <tr>
+                        <th style="width:36%;">Recurso</th>
+                        <th>Básico</th>
+                        <th class="compare-featured-col" style="color:#c084fc;">Padrão ⭐</th>
+                        <th style="color:#fbbf24;">Premium 👑</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td>Preço mensal</td><td>R$ 19,90</td><td class="compare-featured-col" style="color:#c084fc;font-weight:700;">R$ 29,90</td><td style="color:#fbbf24;font-weight:700;">R$ 39,90</td></tr>
+                    <tr><td>Telas simultâneas</td><td>1</td><td class="compare-featured-col">2</td><td>4</td></tr>
+                    <tr><td>Qualidade de vídeo</td><td>720p HD</td><td class="compare-featured-col">1080p Full HD</td><td>4K Ultra HD</td></tr>
+                    <tr><td>HDR / Dolby Vision</td><td><i class="fas fa-times compare-x"></i></td><td class="compare-featured-col"><i class="fas fa-times compare-x"></i></td><td><i class="fas fa-check compare-check"></i></td></tr>
+                    <tr><td>Catálogo completo</td><td><i class="fas fa-check compare-check"></i></td><td class="compare-featured-col"><i class="fas fa-check compare-check"></i></td><td><i class="fas fa-check compare-check"></i></td></tr>
+                    <tr><td style="color:#c084fc;font-weight:700;">🔓 Fontes premium (Vidzee, WarezCDN, Rivestream)</td><td><i class="fas fa-check compare-check"></i></td><td class="compare-featured-col"><i class="fas fa-check compare-check"></i></td><td><i class="fas fa-check compare-check"></i></td></tr>
+                    <tr><td>Downloads offline</td><td><i class="fas fa-times compare-x"></i></td><td class="compare-featured-col"><i class="fas fa-check compare-check"></i></td><td><i class="fas fa-check compare-check"></i></td></tr>
+                    <tr><td>Modo Kids protegido</td><td><i class="fas fa-times compare-x"></i></td><td class="compare-featured-col"><i class="fas fa-check compare-check"></i></td><td><i class="fas fa-check compare-check"></i></td></tr>
+                    <tr><td>Múltiplos perfis</td><td>1</td><td class="compare-featured-col">3</td><td>5</td></tr>
+                    <tr><td>Suporte prioritário</td><td><i class="fas fa-times compare-x"></i></td><td class="compare-featured-col"><i class="fas fa-times compare-x"></i></td><td><i class="fas fa-check compare-check"></i></td></tr>
+                    <tr><td>Ao Vivo & Futebol</td><td><i class="fas fa-check compare-check"></i></td><td class="compare-featured-col"><i class="fas fa-check compare-check"></i></td><td><i class="fas fa-check compare-check"></i></td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- FAQ -->
+    <div style="padding: 60px 20px 0; max-width: 700px; margin: 0 auto; position:relative;z-index:1;">
+        <h2 style="font-size:22px;font-weight:900;color:#fff;text-align:center;margin-bottom:36px;letter-spacing:-.03em;">Perguntas frequentes</h2>
+        <div id="faqList">
+            <div class="faq-item">
+                <button class="faq-q" onclick="togglePlanFaq(this)">
+                    O que são as "fontes premium"?
+                    <i class="fas fa-chevron-down faq-arrow"></i>
+                </button>
+                <div class="faq-a">São servidores de vídeo com melhor estabilidade, qualidade e dublagem em português. As fontes <strong>Vidzee</strong>, <strong>WarezCDN</strong> e <strong>Rivestream</strong> ficam disponíveis para todos os assinantes de qualquer plano pago. No plano gratuito, só as fontes básicas ficam acessíveis.</div>
+            </div>
+            <div class="faq-item">
+                <button class="faq-q" onclick="togglePlanFaq(this)">
+                    Posso cancelar a qualquer momento?
+                    <i class="fas fa-chevron-down faq-arrow"></i>
+                </button>
+                <div class="faq-a">Sim. Você pode cancelar a qualquer momento, sem multas ou taxas. Após o cancelamento, continua com acesso até o fim do período pago.</div>
+            </div>
+            <div class="faq-item">
+                <button class="faq-q" onclick="togglePlanFaq(this)">
+                    Qual a diferença entre mensal e anual?
+                    <i class="fas fa-chevron-down faq-arrow"></i>
+                </button>
+                <div class="faq-a">No plano anual você paga 12 meses de uma vez com desconto de até 25%. O acesso e os benefícios são exatamente iguais ao mensal, só o período de cobrança muda.</div>
+            </div>
+            <div class="faq-item">
+                <button class="faq-q" onclick="togglePlanFaq(this)">
+                    Posso mudar de plano depois?
+                    <i class="fas fa-chevron-down faq-arrow"></i>
+                </button>
+                <div class="faq-a">Sim, você pode fazer upgrade ou downgrade a qualquer momento. A diferença de valor é calculada proporcionalmente ao período restante.</div>
+            </div>
+            <div class="faq-item">
+                <button class="faq-q" onclick="togglePlanFaq(this)">
+                    Como funciona a garantia de 7 dias?
+                    <i class="fas fa-chevron-down faq-arrow"></i>
+                </button>
+                <div class="faq-a">Se por qualquer motivo você não ficar satisfeito nos primeiros 7 dias após a assinatura, basta entrar em contato pelo suporte e estornamos o valor integral sem questionamentos.</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer da tela -->
+    <div style="padding: 48px 20px 0; text-align:center; position:relative;z-index:1;">
+        <p style="font-size:11px;color:rgba(255,255,255,.18);max-width:500px;margin:0 auto;line-height:1.7;">Ao assinar você concorda com os Termos de Uso e a Política de Privacidade do HBO+.<br>Os preços podem ser alterados com aviso prévio de 30 dias.</p>
+    </div>
+
+</div>
+
+<!-- Modal de checkout -->
+<div id="checkoutModal" class="fixed inset-0 z-[500] hidden items-center justify-center p-4 overflow-y-auto" style="background:rgba(0,0,0,.85);backdrop-filter:blur(12px);">
+  <div class="relative w-full max-w-md animate-fade" style="background:rgba(10,5,20,.98);border:1px solid rgba(157,0,255,.3);border-radius:24px;padding:32px;box-shadow:0 32px 80px rgba(0,0,0,.7);">
+    <button onclick="closeModal('checkoutModal')" style="position:absolute;top:16px;right:16px;width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);color:rgba(255,255,255,.4);cursor:pointer;display:flex;align-items:center;justify-content:center;" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='rgba(255,255,255,.4)'">
+        <i class="fas fa-times text-xs"></i>
+    </button>
+
+    <!-- Sumário do plano -->
+    <div style="margin-bottom:24px;">
+        <p style="font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:rgba(157,0,255,.8);margin-bottom:8px;">Você escolheu</p>
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+            <div>
+                <p id="checkoutPlanName" style="font-size:20px;font-weight:900;color:#fff;"></p>
+                <p id="checkoutPlanPeriod" style="font-size:12px;color:rgba(255,255,255,.4);margin-top:2px;"></p>
+            </div>
+            <div style="text-align:right;">
+                <p id="checkoutPlanPrice" style="font-size:22px;font-weight:900;color:#fff;"></p>
+                <p style="font-size:10px;color:rgba(255,255,255,.3);">incl. impostos</p>
+            </div>
+        </div>
+    </div>
+
+    <div style="height:1px;background:rgba(255,255,255,.07);margin-bottom:24px;"></div>
+
+    <!-- Dados do cartão -->
+    <p style="font-size:12px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.4);margin-bottom:16px;">Dados de pagamento</p>
+
+    <div style="margin-bottom:14px;">
+        <label style="display:block;font-size:11px;color:rgba(255,255,255,.35);margin-bottom:6px;">Número do cartão</label>
+        <div style="position:relative;">
+            <input type="text" id="cardNumber" maxlength="19" placeholder="0000 0000 0000 0000" oninput="formatCard(this)" style="width:100%;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:12px 16px 12px 44px;color:#fff;font-size:14px;font-family:'Sora',sans-serif;outline:none;box-sizing:border-box;transition:border-color .2s;" onfocus="this.style.borderColor='rgba(157,0,255,.6)'" onblur="this.style.borderColor='rgba(255,255,255,.1)'">
+            <i class="fas fa-credit-card" style="position:absolute;left:14px;top:50%;transform:translateY(-50%);color:rgba(255,255,255,.2);font-size:14px;pointer-events:none;"></i>
+        </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;">
+        <div>
+            <label style="display:block;font-size:11px;color:rgba(255,255,255,.35);margin-bottom:6px;">Validade</label>
+            <input type="text" id="cardExpiry" maxlength="5" placeholder="MM/AA" oninput="formatExpiry(this)" style="width:100%;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:12px 16px;color:#fff;font-size:14px;font-family:'Sora',sans-serif;outline:none;box-sizing:border-box;transition:border-color .2s;" onfocus="this.style.borderColor='rgba(157,0,255,.6)'" onblur="this.style.borderColor='rgba(255,255,255,.1)'">
+        </div>
+        <div>
+            <label style="display:block;font-size:11px;color:rgba(255,255,255,.35);margin-bottom:6px;">CVV</label>
+            <input type="text" id="cardCvv" maxlength="4" placeholder="000" style="width:100%;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:12px 16px;color:#fff;font-size:14px;font-family:'Sora',sans-serif;outline:none;box-sizing:border-box;transition:border-color .2s;" onfocus="this.style.borderColor='rgba(157,0,255,.6)'" onblur="this.style.borderColor='rgba(255,255,255,.1)'">
+        </div>
+    </div>
+
+    <div style="margin-bottom:24px;">
+        <label style="display:block;font-size:11px;color:rgba(255,255,255,.35);margin-bottom:6px;">Nome no cartão</label>
+        <input type="text" id="cardName" placeholder="Como aparece no cartão" style="width:100%;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:12px 16px;color:#fff;font-size:14px;font-family:'Sora',sans-serif;outline:none;box-sizing:border-box;text-transform:uppercase;transition:border-color .2s;" onfocus="this.style.borderColor='rgba(157,0,255,.6)'" onblur="this.style.borderColor='rgba(255,255,255,.1)'">
+    </div>
+
+    <!-- Botão confirmar -->
+    <button onclick="confirmCheckout()" style="width:100%;padding:15px;border-radius:14px;background:linear-gradient(135deg,#9d00ff,#7c3aed);color:#fff;font-size:15px;font-weight:800;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;transition:all .2s;box-shadow:0 6px 24px rgba(157,0,255,.35);" onmouseover="this.style.filter='brightness(1.1)'" onmouseout="this.style.filter=''">
+        <i class="fas fa-lock" style="font-size:12px;"></i>
+        <span>Confirmar Assinatura</span>
+    </button>
+
+    <p style="text-align:center;font-size:11px;color:rgba(255,255,255,.2);margin-top:14px;line-height:1.6;">
+        <i class="fas fa-shield-alt" style="color:rgba(157,0,255,.5);margin-right:4px;"></i>
+        Pagamento seguro · Cancele quando quiser · 7 dias de garantia
+    </p>
+  </div>
+</div>
+
+<!-- Modal de plano ativado -->
+<div id="planSuccessModal" class="fixed inset-0 z-[600] hidden items-center justify-center p-4" style="background:rgba(0,0,0,.85);backdrop-filter:blur(12px);">
+  <div class="relative w-full max-w-sm text-center animate-fade" style="background:rgba(10,5,20,.98);border:1px solid rgba(34,197,94,.35);border-radius:24px;padding:40px 32px;box-shadow:0 32px 80px rgba(0,0,0,.7);">
+    <div style="width:72px;height:72px;border-radius:50%;background:rgba(34,197,94,.12);border:2px solid rgba(34,197,94,.3);display:flex;align-items:center;justify-content:center;margin:0 auto 20px;">
+        <i class="fas fa-check" style="font-size:28px;color:#4ade80;"></i>
+    </div>
+    <p style="font-size:22px;font-weight:900;color:#fff;margin-bottom:8px;">Plano ativado!</p>
+    <p id="planSuccessMsg" style="font-size:14px;color:rgba(255,255,255,.45);line-height:1.6;margin-bottom:28px;"></p>
+    <button onclick="closePlanSuccess()" style="width:100%;padding:14px;border-radius:14px;background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;font-size:14px;font-weight:800;border:none;cursor:pointer;transition:all .2s;" onmouseover="this.style.filter='brightness(1.1)'" onmouseout="this.style.filter=''">
+        Começar a assistir
+    </button>
+  </div>
+</div>
+
+<script>
+// ── Planos ────────────────────────────────────────────────────────────────────
+let _planPeriod = 'mensal';
+let _selectedPlan = null;
+
+const _planData = {
+    basico:  { name: 'Básico',       mensal: 19.90, anual: 14.90, label: '1 tela · 720p HD' },
+    padrao:  { name: 'Padrão',       mensal: 29.90, anual: 22.40, label: '2 telas · 1080p Full HD' },
+    premium: { name: 'Premium 4K',   mensal: 39.90, anual: 29.90, label: '4 telas · 4K Ultra HD' },
+};
+
+function setPlanPeriod(period) {
+    _planPeriod = period;
+    document.getElementById('toggleMensal').className = 'plan-toggle-btn' + (period === 'mensal' ? ' active' : '');
+    document.getElementById('toggleAnual').className  = 'plan-toggle-btn' + (period === 'anual'  ? ' active' : '');
+    const badge = document.getElementById('anualSavingsBadge');
+    badge.style.opacity = period === 'anual' ? '1' : '0';
+
+    for (const [key, data] of Object.entries(_planData)) {
+        const priceEl  = document.getElementById('price-' + key);
+        const annualEl = document.getElementById('annual-' + key);
+        if (!priceEl) continue;
+        if (period === 'anual') {
+            const anualTotal = (data.anual * 12).toFixed(2).replace('.', ',');
+            priceEl.textContent  = `${data.anual.toFixed(2).replace('.', ',')}`;
+            annualEl.textContent = `R$ ${anualTotal}/ano · cobrado anualmente`;
+        } else {
+            priceEl.textContent  = `${data.mensal.toFixed(2).replace('.', ',')}`;
+            annualEl.textContent = '';
+        }
+    }
+}
+
+function selectPlan(key) {
+    _selectedPlan = key;
+    const data = _planData[key];
+    const price = _planPeriod === 'anual' ? data.anual : data.mensal;
+    document.getElementById('checkoutPlanName').textContent   = data.name;
+    document.getElementById('checkoutPlanPeriod').textContent = _planPeriod === 'anual' ? 'Cobrado anualmente' : 'Cobrado mensalmente';
+    document.getElementById('checkoutPlanPrice').textContent  = `R$ ${price.toFixed(2).replace('.', ',')}`;
+    openModal('checkoutModal');
+}
+
+function formatCard(el) {
+    let v = el.value.replace(/\D/g, '').slice(0, 16);
+    el.value = v.replace(/(.{4})/g, '$1 ').trim();
+}
+
+function formatExpiry(el) {
+    let v = el.value.replace(/\D/g, '').slice(0, 4);
+    if (v.length >= 2) v = v.slice(0,2) + '/' + v.slice(2);
+    el.value = v;
+}
+
+function confirmCheckout() {
+    const num  = document.getElementById('cardNumber').value.replace(/\s/g, '');
+    const exp  = document.getElementById('cardExpiry').value;
+    const cvv  = document.getElementById('cardCvv').value;
+    const name = document.getElementById('cardName').value.trim();
+
+    if (num.length < 16 || exp.length < 5 || cvv.length < 3 || !name) {
+        showToast('warning', 'Dados incompletos', 'Preencha todos os campos do cartão.');
+        return;
+    }
+
+    closeModal('checkoutModal');
+
+    const data = _planData[_selectedPlan];
+    document.getElementById('planSuccessMsg').textContent = `Seu plano ${data.name} foi ativado com sucesso. Aproveite o melhor do streaming!`;
+    const modal = document.getElementById('planSuccessModal');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+
+    // Persiste o plano escolhido — libera fontes premium
+    localStorage.setItem('hbo_user_plan', _selectedPlan);
+
+    // Atualiza o plano na seção de perfil
+    showToast('success', '🎉 Bem-vindo!', `Plano ${data.name} ativado com sucesso.`, 8000);
+}
+
+function closePlanSuccess() {
+    const modal = document.getElementById('planSuccessModal');
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+    showSection('home');
+}
+
+function togglePlanFaq(btn) {
+    const a = btn.nextElementSibling;
+    const isOpen = a.classList.contains('open');
+    document.querySelectorAll('#faqList .faq-a').forEach(el => el.classList.remove('open'));
+    document.querySelectorAll('#faqList .faq-q').forEach(el => el.classList.remove('open'));
+    if (!isOpen) { a.classList.add('open'); btn.classList.add('open'); }
+}
+
+// Inicializa preços na primeira carga
+setPlanPeriod('mensal');
+</script>
+
+<!-- ══ MODAL: Planos (legado → redireciona para tela) ══ -->
+<div id="plansModal" class="fixed inset-0 z-[500] hidden items-center justify-center p-4" style="background:rgba(0,0,0,.85);backdrop-filter:blur(8px);">
+  <div class="relative bg-zinc-900 border border-white/10 rounded-2xl w-full max-w-sm p-8 shadow-2xl text-center animate-fade">
+    <i class="fas fa-crown text-yellow-400 text-3xl mb-4"></i>
+    <p class="text-white font-black text-lg mb-2">Quer mudar de plano?</p>
+    <p class="text-gray-500 text-sm mb-6">Veja todos os planos disponíveis e escolha o melhor para você.</p>
+    <button onclick="closeModal('plansModal'); showSection('plans');" class="w-full py-3 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-sm transition mb-3">Ver Planos</button>
+    <button onclick="closeModal('plansModal')" class="w-full py-2 text-gray-600 hover:text-gray-400 text-xs transition">Fechar</button>
   </div>
 </div>
 
@@ -8412,36 +9170,108 @@ const HOME_SECTIONS = [
 ];
 
 // ── Server check ──────────────────────────────────────────────────────────────
+// Estratégia de carregamento do catálogo:
+// 1. Tenta buscar o JSON estático do GitHub (raw.githubusercontent.com) — rápido, sem cold start
+// 2. Se falhar, cai pro servidor do Render normalmente
+// A URL do GitHub é descoberta via /api/github-catalog-url (cacheada em sessionStorage)
+
+const _GH_CATALOG_SS_KEY = 'hbo_gh_catalog_url';
+
+async function _getGithubCatalogUrl() {
+    const cached = sessionStorage.getItem(_GH_CATALOG_SS_KEY);
+    if (cached) return JSON.parse(cached);
+    try {
+        const r = await fetch(`${API}/github-catalog-url`, { signal: AbortSignal.timeout(8000) });
+        if (!r.ok) return null;
+        const data = await r.json();
+        if (data.catalogo) {
+            sessionStorage.setItem(_GH_CATALOG_SS_KEY, JSON.stringify(data));
+            return data;
+        }
+    } catch {}
+    return null;
+}
+
 async function checkServer() {
+    // ── 1. Tenta GitHub primeiro (rápido, sem acordar o Render) ──────────────
+    try {
+        const ghUrls = await _getGithubCatalogUrl();
+        if (ghUrls && ghUrls.catalogo) {
+            const r = await fetch(
+                ghUrls.catalogo + '?_t=' + Date.now(),   // cache-bust
+                { signal: AbortSignal.timeout(12000) }
+            );
+            if (r.ok) {
+                const data = await r.json();
+                // JSON válido se tiver pelo menos uma seção com itens
+                const hasContent = Object.values(data).some(v => Array.isArray(v) && v.length > 0);
+                if (hasContent) {
+                    catalogData  = data;
+                    serverOnline = true;
+                    document.getElementById('profileServerStatus') &&
+                        (document.getElementById('profileServerStatus').textContent = '🟢 Online (GitHub)');
+                    renderHome();
+                    renderMoviesPage();
+                    renderSeriesPage();
+                    if (kidsModeEnabled) {
+                        const activeSection = document.querySelector('.page-section:not(.hidden)');
+                        const activeId = activeSection ? activeSection.id.replace('section-', '') : '';
+                        if (activeId === 'home' || activeId === 'kids') showSection('kids');
+                    }
+                    console.log('[CATALOG] Carregado do GitHub ✅');
+                    return;   // sucesso — não precisa acordar o servidor
+                }
+            }
+        }
+    } catch (e) {
+        console.warn('[CATALOG] GitHub falhou, tentando servidor...', e);
+    }
+
+    // ── 2. Fallback: servidor do Render ───────────────────────────────────────
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 30000);
+    const timer = setTimeout(() => controller.abort(), 60000);  // 60s para cold start
 
     try {
         const r = await fetch(`${API}/catalogo`, { method: 'GET', signal: controller.signal });
         clearTimeout(timer);
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         catalogData = await r.json();
+
+        // Se o servidor ainda está construindo, tenta de novo em 5s
+        if (catalogData && catalogData._building) {
+            catalogData = {};
+            console.warn('[CATALOG] Servidor construindo catálogo, tentando em 5s...');
+            setTimeout(checkServer, 5000);
+            return;
+        }
+
         serverOnline = true;
-        document.getElementById('profileServerStatus')?.textContent && (document.getElementById('profileServerStatus').textContent = '🟢 Online');
+        document.getElementById('profileServerStatus') &&
+            (document.getElementById('profileServerStatus').textContent = '🟢 Online');
         renderHome();
         renderMoviesPage();
         renderSeriesPage();
-        // Se o modo kids estiver ativo, garantir que a área kids é mostrada
         if (kidsModeEnabled) {
             const activeSection = document.querySelector('.page-section:not(.hidden)');
             const activeId = activeSection ? activeSection.id.replace('section-', '') : '';
-            if (activeId === 'home' || activeId === 'kids') {
-                showSection('kids');
-            }
+            if (activeId === 'home' || activeId === 'kids') showSection('kids');
         }
     } catch(err) {
         clearTimeout(timer);
         serverOnline = false;
-        document.getElementById('profileServerStatus')?.textContent && (document.getElementById('profileServerStatus').textContent = '🔴 Serviço indisponível');
-        document.getElementById('homeRows').innerHTML = '<p class="text-gray-600 text-sm italic text-center py-12">Serviço indisponível. Tente novamente mais tarde.</p>';
+        document.getElementById('profileServerStatus') &&
+            (document.getElementById('profileServerStatus').textContent = '🔴 Serviço indisponível');
         const hero = document.getElementById('hero');
         if (hero) hero.style.display = '';
         document.body.style.overflow = '';
+        document.getElementById('homeRows').innerHTML = `
+            <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:60vh;gap:16px;text-align:center;padding:24px">
+                <p style="color:rgba(255,255,255,.45);font-size:13px;">O servidor está iniciando. Pode demorar até 1 minuto.</p>
+                <button onclick="recarregarCatalogo()"
+                    style="background:#9d00ff;color:white;border:none;padding:12px 28px;border-radius:99px;cursor:pointer;font-weight:800;font-size:13px;letter-spacing:.05em;">
+                    ↺ Tentar novamente
+                </button>
+            </div>`;
     }
 }
 
@@ -9642,6 +10472,15 @@ let _currentItemType = null;
 let _currentItemTitle = '';
 let _episodeList = []; // lista completa de episódios da temporada atual
 
+// Fontes reservadas para assinantes premium
+const PREMIUM_SOURCES = new Set(['Vidzee', 'WarezCDN', 'Rivestream']);
+
+function _userHasPremium() {
+    // Considera premium quem assinou qualquer plano pago (básico, padrão ou premium)
+    const plan = localStorage.getItem('hbo_user_plan');
+    return plan && plan !== 'free';
+}
+
 function startWatchingUrl(url, title = '', sources = []) {
     _currentSources = sources.length > 0 ? sources : [{ label: 'Fonte 1', url }];
     document.getElementById('playerTitle').textContent = title;
@@ -9659,7 +10498,37 @@ function startWatchingUrl(url, title = '', sources = []) {
         'from-violet-600/30 to-purple-600/20 border-violet-500/40 hover:border-violet-400',
         'from-indigo-600/30 to-blue-600/20 border-indigo-500/40 hover:border-indigo-400',
     ];
-    document.getElementById('serverPickerBtns').innerHTML = _currentSources.map((s, i) => `
+    const hasPremium = _userHasPremium();
+
+    document.getElementById('serverPickerBtns').innerHTML = _currentSources.map((s, i) => {
+        const isPrem  = PREMIUM_SOURCES.has(s.label);
+        const locked  = isPrem && !hasPremium;
+
+        let badge = '';
+        if (s.label === 'Vidzee')   badge = '<span class="inline-block mt-1 text-[9px] font-bold bg-purple-500/20 text-purple-300 border border-purple-500/30 rounded-full px-2 py-0.5">⭐ Recomendado</span>';
+        else if (s.label === 'WarezCDN') badge = '<span class="inline-block mt-1 text-[9px] font-bold bg-green-500/20 text-green-300 border border-green-500/30 rounded-full px-2 py-0.5">🇧🇷 Foco em Dub PT</span>';
+        else badge = `<span class="block text-[9px] text-gray-400 mt-0.5">Servidor ${i + 1}</span>`;
+
+        if (locked) {
+            return `
+            <button onclick="showSection('plans')"
+                class="group relative flex flex-col items-center gap-3 bg-gradient-to-br from-zinc-800/60 to-zinc-900/60 border border-white/10 backdrop-blur transition-all duration-300 rounded-2xl p-5 w-full hover:scale-[1.02] active:scale-95 overflow-hidden cursor-pointer">
+                <div class="absolute inset-0 bg-black/40 rounded-2xl z-10 flex flex-col items-center justify-center gap-1 backdrop-blur-[2px]">
+                    <i class="fas fa-lock text-yellow-400 text-xl"></i>
+                    <span class="text-[10px] font-black text-yellow-300 uppercase tracking-wider">Premium</span>
+                    <span class="text-[9px] text-yellow-200/60">Assine para desbloquear</span>
+                </div>
+                <div class="w-11 h-11 rounded-xl bg-white/5 flex items-center justify-center opacity-40">
+                    <i class="fas ${serverIcons[i % serverIcons.length]} text-lg text-white"></i>
+                </div>
+                <div class="text-center opacity-40">
+                    <span class="block text-xs font-bold text-white tracking-wide">${s.label}</span>
+                    ${badge}
+                </div>
+            </button>`;
+        }
+
+        return `
         <button onclick="loadSource('${s.url}', ${i})"
             class="group flex flex-col items-center gap-3 bg-gradient-to-br ${serverColors[i % serverColors.length]} border backdrop-blur transition-all duration-300 rounded-2xl p-5 w-full hover:scale-[1.03] active:scale-95">
             <div class="w-11 h-11 rounded-xl bg-white/10 group-hover:bg-white/20 flex items-center justify-center transition-all">
@@ -9667,18 +10536,25 @@ function startWatchingUrl(url, title = '', sources = []) {
             </div>
             <div class="text-center">
                 <span class="block text-xs font-bold text-white tracking-wide">${s.label}</span>
-                ${s.label === 'WarezCDN' ? '<span class="inline-block mt-1 text-[9px] font-bold bg-green-500/20 text-green-300 border border-green-500/30 rounded-full px-2 py-0.5">🇧🇷 Foco em Dub PT</span>' : '<span class="block text-[9px] text-gray-400 mt-0.5">Servidor ' + (i + 1) + '</span>'}
+                ${badge}
             </div>
-        </button>
-    `).join('');
+        </button>`;
+    }).join('');
 
     const btns = document.getElementById('sourceBtns');
-    btns.innerHTML = _currentSources.map((s, i) => `
-        <button onclick="switchSource('${s.url}', ${i})"
+    btns.innerHTML = _currentSources.map((s, i) => {
+        const locked = PREMIUM_SOURCES.has(s.label) && !hasPremium;
+        if (locked) {
+            return `<button onclick="showSection('plans')"
+                class="source-btn text-[10px] font-bold px-3 py-1 rounded-full border transition bg-yellow-500/10 border-yellow-500/30 text-yellow-400 hover:bg-yellow-500/20 flex items-center gap-1">
+                <i class="fas fa-lock text-[9px]"></i> ${s.label}
+            </button>`;
+        }
+        return `<button onclick="switchSource('${s.url}', ${i})"
             class="source-btn text-[10px] font-bold px-3 py-1 rounded-full border transition bg-white/5 border-white/20 text-gray-400 hover:border-purple-500">
-            ${s.label}${s.label === 'WarezCDN' ? ' 🇧🇷' : ''}
-        </button>
-    `).join('');
+            ${s.label}${s.label === 'Vidzee' ? ' ⭐' : s.label === 'WarezCDN' ? ' 🇧🇷' : ''}
+        </button>`;
+    }).join('');
     btns.classList.add('hidden');
     // Mostrar/esconder botões de nav de episódio
     if (typeof updateEpNavButtons === 'function') updateEpNavButtons();
@@ -9687,18 +10563,20 @@ function startWatchingUrl(url, title = '', sources = []) {
 function player_urls(tmdb_id, tipo, season = 1, ep = 1) {
     if (tipo === 'tv') {
         return [
-            { label: 'WarezCDN', url: `https://warezcdn.site/serie/${tmdb_id}/${season}/${ep}` },
-            { label: 'VidSrc', url: `https://vidsrc-embed.ru/embed/tv/${tmdb_id}/${season}-${ep}` },
-            { label: 'MoviesAPI', url: `https://moviesapi.club/tv/${tmdb_id}-${season}-${ep}` },
+            { label: 'Vidzee',     url: `https://player.vidzee.wtf/embed/tv/${tmdb_id}/${season}/${ep}?server=5` },
+            { label: 'WarezCDN',   url: `https://warezcdn.site/serie/${tmdb_id}/${season}/${ep}` },
+            { label: 'VidSrc',     url: `https://vidsrc-embed.ru/embed/tv/${tmdb_id}/${season}-${ep}` },
+            { label: 'MoviesAPI',  url: `https://moviesapi.club/tv/${tmdb_id}-${season}-${ep}` },
             { label: 'MultiEmbed', url: `https://multiembed.mov/directstream.php?video_id=${tmdb_id}&tmdb=1&s=${season}&e=${ep}` },
             { label: 'VidSrc Win', url: `https://vidsrc.win/watch/${tmdb_id}` },
             { label: 'Rivestream', url: `https://rivestream.org/embed?type=tv&id=${tmdb_id}&season=${season}&episode=${ep}` }
         ];
     }
     return [
-        { label: 'WarezCDN', url: `https://warezcdn.site/filme/${tmdb_id}` },
-        { label: 'VidSrc', url: `https://vidsrc-embed.ru/embed/movie/${tmdb_id}` },
-        { label: 'MoviesAPI', url: `https://moviesapi.club/movie/${tmdb_id}` },
+        { label: 'Vidzee',     url: `https://player.vidzee.wtf/embed/movie/${tmdb_id}?server=5` },
+        { label: 'WarezCDN',   url: `https://warezcdn.site/filme/${tmdb_id}` },
+        { label: 'VidSrc',     url: `https://vidsrc-embed.ru/embed/movie/${tmdb_id}` },
+        { label: 'MoviesAPI',  url: `https://moviesapi.club/movie/${tmdb_id}` },
         { label: 'MultiEmbed', url: `https://multiembed.mov/directstream.php?video_id=${tmdb_id}&tmdb=1` },
         { label: 'VidSrc Win', url: `https://vidsrc.win/watch/${tmdb_id}` },
         { label: 'Rivestream', url: `https://rivestream.org/embed?type=movie&id=${tmdb_id}` }
@@ -9777,6 +10655,9 @@ function navigateEpisode(delta) {
     document.getElementById('playerFrame').classList.remove('hidden');
     document.getElementById('playerFrame').src = src[0].url;
     updateEpNavButtons();
+    cancelAutoplay();
+    _vidzeeLastTriggeredEp = null; // permite trigger no novo episódio
+    _scheduleAutoplayBanner();
     // Cooldown de 3s para evitar cliques rápidos e conexão recusada
     _epNavCooldown = true;
     const prevBtn = document.getElementById('epPrevBtn');
@@ -9805,6 +10686,7 @@ function updateEpNavButtons() {
     if (!prevBtn || !nextBtn) return;
     prevBtn.style.display = (idx > 0) ? 'flex' : 'none';
     nextBtn.style.display = (idx < _episodeList.length - 1) ? 'flex' : 'none';
+    _refreshNextEpQuickBtn();
 }
 
 const INTRO_URL = 'https://cdn.jsdelivr.net/gh/GmbrTeam/hbo@master/entradas%20-%20Trim.mp4';
@@ -9865,15 +10747,97 @@ function seekIntro(e) {
 
 let _notWorkingTimer = null;
 
+// ── Auto-next: Vidzee postMessage + fallback dinâmico via TMDb ────────────────
+
+let _autoplayBannerTimer  = null;
+let _vidzeeLastTriggeredEp = null; // evita re-trigger duplo
+
+// Busca duração real do ep via /api/ep-duration e seta fallback timer
+async function _scheduleAutoplayBanner() {
+    clearTimeout(_autoplayBannerTimer);
+    if (!_autoplayEnabled || _currentItemType !== 'tv') return;
+    const idx = _episodeList.findIndex(ep => ep.id === _currentEpisode);
+    const hasNext = idx !== -1 && idx < _episodeList.length - 1;
+    if (!hasNext) return;
+
+    // Tenta obter duração real do episódio
+    let fallbackMs = 22 * 60 * 1000; // padrão 22 min
+    try {
+        const res = await fetch(`/api/ep-duration?tmdb_id=${_currentTmdbId}&season=${_currentSeason}&ep=${_currentEpisode}`);
+        const data = await res.json();
+        if (data.duration && data.duration > 0) fallbackMs = data.duration * 1000;
+    } catch {}
+
+    _autoplayBannerTimer = setTimeout(() => {
+        const key = `s${_currentSeason}e${_currentEpisode}`;
+        const banner = document.getElementById('nextEpBanner');
+        if (banner && banner.style.display === 'none' && _vidzeeLastTriggeredEp !== key) {
+            _vidzeeLastTriggeredEp = key;
+            showNextEpBanner();
+        }
+    }, fallbackMs);
+}
+
+// Listener de postMessage do Vidzee (PLAYER_EVENT e MEDIA_DATA)
+window.addEventListener('message', (event) => {
+    if (event.origin !== 'https://player.vidzee.wtf') return;
+    if (_currentItemType !== 'tv') return;
+
+    const msg = event.data;
+
+    // ── Evento oficial do Vidzee ──────────────────────────────────────────
+    if (msg?.type === 'PLAYER_EVENT') {
+        const { event: evType, season, episode } = msg.data || {};
+        if (season)  _currentSeason  = season;
+        if (episode) _currentEpisode = episode;
+
+        if (evType === 'ended') {
+            const key = `s${_currentSeason}e${_currentEpisode}`;
+            const banner = document.getElementById('nextEpBanner');
+            if (_vidzeeLastTriggeredEp !== key && banner && banner.style.display === 'none') {
+                _vidzeeLastTriggeredEp = key;
+                showNextEpBanner();
+            }
+        }
+        return;
+    }
+
+    // ── MEDIA_DATA: dispara por progresso ≥ 92% ───────────────────────────
+    if (msg?.type === 'MEDIA_DATA') {
+        const media = (msg.data || {})[String(_currentTmdbId)];
+        if (!media) return;
+        if (media.last_season_watched)  _currentSeason  = parseInt(media.last_season_watched);
+        if (media.last_episode_watched) _currentEpisode = parseInt(media.last_episode_watched);
+
+        if (media.show_progress) {
+            const key = `s${_currentSeason}e${_currentEpisode}`;
+            const ep  = media.show_progress[key];
+            if (ep?.progress) {
+                const { watched, duration } = ep.progress;
+                const pct = duration > 0 ? watched / duration : 0;
+                const banner = document.getElementById('nextEpBanner');
+                if (pct >= 0.92 && _vidzeeLastTriggeredEp !== key && banner && banner.style.display === 'none') {
+                    _vidzeeLastTriggeredEp = key;
+                    showNextEpBanner();
+                }
+            }
+        }
+    }
+});
+
+
 function loadSource(url, idx) {
     document.getElementById('serverPicker').classList.add('hidden');
     document.getElementById('sourceBtns').classList.remove('hidden');
     _markActiveSource(idx);
+    cancelAutoplay(); // cancela banner anterior se trocou de fonte
+    _vidzeeLastTriggeredEp = null; // permite re-trigger no novo episódio/fonte
 
     playIntroThen(() => {
         document.getElementById('playerFrame').classList.remove('hidden');
         document.getElementById('playerFrame').src = url;
         _scheduleNotWorking(idx);
+        _scheduleAutoplayBanner();
     });
 }
 
@@ -9935,7 +10899,122 @@ function closeSourceError() {
     modal.classList.add('hidden');
     modal.classList.remove('flex');
 }
+// ── Autoplay próximo episódio ─────────────────────────────────────────────────
+let _autoplayEnabled = true;
+let _autoplayTimer = null;
+let _autoplayCountdown = 15; // segundos
+let _autoplayInterval = null;
+
+function toggleAutoplay() {
+    _autoplayEnabled = !_autoplayEnabled;
+    _updateAutoplayUI();
+    if (!_autoplayEnabled) cancelAutoplay();
+    showToast(_autoplayEnabled ? 'success' : 'info',
+        _autoplayEnabled ? '▶ Autoplay ativado' : '⏸ Autoplay desativado',
+        _autoplayEnabled ? 'Próximo episódio será reproduzido automaticamente.' : 'Troca automática desativada.');
+}
+
+function _updateAutoplayUI() {
+    const btn   = document.getElementById('autoplayToggleBtn');
+    const icon  = document.getElementById('autoplayIcon');
+    const label = document.getElementById('autoplayLabel');
+    if (!btn) return;
+    if (_autoplayEnabled) {
+        btn.style.color = '#c084fc';
+        btn.style.borderColor = 'rgba(157,0,255,.45)';
+        btn.style.background = 'rgba(157,0,255,.12)';
+        if (icon)  icon.style.color = '#9d00ff';
+        if (label) label.textContent = 'AUTO';
+    } else {
+        btn.style.color = 'rgba(255,255,255,.35)';
+        btn.style.borderColor = 'rgba(255,255,255,.1)';
+        btn.style.background = 'rgba(255,255,255,.03)';
+        if (icon)  icon.style.color = '';
+        if (label) label.textContent = 'AUTO';
+    }
+}
+
+function showNextEpBanner() {
+    if (!_episodeList.length) return;
+    const idx = _episodeList.findIndex(ep => ep.id === _currentEpisode);
+    if (idx === -1 || idx >= _episodeList.length - 1) return; // sem próximo
+    const nextEp = _episodeList[idx + 1];
+    const banner  = document.getElementById('nextEpBanner');
+    const infoEl  = document.getElementById('nextEpInfo');
+    const bar     = document.getElementById('nextEpProgress');
+    if (!banner || !infoEl) return;
+
+    const nextTitle = nextEp.name || `Episódio ${nextEp.id}`;
+    infoEl.textContent = `S${_currentSeason} E${nextEp.id} — ${nextTitle}`;
+    banner.style.display = 'block';
+
+    // Countdown
+    let remaining = _autoplayCountdown;
+    bar.style.transition = 'none';
+    bar.style.width = '100%';
+    // Force reflow
+    void bar.offsetWidth;
+    bar.style.transition = `width ${_autoplayCountdown}s linear`;
+    bar.style.width = '0%';
+
+    clearInterval(_autoplayInterval);
+    _autoplayInterval = setInterval(() => {
+        remaining--;
+        if (remaining <= 0) {
+            clearInterval(_autoplayInterval);
+            if (_autoplayEnabled) triggerAutoplayNow();
+        }
+    }, 1000);
+}
+
+function triggerAutoplayNow() {
+    cancelAutoplay(true); // fecha banner mas não cancela — vai tocar
+    navigateEpisode(1);
+}
+
+function cancelAutoplay(silent = false) {
+    clearInterval(_autoplayInterval);
+    clearTimeout(_autoplayBannerTimer);
+    const banner = document.getElementById('nextEpBanner');
+    if (banner) banner.style.display = 'none';
+}
+
+function _maybeShowAutoplay() {
+    // Detecta mensagens de fim de vídeo dos players (postMessage)
+    // Alguns players (vidsrc, moviesapi) enviam eventos quando acabam
+}
+
+// Escuta postMessage dos iframes (vidsrc e similares enviam ended / timeupdate)
+window.addEventListener('message', function(e) {
+    try {
+        const data = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
+        // Detecta fim de vídeo em vários formatos
+        const isEnded = data.event === 'ended' || data.type === 'ended' ||
+            data.event === 'video:ended' || data === 'ended' ||
+            data.status === 'ended' || (data.info && data.info === 'ended');
+        if (isEnded && _autoplayEnabled) {
+            const banner = document.getElementById('nextEpBanner');
+            if (!banner || banner.style.display === 'none') showNextEpBanner();
+        }
+    } catch(err) { /* ignora mensagens não-JSON */ }
+});
+
+// ── Botão fixo "Próximo Ep" visível durante reprodução ────────────────────────
+function _refreshNextEpQuickBtn() {
+    // O botão epNextBtn já existe — apenas mostra/esconde e mostra banner ao clicar
+    // Também injetamos um Quick-jump pill embaixo do player
+    const idx = _episodeList.findIndex(ep => ep.id === _currentEpisode);
+    const hasNext = idx !== -1 && idx < _episodeList.length - 1;
+    // Mostra autoplay toggle quando é série
+    const toggleBtn = document.getElementById('autoplayToggleBtn');
+    if (toggleBtn) {
+        toggleBtn.style.display = (_currentItemType === 'tv' && hasNext) ? 'flex' : 'none';
+        _updateAutoplayUI();
+    }
+}
+
 function closePlayer() {
+    cancelAutoplay();
     clearTimeout(_notWorkingTimer);
     _introCallback = null;
     const vid = document.getElementById('introVideo');
@@ -9950,6 +11029,8 @@ function closePlayer() {
     const nextBtn = document.getElementById('epNextBtn');
     if (prevBtn) prevBtn.style.display = 'none';
     if (nextBtn) nextBtn.style.display = 'none';
+    const toggleBtn = document.getElementById('autoplayToggleBtn');
+    if (toggleBtn) toggleBtn.style.display = 'none';
 }
 
 // ── Search ────────────────────────────────────────────────────────────────────
@@ -10215,7 +11296,8 @@ async function showSection(id) {
         'profile-picker': '/home',
         'kids': '/kids',
         'futebol': '/futebol',
-        'aovivo': '/aovivo'
+        'aovivo': '/aovivo',
+        'plans': '/plans'
     };
     
     if (pathMap[id]) {
@@ -10681,7 +11763,7 @@ window.loadGenre = async function(nome, tipo) {
 
 // ── checkServer modificado: se falhar → ativa demo ────────────────────────────
 async function checkServer() {
-  const MAX_RETRIES = 10;   // tenta por até ~30s enquanto o servidor monta o catálogo
+  const MAX_RETRIES = 20;   // tenta por até ~60s enquanto o servidor monta o catálogo
   const RETRY_DELAY = 3000; // 3s entre tentativas
 
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
@@ -10691,20 +11773,42 @@ async function checkServer() {
       const r = await fetch(`${API}/catalogo`, { method:'GET', signal:controller.signal });
       clearTimeout(timer);
 
-      // 202 = catálogo ainda sendo construído no servidor (primeiros segundos após deploy)
+      // 202 = catálogo ainda sendo construído no servidor
       if (r.status === 202) {
-        if (attempt === 0) {
-          // Mostra feedback ao usuário só na primeira vez
-          const hero = document.getElementById('hero');
-          if (hero) hero.style.display = '';
+        const body = await r.json().catch(() => ({}));
+        if (body._building) {
+          // Atualiza mensagem de loading para o usuário
+          const homeRows = document.getElementById('homeRows');
+          if (homeRows && attempt > 0) {
+            homeRows.innerHTML = `
+              <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:50vh;gap:16px">
+                <p style="font-size:13px;font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:rgba(255,255,255,.45)">Preparando catálogo… ${attempt * 3}s</p>
+                <div style="display:flex;gap:10px;align-items:center">
+                  <span class="dot-bounce" style="animation-delay:0s"></span>
+                  <span class="dot-bounce" style="animation-delay:.2s"></span>
+                  <span class="dot-bounce" style="animation-delay:.4s"></span>
+                </div>
+              </div>`;
+          }
+          await new Promise(res => setTimeout(res, RETRY_DELAY));
+          continue;
         }
+      }
+
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const data = await r.json();
+
+      // Garante que o catálogo tem dados reais (não apenas _building)
+      if (!data || data._building || Object.keys(data).length === 0) {
         await new Promise(res => setTimeout(res, RETRY_DELAY));
         continue;
       }
 
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      catalogData = await r.json();
+      catalogData = data;
       serverOnline = true;
+      const hero = document.getElementById('hero');
+      if (hero) hero.style.display = '';
+      document.body.style.overflow = '';
       renderHome();
       renderMoviesPage();
       renderSeriesPage();
@@ -10716,6 +11820,7 @@ async function checkServer() {
       return; // sucesso — sai do loop
     } catch(err) {
       clearTimeout(timer);
+      console.warn(`[checkServer] tentativa ${attempt + 1}/${MAX_RETRIES} falhou:`, err.message);
       // Só ativa demo depois de esgotar as tentativas
       if (attempt === MAX_RETRIES - 1) {
         _activateDemoMode();
