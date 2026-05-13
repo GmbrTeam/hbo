@@ -1587,14 +1587,37 @@ def _catalogo_job():
         time.sleep(CACHE_TTL)  # dorme 1h e repete
 
 
+_catalogo_rebuilding = False
+
 @app.route("/api/catalogo")
 def catalogo():
-    # So le — nunca constroi na hora do request
+    global _catalogo_rebuilding
+
+    # 1. Cache fresco em memória/banco → retorna imediatamente
     cached = cache_get("catalogo")
     if cached:
         return jsonify(cached)
-    # Fallback: cache ainda nao pronto (primeiros segundos apos deploy)
-    # Retorna vazio com flag para o frontend tentar de novo em 3s
+
+    # 2. Cache expirado mas dado existe no banco → serve o stale e reconstrói em background
+    stale = _disk_read("catalogo", ttl=999_999_999)  # ignora TTL — só checa se existe
+    if stale:
+        if not _catalogo_rebuilding:
+            _catalogo_rebuilding = True
+            def _rebuild():
+                global _catalogo_rebuilding
+                try:
+                    resultado = _build_catalogo()
+                    cache_set("catalogo", resultado)
+                    push_catalogo_to_github(resultado)
+                except Exception as e:
+                    print(f"[CATALOGO] Falha no rebuild background: {e}")
+                finally:
+                    _catalogo_rebuilding = False
+            import threading as _th
+            _th.Thread(target=_rebuild, daemon=True, name="catalogo-rebuild").start()
+        return jsonify(stale)  # retorna o dado antigo agora — sem travar o usuário
+
+    # 3. Dado nunca foi gerado (primeiro deploy) → informa o frontend
     return jsonify({"_building": True}), 202
 
 
@@ -2593,17 +2616,23 @@ def _warmup():
     def _run():
         time.sleep(2)  # aguarda Flask terminar de subir
 
-        # 1. Catalogo — constroi agora se nao tiver cache no disco
+        # 1. Catalogo — só constrói se não houver NENHUM dado no banco (nem stale)
         try:
-            if not cache_get("catalogo"):
+            stale = _disk_read("catalogo", ttl=999_999_999)
+            if stale:
+                # Dado existe no banco — apenas repopula memória e agenda rebuild suave
+                cache_set("catalogo", stale)
+                print("[WARMUP] Cache stale encontrado, servindo imediatamente. Rebuild em background...")
+                resultado = _build_catalogo()
+                cache_set("catalogo", resultado)
+                push_catalogo_to_github(resultado)
+                print("[WARMUP] Catalogo atualizado em background.")
+            else:
                 print("[WARMUP] Sem cache — construindo catalogo inicial...")
                 resultado = _build_catalogo()
                 cache_set("catalogo", resultado)
                 print("[WARMUP] Catalogo inicial pronto.")
-                # Push imediato pro GitHub
                 push_catalogo_to_github(resultado)
-            else:
-                print("[WARMUP] Cache do catalogo encontrado, pulando build inicial.")
         except Exception as e:
             print(f"[WARMUP] Falha no catalogo inicial: {e}")
 
